@@ -1,0 +1,17 @@
+---
+description: Token-saving rules for AI agents working in this repo
+alwaysApply: true
+---
+
+# Token-saving rules
+
+- Keep replies short. Skip recaps, restating the task and filler.
+- Read only the files you need. Search with `rg` or a codebase search before opening files, and read a targeted line range instead of whole large files.
+- Never re-read a file you already have in context unless it changed.
+- Edit with minimal diffs. Do not rewrite or regenerate whole files for small changes.
+- Do not paste large file contents, logs or diffs into replies; summarise them and reference the path.
+- Batch independent tool calls in parallel instead of running them one by one.
+- Skip build/generated folders: `build/`, `.gradle/`, `DerivedData/`, `Pods/`, `.build/`, `*.lock`, `*.min.*`, generated assets.
+- Do not run full builds or test suites after every edit; run the narrowest check that proves the change, then one full check at the end.
+- Ask one concise question only when blocked; otherwise make a reasonable choice and continue.
+- Do not add comments, docs or refactors that weren't asked for.
