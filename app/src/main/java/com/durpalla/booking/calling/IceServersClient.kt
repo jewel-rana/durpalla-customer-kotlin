@@ -11,14 +11,15 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * ICE servers from create/accept (`iceServers` + optional `ttl`), or fallback
- * `GET /calls/ice-servers` when that field is null. Cache GET for at most `ttl/2`.
+ * `GET /calls/ice-servers` then STUN when `iceServers` is null (ttl usually absent then).
+ * Cache GET for at most `ttl/2`.
  */
 object IceServersClient {
     @Volatile private var cached: IceServersResponse? = null
     @Volatile private var cachedUntilMs: Long = 0L
 
     /**
-     * Prefer [inline] from create/accept when non-null; otherwise GET ice-servers / STUN.
+     * Prefer [inline] from create/accept when non-null; otherwise GET ice-servers, then STUN.
      */
     suspend fun resolve(api: ApiClient?, inline: IceServersResponse?): IceServersResponse {
         if (inline != null) return inline

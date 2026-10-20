@@ -145,7 +145,7 @@ calls/{callId}/calleeCandidates/{auto} { candidate: string, sdpMid: string, sdpM
 1. **Caller** right after POST /calls: join with create-response `agora` `{ appId, channel, token, uid, expiresAt }` (`expiresAt` epoch seconds).
 2. **Callee** after accept: join with accept-response `agora`. Channel = server `channel` if non-blank, else `call_{callId}`.
 3. Voice SDK: `CHANNEL_PROFILE_COMMUNICATION`, broadcaster, `AUDIO_PROFILE_SPEECH_STANDARD`, `AUDIO_SCENARIO_CHATROOM`.
-4. Connected on `onUserJoined`. Renew only via `POST /calls/{id}/token` on `onTokenPrivilegeWillExpire`. Weak hint: quality ≥ 4 or rtc stats (loss ≥ 5% / lastmile RTT ≥ 400ms); clear after 3 good samples.
+4. Connected on `onUserJoined`. Renew only via `POST /calls/{id}/token` on `onTokenPrivilegeWillExpire`. On 409 `CALL_PROVIDER_MISMATCH` / `CALL_ALREADY_ENDED`, stop renewing and end locally with the localized message. Weak hint: quality ≥ 4 or rtc stats (loss ≥ 5% / lastmile RTT ≥ 400ms); clear after 3 good samples.
 5. On end / decline / failure: `leaveChannel`. No Firestore SDP/ICE writes.
 
 ### Busy / timeout
