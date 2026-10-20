@@ -51,6 +51,8 @@ data class CallSession(
     val reason: String? = null,
     val muted: Boolean = false,
     val speakerOn: Boolean = false,
+    /** True when adaptive bitrate stepped below 24 kbps (weak network). */
+    val weakConnection: Boolean = false,
 )
 
 data class CallLogEntry(

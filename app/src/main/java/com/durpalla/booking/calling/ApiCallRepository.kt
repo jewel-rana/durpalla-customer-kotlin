@@ -42,6 +42,9 @@ class ApiCallRepository(
     private var watchJob: Job? = null
     private var missJob: Job? = null
     private var startedAt = 0L
+    private var lastSeenOfferSdp: String? = null
+    private var lastLocalOfferSdp: String? = null
+    private var lastSeenAnswerSdp: String? = null
 
     private fun userId(): String =
         session.user.value.str("id", "_id", default = session.token?.take(12) ?: "customer")
@@ -74,6 +77,8 @@ class ApiCallRepository(
         CallForegroundService.start(context, driverName, outgoing = true)
         awaitEngine(asCaller = true)
         val offer = engine!!.createOffer()
+        lastLocalOfferSdp = offer.sdp
+        lastSeenOfferSdp = offer.sdp
         signaling.setOffer(callId, offer)
         watchRemote(callId, asCaller = true)
         armMissTimer(callId, driverName, tripId)
@@ -104,7 +109,10 @@ class ApiCallRepository(
         CallNotifications.cancelIncoming(context)
         awaitEngine(asCaller = false)
         val snap = signaling.observeCall(s.callId).first { it.offer != null }
-        snap.offer?.let { engine!!.setRemote(it) }
+        snap.offer?.let {
+            lastSeenOfferSdp = it.sdp
+            engine!!.setRemote(it)
+        }
         val answer = engine!!.createAnswer()
         signaling.setAnswer(s.callId, answer)
         update(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
@@ -159,6 +167,18 @@ class ApiCallRepository(
                     }
                 }
             },
+            onWeakConnection = { weak ->
+                _session.value = _session.value?.copy(weakConnection = weak)
+            },
+            onRenegotiateOffer = { offer ->
+                scope.launch {
+                    val id = _session.value?.callId ?: return@launch
+                    lastLocalOfferSdp = offer.sdp
+                    lastSeenOfferSdp = offer.sdp
+                    // ICE restart: publish refreshed offer (driver contract).
+                    runCatching { signaling.setOffer(id, offer) }
+                }
+            },
         )
         if (asCaller) {
             iceJob = scope.launch {
@@ -180,8 +200,30 @@ class ApiCallRepository(
                     }
                     else -> {}
                 }
-                if (asCaller && snap.answer != null && _session.value?.status != CallStatus.ACCEPTED) {
-                    runCatching { engine?.setRemote(snap.answer) }
+                val answer = snap.answer
+                if (asCaller && answer != null && answer.sdp != lastSeenAnswerSdp) {
+                    lastSeenAnswerSdp = answer.sdp
+                    // Initial answer or ICE-restart answer.
+                    runCatching { engine?.setRemote(answer) }
+                    if (_session.value?.status != CallStatus.ACCEPTED) {
+                        update(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
+                    }
+                }
+                val offer = snap.offer
+                if (offer != null &&
+                    offer.sdp != lastSeenOfferSdp &&
+                    offer.sdp != lastLocalOfferSdp &&
+                    _session.value?.status == CallStatus.ACCEPTED
+                ) {
+                    // Peer ICE-restart offer → answer (either role).
+                    lastSeenOfferSdp = offer.sdp
+                    runCatching {
+                        engine?.setRemote(offer)
+                        val answer = engine?.createAnswer()
+                        if (answer != null) signaling.setAnswer(callId, answer)
+                    }
+                } else if (offer != null) {
+                    lastSeenOfferSdp = offer.sdp
                 }
             }
         }
@@ -232,5 +274,8 @@ class ApiCallRepository(
     private fun disposeMedia() {
         engine?.dispose()
         engine = null
+        lastSeenOfferSdp = null
+        lastLocalOfferSdp = null
+        lastSeenAnswerSdp = null
     }
 }

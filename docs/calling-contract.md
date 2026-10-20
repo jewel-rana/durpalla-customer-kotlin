@@ -62,3 +62,20 @@ callerName: <string>
 - Customer UI: Call driver on accepted boat bid, active trip, booking/trip details.
 - Android: CallStyle (12+) + full-screen intent, mic FG service, mute/speaker/end, missed notification + trip call log.
 - BuildConfig `USE_MOCK_CALLS` selects `MockCallRepository` (fake callId, simulated status machine).
+
+## Weak-network audio (customer ↔ driver parity)
+
+Must match the driver app exactly:
+
+| Knob | Value |
+|---|---|
+| Codec | **Opus only**, mono (`stereo=0`) |
+| SDP `a=fmtp` (Opus) | `useinbandfec=1;usedtx=1;stereo=0;maxaveragebitrate=24000;maxplaybackrate=16000;ptime=20` |
+| Sender `maxBitrate` | **24 kbps** initially |
+| Adaptive bitrate | Poll `getStats` every **2s**. If packet loss **>5%** or RTT **>400ms**, step down **24 → 12 → 8 kbps**; step back up on recovery. |
+| UI | Localized **Weak connection** hint while below 24 kbps |
+| Audio processing | Keep **AEC / NS / AGC** on |
+| AudioManager | `MODE_IN_COMMUNICATION` for the call |
+| Network change | `ConnectivityManager` callback → **ICE restart** (+ renegotiate offer/answer on Firestore) |
+
+Customer implementation: `OpusSdpMunger`, `WebRtcEngine` (JavaAudioDeviceModule + adaptive sender bitrate + network ICE restart).

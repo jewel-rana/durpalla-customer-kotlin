@@ -80,6 +80,14 @@ fun OutgoingCallScreen() {
             )
             Spacer(Modifier.height(8.dp))
             Text(statusLabel(s?.status), color = Color.White.copy(0.85f))
+            if (s?.weakConnection == true) {
+                Text(
+                    t(R.string.call_weak_connection),
+                    color = Brand.Amber,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
             if (s?.status == CallStatus.ACCEPTED) {
                 Text(
                     BanglaDigits.formatDuration(elapsed, locale),
@@ -156,7 +164,9 @@ fun CallDriverButton(
     if (!c.calls.canCallDriver(tripId, bidAccepted, tripActive)) return
 
     fun startCall() = scope.launch {
-        val display = with(com.durpalla.booking.core) { c.session.user.value.str("name", default = "You") }
+        val display = with(com.durpalla.booking.core) {
+            c.session.user.value.str("name", default = com.durpalla.booking.core.AppCtx.str(R.string.you))
+        }
         c.calls.startOutgoing(tripId, driverName, display)
         nav.go("call")
     }
