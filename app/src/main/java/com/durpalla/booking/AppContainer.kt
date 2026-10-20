@@ -1,6 +1,10 @@
 package com.durpalla.booking
 
 import android.content.Context
+import com.durpalla.booking.calling.ApiCallRepository
+import com.durpalla.booking.calling.CallRepository
+import com.durpalla.booking.calling.FirestoreSignalingRepository
+import com.durpalla.booking.calling.MockCallRepository
 import com.durpalla.booking.data.net.ApiClient
 import com.durpalla.booking.data.repo.*
 import com.durpalla.booking.data.session.SessionStore
@@ -11,7 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-/** Manual DI container (master Flutter parity). */
+/** Manual DI container (master Flutter parity + in-app calling). */
 class AppContainer(context: Context) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val session = SessionStore(context, appScope)
@@ -30,6 +34,22 @@ class AppContainer(context: Context) {
     val experiences: ExperienceRepository = ApiExperienceRepository(tours, entertainment)
     val cart = CartStore(trips, appScope)
     val pusher = PusherManager()
+
+    /**
+     * Driver calling. Mock by default ([BuildConfig.USE_MOCK_CALLS]).
+     * TODO(calling): Durpalla/durpalla-driver docs/calling-contract.md
+     */
+    val calls: CallRepository = if (BuildConfig.USE_MOCK_CALLS) {
+        MockCallRepository(context.applicationContext, appScope)
+    } else {
+        ApiCallRepository(
+            context.applicationContext,
+            apiClient,
+            session,
+            FirestoreSignalingRepository(),
+            appScope,
+        )
+    }
 
     init {
         appScope.launch { cart.syncFromServer() }

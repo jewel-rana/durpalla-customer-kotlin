@@ -29,12 +29,20 @@ android {
         buildConfigField("String", "RECAPTCHA_SITE_KEY", "\"6Le3VUYsAAAAADJfnKuZ6aWKhvkf4KJJ1dsnHOKT\"")
         buildConfigField("String", "RECAPTCHA_ORIGIN", "\"https://durpalla.com\"")
         buildConfigField("String", "GHAT_SUGGEST_API_PATH", "\"trip/ghat-suggestions\"")
+        // In-app driver calling (WebRTC). Mock until backend + Firestore contract is live.
+        // TODO(calling): see Durpalla/durpalla-driver docs/calling-contract.md
+        buildConfigField("boolean", "USE_MOCK_CALLS", "true")
+        buildConfigField("String", "WEBRTC_STUN_URLS", "\"stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302\"")
+        buildConfigField("String", "WEBRTC_TURN_URLS", "\"\"") // TURN creds from backend later
+        buildConfigField("String", "WEBRTC_TURN_USERNAME", "\"\"")
+        buildConfigField("String", "WEBRTC_TURN_CREDENTIAL", "\"\"")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             buildConfigField("String", "BASE_URL", "\"https://apigw.durpalla.com/api/v1/\"")
+            buildConfigField("boolean", "USE_MOCK_CALLS", "false")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -81,6 +89,8 @@ dependencies {
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.config)
+    implementation(libs.firebase.firestore)
+    implementation(libs.stream.webrtc)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
 }

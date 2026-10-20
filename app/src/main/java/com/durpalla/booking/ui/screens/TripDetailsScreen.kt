@@ -231,6 +231,16 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                             }
                         }
                     }
+                    // Call driver on active boat / in-progress trip (contract: only when trip active)
+                    val tripActive = type.equals("boat", true) ||
+                        d.str("status", "trip_status").lowercase() in listOf("active", "ongoing", "started", "boarding")
+                    if (tripActive) {
+                        val driver = d.str("driver_name", "captain_name", "vehicle_name", default = stringResource(R.string.call_driver))
+                        Column(Modifier.padding(horizontal = 16.dp)) {
+                            CallDriverButton(tripId = tripId, driverName = driver, tripActive = true)
+                            CallLogSection(tripId)
+                        }
+                    }
                     Spacer(Modifier.height(90.dp))
                 }
             }

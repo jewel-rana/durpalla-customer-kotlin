@@ -147,4 +147,25 @@
     <string name="notif_reminder_body">Your trip is starting soon!</string>
     <string name="channel_reminder">Trip Reminders</string>
     <string name="channel_general">General Notifications</string>
+    <!-- In-app driver calling (WebRTC) -->
+    <string name="call_driver">Call driver</string>
+    <string name="call_incoming_title">Incoming call</string>
+    <string name="call_accept">Accept</string>
+    <string name="call_decline">Decline</string>
+    <string name="call_end">End</string>
+    <string name="call_mute">Mute</string>
+    <string name="call_speaker">Speaker</string>
+    <string name="call_status_calling">Calling…</string>
+    <string name="call_status_ringing">Ringing…</string>
+    <string name="call_status_connected">Connected</string>
+    <string name="call_status_ended">Call ended</string>
+    <string name="call_status_declined">Declined</string>
+    <string name="call_status_missed">Missed call</string>
+    <string name="call_missed_title">Missed call</string>
+    <string name="call_missed_body">Missed call from %1$s</string>
+    <string name="call_ongoing_title">Call in progress</string>
+    <string name="call_log_title">Call history</string>
+    <string name="call_channel_incoming">Incoming calls</string>
+    <string name="call_channel_missed">Missed calls</string>
+    <string name="call_mic_permission">Microphone access is needed to call your driver.</string>
 </resources>

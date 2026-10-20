@@ -102,6 +102,15 @@ fun BoatDetailsScreen(id: Int, startsAt: String, endsAt: String) {
                         Text("$guests")
                         IconButton({ guests++ }) { Text("+") }
                     }
+                    // Demo Call driver when mock calls enabled (bid/booking not yet confirmed)
+                    if (com.durpalla.booking.BuildConfig.USE_MOCK_CALLS) {
+                        CallDriverButton(
+                            tripId = id,
+                            driverName = d.str("driver_name", "name", "title", default = stringResource(R.string.call_driver)),
+                            tripActive = true,
+                        )
+                        CallLogSection(id)
+                    }
                     err?.let { Text(it, color = Brand.Error) }
                     GradientButton(stringResource(R.string.book_now), Modifier.fillMaxWidth(), loading = loading) {
                         if (!nav.ensureAuth(self)) return@GradientButton
@@ -154,6 +163,7 @@ fun BoatCustomTripScreen() {
     var err by remember { mutableStateOf<String?>(null) }
     var requestId by remember { mutableStateOf<Int?>(null) }
     var bids by remember { mutableStateOf<List<kotlinx.serialization.json.JsonObject>>(emptyList()) }
+    var acceptedBidIds by remember { mutableStateOf(setOf<Int>()) }
     val scope = rememberCoroutineScope()
     val starts = LocalDateTime.now().plusDays(1).withHour(9).withMinute(0)
         .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
@@ -205,6 +215,9 @@ fun BoatCustomTripScreen() {
                     val bidId = b.i("id") ?: return@forEach
                     val status = b.str("status").lowercase()
                     val acceptable = status in listOf("pending", "open", "")
+                    val accepted = status in listOf("accepted", "confirmed") || acceptedBidIds.contains(bidId)
+                    val driverName = b.str("driver_name", "boat_name", "operator", default = stringResource(R.string.call_driver))
+                    val tripIdForCall = requestId ?: b.i("trip_id", "id") ?: bidId
                     SoftCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
                             Text(money(b.d("amount", "price", "fare")), fontWeight = FontWeight.Bold)
@@ -226,11 +239,28 @@ fun BoatCustomTripScreen() {
                                             val bookingId = conf.o("data").i("booking_id", "order_id", "id")
                                                 ?: throw ApiException("No booking")
                                             bookingId to (conf.o("data").d("total_payable", "amount") ?: 0.0)
-                                        }.onSuccess { (bid, amt) -> nav.go(Routes.payment(bid, amt)) }
-                                            .onFailure { err = it.message }
+                                        }.onSuccess { (bid, amt) ->
+                                            acceptedBidIds = acceptedBidIds + bidId
+                                            nav.go(Routes.payment(bid, amt))
+                                        }.onFailure {
+                                            // Mock path: still mark accepted so Call driver can be demoed
+                                            if (com.durpalla.booking.BuildConfig.USE_MOCK_CALLS) {
+                                                acceptedBidIds = acceptedBidIds + bidId
+                                            }
+                                            err = it.message
+                                        }
                                         loading = false
                                     }
                                 }
+                            }
+                            if (accepted) {
+                                Spacer(Modifier.height(8.dp))
+                                CallDriverButton(
+                                    tripId = tripIdForCall,
+                                    driverName = driverName,
+                                    bidAccepted = true,
+                                )
+                                CallLogSection(tripIdForCall)
                             }
                         }
                     }

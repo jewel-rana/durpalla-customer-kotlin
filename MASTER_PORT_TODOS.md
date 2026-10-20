@@ -18,3 +18,7 @@ From Flutter `master` @ `8ee2bed` vs `main`. Items below need files or console s
 ## Applied in this port (see commit / API_MAP.md)
 
 P0 HTTP headers (X-Guest-Id, Accept/Content-Language), assets rewrite, my/bookings/android, cart sync + charge/VAT/expiry, booking amount, hotel multi-room hold/release, tour/entertainment/boat-rental real APIs, cancel rules, email+mobile auth (prior), payment URL hints, gateway RC filter, invoice link, hotel_review_prompt push.
+
+## Driver calling
+
+See [docs/calling-contract.md](docs/calling-contract.md). Mock on by default (`USE_MOCK_CALLS=true`). Wire HTTP + Firestore when backend is ready; iOS-only `POST /devices/voip` is N/A here.

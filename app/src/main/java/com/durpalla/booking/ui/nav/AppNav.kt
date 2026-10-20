@@ -60,11 +60,12 @@ object Routes {
     fun boatDetails(id: Int, starts: String, ends: String) =
         "boat/$id/${Uri.encode(starts)}/${Uri.encode(ends)}"
     fun boatCustomTrip() = "boatcustom"
+    const val CALL = "call"
     const val PROFILE = "profile"; const val SAVED = "saved"; const val SUPPORT = "support"; const val FAQ = "faq"
     const val ABOUT = "about"; const val TERMS = "terms"; const val SETTINGS = "settings"; const val NOTIFICATIONS = "notifications"
 
     /** Pages that need a signed-in customer (checkout, payment, tickets, personal pages). */
-    private val protectedPrefixes = listOf(TICKETS, CHECKOUT, "payment/", "payweb/", "payresult/", "ticket/", PROFILE, SAVED, "expbook/", NOTIFICATIONS)
+    private val protectedPrefixes = listOf(TICKETS, CHECKOUT, "payment/", "payweb/", "payresult/", "ticket/", PROFILE, SAVED, "expbook/", NOTIFICATIONS, CALL)
     fun isProtected(route: String) = protectedPrefixes.any { route == it || route.startsWith(it) }
 }
 
@@ -216,6 +217,7 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                     )
                 }
                 composable("boatcustom") { BoatCustomTripScreen() }
+                composable(Routes.CALL) { OutgoingCallScreen() }
 
                 composable(Routes.PROFILE) { ProfileScreen() }
                 composable(Routes.SAVED) { SavedScreen() }

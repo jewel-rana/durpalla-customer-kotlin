@@ -149,6 +149,18 @@ fun TicketScreen(id: Int) {
                         }
                     }
                     msg?.let { Text(it, color = Brand.Primary) }
+                    val tripActive = !b.isPast() &&
+                        !com.durpalla.booking.core.BookingCancelRules.isHotelStay(b) &&
+                        listOf(b.paymentStatus, b.status).joinToString(" ").lowercase().let { st ->
+                            listOf("paid", "success", "confirmed", "complete").any { st.contains(it) } &&
+                                listOf("cancel", "fail", "refund").none { st.contains(it) }
+                        }
+                    val driverName = b.firstItem.str("driver_name", "vehicle_name", "operator_name", default = stringResource(R.string.call_driver))
+                    if (tripActive) {
+                        Spacer(Modifier.height(12.dp))
+                        CallDriverButton(tripId = b.id, driverName = driverName, tripActive = true)
+                        CallLogSection(b.id)
+                    }
                 }
             }
         }

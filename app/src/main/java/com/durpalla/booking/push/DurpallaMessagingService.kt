@@ -1,39 +1,56 @@
 package com.durpalla.booking.push
 
 import com.durpalla.booking.DurpallaApp
+import com.durpalla.booking.calling.CallNotifications
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.launch
 
 /**
- * Port of the FCM handlers in lib/main.dart + lib/helpers/push_device_service.dart:
- * - foreground & data messages → local notification; `data.is_reminder == "true"` picks the reminder channel.
- * - the FCM token is stored as `device_id` and sent as device_id / fcm_token on login/register,
- *   and bound with `POST auth/push/bind` when signed in. No topics are used by the Flutter app.
- * - Optional `data.route` (e.g. "ticket/123") is forwarded as an in-app deep link.
+ * FCM handlers + high-priority `call.incoming` for driver calling.
+ * TODO(calling): Durpalla/durpalla-driver docs/calling-contract.md
+ * Pusher private channels are a secondary ring path (POST /realtime/auth).
  */
 class DurpallaMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
-        val isReminder = message.data["is_reminder"] == "true"
-        // Master: type=hotel_review_prompt → hotel details with reviews
-        val route = when (message.data["type"]) {
-            "hotel_review_prompt" -> {
-                val hid = message.data["hotel_id"]
-                if (!hid.isNullOrBlank()) "hotel/$hid/${java.time.LocalDate.now()}/${java.time.LocalDate.now().plusDays(1)}"
-                else message.data["route"]
+        val data = message.data
+        when (data["type"]) {
+            "call.incoming" -> {
+                // High-priority data: {callId, tripId, callerName}
+                val callId = data["callId"].orEmpty()
+                val tripId = data["tripId"]?.toIntOrNull() ?: 0
+                val callerName = data["callerName"].orEmpty().ifBlank { getString(com.durpalla.booking.R.string.call_driver) }
+                if (callId.isBlank()) return
+                val app = application as DurpallaApp
+                app.container.appScope.launch {
+                    app.container.calls.handleIncoming(callId, tripId, callerName)
+                }
+                CallNotifications.showIncoming(this, callId, tripId, callerName)
+                return
             }
-            else -> message.data["route"]
+            "hotel_review_prompt" -> {
+                val hid = data["hotel_id"]
+                val route = if (!hid.isNullOrBlank()) {
+                    "hotel/$hid/${java.time.LocalDate.now()}/${java.time.LocalDate.now().plusDays(1)}"
+                } else data["route"]
+                val title = message.notification?.title ?: data["title"]
+                    ?: getString(com.durpalla.booking.R.string.notif_default_title)
+                val body = message.notification?.body ?: data["body"]
+                    ?: data["hotel_name"]?.let { "How was your stay at $it?" }
+                    ?: getString(com.durpalla.booking.R.string.notif_default_body)
+                Notifications.show(this, title, body, false, route)
+                return
+            }
         }
-        val title = message.notification?.title ?: message.data["title"]
+
+        val isReminder = data["is_reminder"] == "true"
+        val title = message.notification?.title ?: data["title"]
             ?: if (isReminder) getString(com.durpalla.booking.R.string.notif_reminder_title)
             else getString(com.durpalla.booking.R.string.notif_default_title)
-        val body = message.notification?.body ?: message.data["body"]
-            ?: if (message.data["type"] == "hotel_review_prompt") {
-                message.data["hotel_name"]?.let { "How was your stay at $it?" }
-                    ?: getString(com.durpalla.booking.R.string.notif_default_body)
-            } else if (isReminder) getString(com.durpalla.booking.R.string.notif_reminder_body)
+        val body = message.notification?.body ?: data["body"]
+            ?: if (isReminder) getString(com.durpalla.booking.R.string.notif_reminder_body)
             else getString(com.durpalla.booking.R.string.notif_default_body)
-        Notifications.show(this, title, body, isReminder, route)
+        Notifications.show(this, title, body, isReminder, data["route"])
     }
 
     override fun onNewToken(token: String) {

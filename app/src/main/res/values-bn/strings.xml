@@ -147,4 +147,25 @@
     <string name="notif_reminder_body">আপনার যাত্রা শীঘ্রই শুরু হবে!</string>
     <string name="channel_reminder">ট্রিপ রিমাইন্ডার</string>
     <string name="channel_general">সাধারণ নোটিফিকেশন</string>
+    <!-- In-app driver calling (WebRTC) -->
+    <string name="call_driver">ড্রাইভারকে কল করুন</string>
+    <string name="call_incoming_title">ইনকামিং কল</string>
+    <string name="call_accept">গ্রহণ</string>
+    <string name="call_decline">প্রত্যাখ্যান</string>
+    <string name="call_end">শেষ</string>
+    <string name="call_mute">মিউট</string>
+    <string name="call_speaker">স্পিকার</string>
+    <string name="call_status_calling">কল করা হচ্ছে…</string>
+    <string name="call_status_ringing">বাজছে…</string>
+    <string name="call_status_connected">সংযুক্ত</string>
+    <string name="call_status_ended">কল শেষ</string>
+    <string name="call_status_declined">প্রত্যাখ্যান করা হয়েছে</string>
+    <string name="call_status_missed">মিসড কল</string>
+    <string name="call_missed_title">মিসড কল</string>
+    <string name="call_missed_body">%1$s থেকে মিসড কল</string>
+    <string name="call_ongoing_title">কল চলছে</string>
+    <string name="call_log_title">কল ইতিহাস</string>
+    <string name="call_channel_incoming">ইনকামিং কল</string>
+    <string name="call_channel_missed">মিসড কল</string>
+    <string name="call_mic_permission">ড্রাইভারকে কল করতে মাইক্রোফোন অনুমতি প্রয়োজন।</string>
 </resources>

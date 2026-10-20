@@ -1,6 +1,7 @@
 package com.durpalla.booking
 
 import android.app.Application
+import com.durpalla.booking.calling.CallNotifications
 import com.durpalla.booking.push.Notifications
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
@@ -15,6 +16,7 @@ class DurpallaApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         Notifications.init(this)
+        CallNotifications.ensureChannels(this)
         container.pusher.connect()
         // Firebase is initialised automatically by google-services; guard in case the json is missing.
         if (FirebaseApp.getApps(this).isNotEmpty() || FirebaseApp.initializeApp(this) != null) {
