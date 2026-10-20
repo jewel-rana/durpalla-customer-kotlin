@@ -57,7 +57,7 @@ Package root: `app/src/main/java/com/durpalla/booking/`
 | Prod / mock | `ApiCallRepository.kt`, `MockCallRepository.kt` |
 | Models / timeouts / `CallProvider` / callLog.`provider` | `CallModels.kt` (client omit → webrtc) |
 | **Media transports** | `CallTransport.kt`, `WebRtcTransport.kt`, `AgoraTransport.kt`, `MockCallTransport.kt` |
-| Agora token REST | `AgoraTokenClient.kt` (`GET calls/{id}/agora-token`) |
+| Agora token REST | `AgoraTokenClient.kt` (`GET` → `{data:{appId,channel,token,uid,expiresAt}}`, seconds) |
 | Firestore signaling | `FirestoreSignalingRepository.kt`, `SignalingRepository.kt` |
 | WebRTC engine + Opus / ICE restart | `WebRtcEngine.kt`, `OpusSdpMunger.kt` |
 | ICE REST + cache | `IceServersClient.kt` |
