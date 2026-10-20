@@ -259,7 +259,7 @@ class ApiCallRepository(
         watchJob = scope.launch {
             signaling.observeCall(callId).collect { snap ->
                 val resolvedProvider = snap.provider
-                if (_session.value?.provider != resolvedProvider && resolvedProvider != CallProvider.WEBRTC) {
+                if (_session.value?.provider != resolvedProvider) {
                     _session.value = _session.value?.copy(provider = resolvedProvider)
                 }
                 when (snap.status) {
@@ -348,6 +348,7 @@ class ApiCallRepository(
             peerName = cur.peerName,
             callerRole = if (cur.isOutgoing) CallRole.CUSTOMER.wire else CallRole.DRIVER.wire,
             status = status,
+            provider = cur.provider,
             createdAtMs = startedAt,
             answeredAtMs = answered,
             endedAtMs = System.currentTimeMillis(),

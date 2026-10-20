@@ -13,8 +13,8 @@ object AgoraTokenClient {
         val o = r.o("data") ?: r
         val appId = o.s("appId") ?: r.s("appId")
             ?: throw CallApiErrors.toException(r)
-        val channel = o.s("channel") ?: r.s("channel")
-            ?: throw CallApiErrors.toException(r)
+        // Server channel preferred; blank → caller fills `call_{callId}`.
+        val channel = (o.s("channel") ?: r.s("channel")).orEmpty()
         val token = o.s("token") ?: r.s("token")
             ?: throw CallApiErrors.toException(r)
         val uid = o.i("uid") ?: r.i("uid") ?: 0
@@ -27,4 +27,8 @@ object AgoraTokenClient {
         }
         return AgoraCredentials(appId, channel, token, uid, expiresAtMs)
     }
+
+    /** Resolve join channel: server value, else `call_{callId}`. */
+    fun resolveChannel(creds: AgoraCredentials, callId: String): String =
+        creds.channel.ifBlank { "call_$callId" }
 }

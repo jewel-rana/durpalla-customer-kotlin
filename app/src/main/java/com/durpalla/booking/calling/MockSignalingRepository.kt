@@ -17,7 +17,7 @@ class MockSignalingRepository : SignalingRepository {
         var calleeId: String,
         var calleeRole: String,
         var status: CallStatus = CallStatus.RINGING,
-        var provider: CallProvider = CallProvider.WEBRTC,
+        var provider: CallProvider = CallProvider.AGORA,
         var offer: SdpPayload? = null,
         var answer: SdpPayload? = null,
         var endedBy: String? = null,

@@ -113,7 +113,8 @@ class AgoraTransport(
                 publishMicrophoneTrack = true
                 publishCameraTrack = false
             }
-            val code = eng.joinChannel(creds.token, creds.channel, creds.uid, options)
+            val channel = AgoraTokenClient.resolveChannel(creds, callId)
+            val code = eng.joinChannel(creds.token, channel, creds.uid, options)
             if (code != 0) Log.w(TAG, "joinChannel returned $code")
         }
     }

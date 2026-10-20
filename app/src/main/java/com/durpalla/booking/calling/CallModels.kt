@@ -37,7 +37,7 @@ enum class CallRole(val wire: String) {
     DRIVER("driver"),
 }
 
-/** Server-selected audio transport: `webrtc` (default) or `agora`. */
+/** Server-selected audio transport. Launch default is `agora` (omit / unknown → agora). */
 enum class CallProvider(val wire: String) {
     WEBRTC("webrtc"),
     AGORA("agora"),
@@ -45,8 +45,9 @@ enum class CallProvider(val wire: String) {
 
     companion object {
         fun fromWire(raw: String?): CallProvider = when (raw?.lowercase()?.trim()) {
+            "webrtc" -> WEBRTC
             "agora" -> AGORA
-            else -> WEBRTC
+            else -> AGORA
         }
     }
 }
@@ -67,7 +68,7 @@ data class CallSession(
     val peerName: String,
     val isOutgoing: Boolean,
     val status: CallStatus = CallStatus.RINGING,
-    val provider: CallProvider = CallProvider.WEBRTC,
+    val provider: CallProvider = CallProvider.AGORA,
     val callerId: String? = null,
     val calleeId: String? = null,
     val answeredAtMs: Long? = null,
@@ -82,7 +83,7 @@ data class CallSession(
 
 /**
  * Trip payload `callLog[]` entry (oldest first), plus local session appends.
- * Wire fields: callId, callerRole, status, createdAt, answeredAt, endedAt, durationSec, endedBy, reason.
+ * Wire fields: callId, callerRole, status, provider, createdAt, answeredAt, endedAt, durationSec, endedBy, reason.
  */
 data class CallLogEntry(
     val callId: String,
@@ -90,6 +91,7 @@ data class CallLogEntry(
     val peerName: String = "",
     val callerRole: String = "",
     val status: CallStatus,
+    val provider: CallProvider = CallProvider.AGORA,
     val createdAtMs: Long = 0L,
     val answeredAtMs: Long? = null,
     val endedAtMs: Long? = null,
@@ -109,6 +111,7 @@ data class CallLogEntry(
                 tripId = tripId,
                 callerRole = role,
                 status = CallStatus.fromWire(with(com.durpalla.booking.core) { m.s("status") }),
+                provider = CallProvider.fromWire(with(com.durpalla.booking.core) { m.s("provider") }),
                 createdAtMs = with(com.durpalla.booking.core) {
                     m.d("createdAt")?.toLong() ?: m.i("createdAt")?.toLong() ?: 0L
                 },

@@ -25,7 +25,7 @@ Remote languages hi/ar/zh/ur/fa/tr/es/it + first-launch language select + settin
 
 See [docs/calling-contract.md](docs/calling-contract.md). Mock on by default (`USE_MOCK_CALLS=true`). Wire HTTP + Firestore when backend is ready; iOS-only `POST /devices/voip` is N/A here.
 
-**Agora transport:** customer app supports server `provider: agora|webrtc` + `GET /calls/{id}/agora-token`. Confirm shape with driver team before backend ships.
+**Agora transport:** confirmed with driver team. Launch default `provider=agora`; channel `call_{callId}` (server channel with client fallback); `callLog[].provider`. See `docs/calling-contract.md`.
 
 ## l10n note
 

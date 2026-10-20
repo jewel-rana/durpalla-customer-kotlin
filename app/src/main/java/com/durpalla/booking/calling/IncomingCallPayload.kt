@@ -15,7 +15,7 @@ data class IncomingCallPayload(
     val callId: String,
     val tripId: String,
     val callerName: String,
-    val provider: CallProvider = CallProvider.WEBRTC,
+    val provider: CallProvider = CallProvider.AGORA,
 ) {
     val tripIdInt: Int
         get() = tripId.toIntOrNull()

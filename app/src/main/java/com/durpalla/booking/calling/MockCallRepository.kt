@@ -199,6 +199,7 @@ class MockCallRepository(
                     peerName = cur.peerName,
                     callerRole = CallRole.CUSTOMER.wire,
                     status = status,
+                    provider = cur.provider,
                     createdAtMs = startedAt,
                     answeredAtMs = answered,
                     endedAtMs = System.currentTimeMillis(),

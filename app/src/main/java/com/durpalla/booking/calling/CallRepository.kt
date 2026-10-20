@@ -24,7 +24,7 @@ interface CallRepository {
         callId: String,
         tripId: Int,
         callerName: String,
-        provider: CallProvider = CallProvider.WEBRTC,
+        provider: CallProvider = CallProvider.AGORA,
     )
     /** FCM / Pusher `call.ended|declined|missed` when Firestore listener is not yet attached. */
     suspend fun onRemoteEnded(callId: String, status: CallStatus)
