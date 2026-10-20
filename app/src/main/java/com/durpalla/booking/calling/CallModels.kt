@@ -103,6 +103,8 @@ data class CallSession(
     val speakerOn: Boolean = false,
     /** True when adaptive bitrate / Agora network quality reports a weak link. */
     val weakConnection: Boolean = false,
+    /** Localized user-facing note (e.g. renew failure); shown on the call UI. */
+    val userMessage: String? = null,
 )
 
 /**

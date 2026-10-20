@@ -30,6 +30,8 @@ data class CallTransportCallbacks(
     val onWeakConnection: (Boolean) -> Unit = {},
     /** Caller-only WebRTC ICE restart publishes a new offer. */
     val onRenegotiateOffer: (SdpPayload) -> Unit = {},
+    /** Fatal media error (e.g. Agora renew 409) — end call locally; [message] is localized. */
+    val onFatalError: (message: String) -> Unit = {},
 )
 
 object CallTransportFactory {

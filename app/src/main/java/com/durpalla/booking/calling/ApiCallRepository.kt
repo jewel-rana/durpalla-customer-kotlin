@@ -267,6 +267,19 @@ class ApiCallRepository(
                         runCatching { signaling.setOffer(id, offer) }
                     }
                 },
+                onFatalError = { message ->
+                    scope.launch {
+                        val cur = _session.value ?: return@launch
+                        if (cur.status.isTerminal) return@launch
+                        // Local end only (CALL_ALREADY_ENDED / provider mismatch — do not POST /end).
+                        finish(
+                            CallStatus.ENDED,
+                            endedBy = userId(),
+                            reason = CallEndReason.FAILED.wire,
+                            userMessage = message,
+                        )
+                    }
+                },
             ),
         )
         if (asCaller && provider == CallProvider.WEBRTC) {
@@ -354,7 +367,12 @@ class ApiCallRepository(
         )
     }
 
-    private suspend fun finish(status: CallStatus, endedBy: String? = null, reason: String? = null) {
+    private suspend fun finish(
+        status: CallStatus,
+        endedBy: String? = null,
+        reason: String? = null,
+        userMessage: String? = null,
+    ) {
         missJob?.cancel()
         watchJob?.cancel()
         iceJob?.cancel()
@@ -386,6 +404,7 @@ class ApiCallRepository(
             endedAtMs = System.currentTimeMillis(),
             endedBy = endedBy,
             reason = reason,
+            userMessage = userMessage ?: cur.userMessage,
         )
         disposeMedia()
         CallForegroundService.stop(context)

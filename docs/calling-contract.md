@@ -20,21 +20,23 @@ Audio-only calls between the driver and the customer of a trip. The **server pic
   {
     "data": {
       "callId": "456",
+      "tripId": "123",
+      "status": "ringing",
       "provider": "agora",
       "agora": { "appId": "…", "channel": "call_456", "token": "…", "uid": 123, "expiresAt": 1760963600 },
-      "iceServers": null,
-      "ttl": null
+      "iceServers": null
     }
   }
   ```
+  - Also returns `tripId` and `status` (clients may parse and ignore).
   - `agora` is an object for Agora calls, or `null` for WebRTC.
-  - `iceServers` is an array for WebRTC calls, or `null` for Agora. Optional `ttl` (seconds) when ICE is present.
+  - `iceServers` is an array for WebRTC calls, or `null` for Agora. Optional `ttl` (seconds) only when ICE is present; when `iceServers` is null there is usually no `ttl`.
   - Clients choose transport from `provider` automatically. The `agora` block feeds AgoraTransport; `iceServers` feeds WebRtcTransport.
-  - If `iceServers` is **null**, WebRTC falls back to `GET /calls/ice-servers` (then STUN).
+  - If `iceServers` is **null**, WebRTC falls back to `GET /calls/ice-servers`, then STUN.
 - **agora:** no `offer`/`answer`/candidates. Caller joins with create-response credentials; callee joins with accept-response credentials. Channel is normally `call_{callId}`:
   - audio only, `CHANNEL_PROFILE_COMMUNICATION`, role broadcaster, `AUDIO_PROFILE_SPEECH_STANDARD`, `AUDIO_SCENARIO_CHATROOM`;
   - active when the remote uid joins (`onUserJoined`);
-  - renew on `onTokenPrivilegeWillExpire` via **`POST /calls/{callId}/token`** → `{ data: { token, expiresAt } }` + `renewToken` (only renewal path; no start-time token GET);
+  - renew on `onTokenPrivilegeWillExpire` via **`POST /calls/{callId}/token`** → `{ data: { token, expiresAt } }` + `renewToken` (only renewal path; no start-time token GET). On **409** `CALL_PROVIDER_MISMATCH` or `CALL_ALREADY_ENDED`, stop renewing and end the call locally with the localized error;
   - `leaveChannel` on end, decline or failure;
   - weak-network hint from `onNetworkQuality` (local uid 0, tx/rx ≥ 4 = bad) and `onRtcStats` (loss ≥ 5 % or lastmile RTT ≥ 400 ms); clears after 3 good samples;
   - App ID only from the create/accept `agora` block.
@@ -48,9 +50,9 @@ Audio-only calls between the driver and the customer of a trip. The **server pic
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/calls` | `{ "tripId": "123" }` | `201 { "data": { "callId", "provider", "agora": {…}\|null, "iceServers": […] \|null, "ttl"? } }` (omit/`provider` unknown → client uses **webrtc**) |
-| POST | `/calls/{callId}/accept` | `{}` | `200` same media shape as create (`callId`, `provider`, `agora`, `iceServers`, `ttl`?) |
-| POST | `/calls/{callId}/token` | `{}` | `200 { "data": { "token", "expiresAt" } }` — **Agora renewal only** (`expiresAt` epoch **seconds**) |
+| POST | `/calls` | `{ "tripId": "123" }` | `201 { "data": { "callId", "tripId", "status", "provider", "agora": {…}\|null, "iceServers": […] \|null, "ttl"? } }` (omit/`provider` unknown → client uses **webrtc**) |
+| POST | `/calls/{callId}/accept` | `{}` | `200` same media shape as create |
+| POST | `/calls/{callId}/token` | `{}` | `200 { "data": { "token", "expiresAt" } }` — **Agora renewal only**; 409 `CALL_PROVIDER_MISMATCH` / `CALL_ALREADY_ENDED` → stop renew, end locally |
 | POST | `/calls/{callId}/decline` | `{}` | `200 { "provider": "…" }` (use `provider`) |
 | POST | `/calls/{callId}/end` | `{ "reason": "hangup" \| "cancelled" \| "missed" \| "failed" }` | `200 { "provider": "…" }` (use `provider`) |
 | GET | `/calls/ice-servers` | – | `200 [ { "urls": ["turn:…"], "username": "…", "credential": "…" } ]` (or `{ "iceServers": [...], "ttl": 3600 }`) — WebRTC **fallback** when create/accept `iceServers` is null |

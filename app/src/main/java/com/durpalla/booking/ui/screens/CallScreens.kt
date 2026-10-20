@@ -79,7 +79,10 @@ fun OutgoingCallScreen() {
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(8.dp))
-            Text(statusLabel(s?.status), color = Color.White.copy(0.85f))
+            Text(
+                s?.userMessage?.takeIf { it.isNotBlank() } ?: statusLabel(s?.status),
+                color = Color.White.copy(0.85f),
+            )
             if (s?.weakConnection == true) {
                 Text(
                     t(R.string.call_weak_connection),

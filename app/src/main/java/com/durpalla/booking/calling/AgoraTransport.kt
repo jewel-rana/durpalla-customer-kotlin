@@ -35,6 +35,7 @@ class AgoraTransport(
     private var callbacks: CallTransportCallbacks = CallTransportCallbacks()
     private var activeCallId: String? = null
     private var joined = false
+    private var renewStopped = false
     private var weakHint = false
     private var goodStreak = 0
     private var audioModeBefore = AudioManager.MODE_NORMAL
@@ -52,13 +53,21 @@ class AgoraTransport(
         }
 
         override fun onTokenPrivilegeWillExpire(token: String?) {
+            if (renewStopped) return
             val callId = activeCallId ?: return
             val client = api ?: return
             scope.launch {
-                runCatching {
-                    val renewed = AgoraTokenClient.renew(client, callId)
-                    engine?.renewToken(renewed.token)
-                }.onFailure { Log.w(TAG, "token renew failed", it) }
+                when (val result = AgoraTokenClient.renew(client, callId)) {
+                    is AgoraTokenClient.RenewResult.Ok ->
+                        engine?.renewToken(result.token.token)
+                    is AgoraTokenClient.RenewResult.Fatal -> {
+                        renewStopped = true
+                        Log.w(TAG, "token renew fatal ${result.code}")
+                        mainHandler.post { callbacks.onFatalError(result.message) }
+                    }
+                    is AgoraTokenClient.RenewResult.Failed ->
+                        Log.w(TAG, "token renew failed: ${result.message}")
+                }
             }
         }
 
@@ -176,6 +185,7 @@ class AgoraTransport(
         }
         engine = null
         joined = false
+        renewStopped = false
         activeCallId = null
         goodStreak = 0
         if (weakHint) callbacks.onWeakConnection(false)
