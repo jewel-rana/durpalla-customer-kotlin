@@ -2,7 +2,7 @@
 
 Audio-only calls between the driver and the customer of a trip. The server selects the **media transport** (`webrtc` or `agora`). **Firebase Firestore** carries the shared call document (status, parties, WebRTC SDP/ICE when applicable). Ringing (FCM / CallStyle), UI, call log, and status flow are the same for both transports.
 
-> **Confirmed** by the driver team (including Agora). At launch the server default `provider` is **`agora`**. Clients treat a missing `provider` as `agora`.
+> **Confirmed** by the driver team (including Agora). At launch the **server** sends `provider: "agora"` by default. If `provider` is **missing**, clients (driver and customer) default to **`webrtc`** — they do not assume agora.
 
 - Android WebRTC: `io.getstream:stream-webrtc-android` (`org.webrtc`).
 - Android Agora: `io.agora.rtc:voice-sdk` (Voice SDK; appId from the token endpoint — never hard-coded).
@@ -17,7 +17,7 @@ Audio-only calls between the driver and the customer of a trip. The server selec
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/calls` | `{ "tripId": "t_123" }` | `201 { "callId": "c_456", "provider": "webrtc" \| "agora" }` (`provider` optional → default `"agora"` at launch) |
+| POST | `/calls` | `{ "tripId": "t_123" }` | `201 { "callId": "c_456", "provider": "webrtc" \| "agora" }` (server launch default `"agora"`; **client omit → `"webrtc"`**) |
 | POST | `/calls/{callId}/accept` | `{}` | `200 {}` |
 | POST | `/calls/{callId}/decline` | `{}` | `200 {}` |
 | POST | `/calls/{callId}/end` | `{ "reason": "hangup" \| "cancelled" \| "missed" \| "failed" }` | `200 {}` |
@@ -30,7 +30,7 @@ Audio-only calls between the driver and the customer of a trip. The server selec
 
 - The `callId` is the handle for status/REST. WebRTC uses Firestore SDP/ICE; Agora uses the Voice SDK channel from `agora-token`.
 - **POST /calls** checks that the caller is a party to the trip and that the trip is calling-eligible (`UPCOMING`, `ON_THE_WAY`, `ARRIVED` or `IN_PROGRESS`). It then:
-  - creates the Firestore doc `calls/{callId}` with `status: "ringing"` and `provider` (default **`agora`** at launch);
+  - creates the Firestore doc `calls/{callId}` with `status: "ringing"` and `provider` (server launch default **`agora`**);
   - rings the callee (FCM includes the same `provider`);
   - starts a server-side **30 s missed timeout**. If the doc is still `ringing` at 30 s, the server sets `status: "missed"`, `reason: "no_answer"` and `endedAt`, and sends `call.missed` to both parties.
 - **accept** sets `status: "accepted"` and `answeredAt`.
@@ -64,7 +64,7 @@ Error responses have the shape `{ "error": { "code": "CALL_BUSY", "message": "�
   ```json
   { "event": "call.incoming", "callId": "c_456", "tripId": "t_123", "callerName": "Rahim", "provider": "agora" }
   ```
-  - `provider` is `"webrtc"` or `"agora"` (omit → `"agora"` at launch).
+  - `provider` is `"webrtc"` or `"agora"`. Server launch default is `"agora"`; **client omit → `"webrtc"`** (same as driver).
   - The fields may also be sent as a JSON string in `payload`.
   - Android shows a full-screen `CallStyle.forIncomingCall` notification that rings for up to 30 s.
 - **iOS:** the server also sends a **PushKit VoIP** push, which is reported to CallKit, to the token registered with `POST /devices/voip {voipToken, platform:"ios", userId}`.
@@ -81,7 +81,7 @@ calls/{callId} {
   callerRole:  "driver" | "customer"
   calleeId:    string
   calleeRole:  "driver" | "customer"
-  provider:    "webrtc" | "agora"   // server-set; omit → agora (launch default)
+  provider:    "webrtc" | "agora"   // server-set (launch default agora); client omit → webrtc
   offer:       { type: "offer",  sdp: string }    // WebRTC only — written by the caller
   answer:      { type: "answer", sdp: string }    // WebRTC only — written by the callee
   status:      "ringing" | "accepted" | "declined" | "ended" | "missed"
@@ -163,7 +163,7 @@ The trip payload carries `callLog`, oldest first:
 ```
 
 - `status` takes the same values as the Firestore doc.
-- `provider` is `"webrtc"` or `"agora"` (omit → `"agora"`).
+- `provider` is `"webrtc"` or `"agora"` (server launch default `"agora"`; **client omit → `"webrtc"`**).
 - `durationSec` is `endedAt - answeredAt`, or 0 if the call was never answered.
 
 ## 7. Audio quality

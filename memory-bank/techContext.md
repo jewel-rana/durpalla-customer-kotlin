@@ -27,7 +27,7 @@
 | `GHAT_SUGGEST_API_PATH` | `trip/ghat-suggestions` |
 | **`USE_MOCK_CALLS`** | debug **true**, release **false** — mock calling until backend live |
 | `WEBRTC_*` | STUN defaults; TURN from `/calls/ice-servers` in prod path |
-| Agora | No BuildConfig App ID — `GET /calls/{id}/agora-token`; channel `call_{callId}` fallback; launch default provider `agora` |
+| Agora | No BuildConfig App ID — `GET /calls/{id}/agora-token`; channel `call_{callId}` fallback; server launch default `agora`, client omit → `webrtc` |
 
 ## Config files
 - `app/google-services.json` — optional; google-services plugin applied only if present.

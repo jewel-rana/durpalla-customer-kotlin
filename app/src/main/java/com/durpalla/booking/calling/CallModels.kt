@@ -37,7 +37,11 @@ enum class CallRole(val wire: String) {
     DRIVER("driver"),
 }
 
-/** Server-selected audio transport. Launch default is `agora` (omit / unknown → agora). */
+/**
+ * Server-selected audio transport.
+ * Server launch default is `agora` (server always sends `provider`).
+ * Client omit / unknown → `webrtc` (matches driver app).
+ */
 enum class CallProvider(val wire: String) {
     WEBRTC("webrtc"),
     AGORA("agora"),
@@ -45,9 +49,8 @@ enum class CallProvider(val wire: String) {
 
     companion object {
         fun fromWire(raw: String?): CallProvider = when (raw?.lowercase()?.trim()) {
-            "webrtc" -> WEBRTC
             "agora" -> AGORA
-            else -> AGORA
+            else -> WEBRTC
         }
     }
 }
@@ -68,7 +71,7 @@ data class CallSession(
     val peerName: String,
     val isOutgoing: Boolean,
     val status: CallStatus = CallStatus.RINGING,
-    val provider: CallProvider = CallProvider.AGORA,
+    val provider: CallProvider = CallProvider.WEBRTC,
     val callerId: String? = null,
     val calleeId: String? = null,
     val answeredAtMs: Long? = null,
@@ -91,7 +94,7 @@ data class CallLogEntry(
     val peerName: String = "",
     val callerRole: String = "",
     val status: CallStatus,
-    val provider: CallProvider = CallProvider.AGORA,
+    val provider: CallProvider = CallProvider.WEBRTC,
     val createdAtMs: Long = 0L,
     val answeredAtMs: Long? = null,
     val endedAtMs: Long? = null,

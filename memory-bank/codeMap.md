@@ -55,7 +55,7 @@ Package root: `app/src/main/java/com/durpalla/booking/`
 |---|---|
 | Interface | `CallRepository.kt` |
 | Prod / mock | `ApiCallRepository.kt`, `MockCallRepository.kt` |
-| Models / timeouts / `CallProvider` | `CallModels.kt` |
+| Models / timeouts / `CallProvider` / callLog.`provider` | `CallModels.kt` (client omit → webrtc) |
 | **Media transports** | `CallTransport.kt`, `WebRtcTransport.kt`, `AgoraTransport.kt`, `MockCallTransport.kt` |
 | Agora token REST | `AgoraTokenClient.kt` (`GET calls/{id}/agora-token`) |
 | Firestore signaling | `FirestoreSignalingRepository.kt`, `SignalingRepository.kt` |

@@ -44,7 +44,7 @@ data class SignalingSnapshot(
     val callerRole: String,
     val calleeId: String,
     val calleeRole: String,
-    val provider: CallProvider = CallProvider.AGORA,
+    val provider: CallProvider = CallProvider.WEBRTC,
     val offer: SdpPayload? = null,
     val answer: SdpPayload? = null,
     val endedBy: String? = null,
