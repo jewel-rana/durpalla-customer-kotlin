@@ -15,8 +15,25 @@ import kotlinx.coroutines.launch
 class DurpallaMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val isReminder = message.data["is_reminder"] == "true"
-        Notifications.show(this, message.notification?.title ?: message.data["title"],
-            message.notification?.body ?: message.data["body"], isReminder, message.data["route"])
+        // Master: type=hotel_review_prompt → hotel details with reviews
+        val route = when (message.data["type"]) {
+            "hotel_review_prompt" -> {
+                val hid = message.data["hotel_id"]
+                if (!hid.isNullOrBlank()) "hotel/$hid/${java.time.LocalDate.now()}/${java.time.LocalDate.now().plusDays(1)}"
+                else message.data["route"]
+            }
+            else -> message.data["route"]
+        }
+        val title = message.notification?.title ?: message.data["title"]
+            ?: if (isReminder) getString(com.durpalla.booking.R.string.notif_reminder_title)
+            else getString(com.durpalla.booking.R.string.notif_default_title)
+        val body = message.notification?.body ?: message.data["body"]
+            ?: if (message.data["type"] == "hotel_review_prompt") {
+                message.data["hotel_name"]?.let { "How was your stay at $it?" }
+                    ?: getString(com.durpalla.booking.R.string.notif_default_body)
+            } else if (isReminder) getString(com.durpalla.booking.R.string.notif_reminder_body)
+            else getString(com.durpalla.booking.R.string.notif_default_body)
+        Notifications.show(this, title, body, isReminder, route)
     }
 
     override fun onNewToken(token: String) {

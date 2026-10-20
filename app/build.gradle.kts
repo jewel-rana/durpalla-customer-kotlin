@@ -20,13 +20,15 @@ android {
         versionCode = 1
         versionName = "2.0.0"
         vectorDrawables { useSupportLibrary = true }
-        // Values mirror the Flutter app's .env (API_BASE_URL / PUSHER_* / RECAPTCHA_SITE_KEY).
+        // Master Flutter uses --dart-define / .env.example (no secrets in repo long-term).
         buildConfigField("String", "BASE_URL", "\"https://dev-apigw.durpalla.com/api/v1/\"")
-        buildConfigField("String", "PUSHER_KEY", "\"aed7edc1e0e3afd30d65\"")
+        buildConfigField("String", "AUTH_BASE_URL", "\"\"") // empty → same as BASE_URL
+        buildConfigField("String", "ASSETS_BASE_URL", "\"https://dev-assets.durpalla.com\"")
+        buildConfigField("String", "PUSHER_KEY", "\"aed7edc1e0e3afd30d65\"") // TODO: move to local.properties
         buildConfigField("String", "PUSHER_CLUSTER", "\"ap2\"")
         buildConfigField("String", "RECAPTCHA_SITE_KEY", "\"6Le3VUYsAAAAADJfnKuZ6aWKhvkf4KJJ1dsnHOKT\"")
-        // Origin used to host the reCAPTCHA v3 bridge page (must be an allowed domain of the site key).
         buildConfigField("String", "RECAPTCHA_ORIGIN", "\"https://durpalla.com\"")
+        buildConfigField("String", "GHAT_SUGGEST_API_PATH", "\"trip/ghat-suggestions\"")
     }
 
     buildTypes {
@@ -63,6 +65,7 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore)
+    implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.webkit)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play)
@@ -77,6 +80,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
+    implementation(libs.firebase.config)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
 }

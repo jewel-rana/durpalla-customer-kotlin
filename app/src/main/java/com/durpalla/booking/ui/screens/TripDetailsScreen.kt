@@ -44,7 +44,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
     /** item ids locked/booked/released live via Pusher. */
     val liveLocked = MutableStateFlow<Set<String>>(emptySet())
     val liveReleased = MutableStateFlow<Set<String>>(emptySet())
-    val cart = c.cart
+    private val cartStore = c.cart
     private val channel = "trip.$tripId"
 
     init {
@@ -57,9 +57,15 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
                 when (e.name) {
                     "cart.item.locked", "cart.item.booked" -> {
                         liveLocked.value += id; liveReleased.value -= id
-                        if (cart.value.none { it.itemId.toString() == id }) snack.tryEmit("Cabin $label (Fare: ৳${e.data.o("data").str("fare")}) has been locked by another user.")
+                        if (cartStore.items.value.none { it.itemId.toString() == id }) {
+                            snack.tryEmit("Cabin $label (Fare: ৳${e.data.o("data").str("fare")}) has been locked by another user.")
+                        }
                     }
-                    "cart.item.released" -> { liveLocked.value -= id; liveReleased.value += id; snack.tryEmit("Cabin $label is now available.") }
+                    "cart.item.released" -> {
+                        liveLocked.value -= id
+                        liveReleased.value += id
+                        snack.tryEmit("Cabin $label is now available.")
+                    }
                 }
             }
         }
@@ -106,7 +112,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
 
     fun isLocked(s: SeatItem): Boolean {
         val id = s.itemId?.toString() ?: return true
-        if (cart.value.any { it.itemId == s.itemId }) return false
+        if (cartStore.items.value.any { it.itemId == s.itemId }) return false
         if (id in liveLocked.value) return true
         if (id in liveReleased.value && s.bookingId == null) return false
         return s.isBooked || s.isTempLocked
@@ -114,20 +120,40 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
 
     fun toggle(s: SeatItem, d: JsonObject) {
         val id = s.itemId ?: return
-        val existing = cart.value.firstOrNull { it.itemId == id }
+        val existing = cartStore.items.value.firstOrNull { it.itemId == id }
         viewModelScope.launch {
             busy.value = id
             try {
                 if (existing != null) {
-                    if (c.trips.releaseLock(existing.lockId, id)) cart.value = cart.value - existing else snack.emit("Could not release, try again")
+                    if (c.trips.releaseLock(existing.lockId, id)) cartStore.remove(existing)
+                    else snack.emit("Could not release, try again")
                 } else {
                     val r = c.trips.lockItem(tripId, s.kind, id, c.pusher.socketId)
                     val data = r.o("data")
                     val lockId = data.s("lock_id") ?: data.s("reservation_id") ?: r.s("lock_id") ?: ""
-                    cart.value = cart.value + CartItem(id, s.kind, data.d("fare", "price") ?: s.fare, lockId, s.label, tripId,
-                        d.str("vehicle_name"), d.str("route_name"), data.s("expires_at") ?: data.s("locked_until"), data)
+                    val meta = data
+                    cartStore.add(
+                        CartItem(
+                            itemId = id,
+                            type = s.kind,
+                            price = data.d("fare", "price") ?: s.fare,
+                            lockId = lockId,
+                            label = s.label,
+                            tripId = tripId,
+                            vehicleName = d.str("vehicle_name"),
+                            routeName = d.str("route_name"),
+                            expiresAt = data.s("expires_at") ?: data.s("locked_until"),
+                            meta = meta,
+                            totalCharge = data.d("total_charge") ?: meta.d("total_charge") ?: 0.0,
+                            totalVat = data.d("total_vat") ?: meta.d("total_vat") ?: 0.0,
+                        ),
+                    )
                 }
-            } catch (e: Exception) { snack.emit(e.message ?: "Failed") } finally { busy.value = null }
+            } catch (e: Exception) {
+                snack.emit(e.message ?: "Failed")
+            } finally {
+                busy.value = null
+            }
         }
     }
 
@@ -140,7 +166,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
     val vm: TripDetailsVm = viewModel(key = "trip-$tripId") { TripDetailsVm(c, tripId, type) }
     val state by vm.trip.collectAsState()
     val tab by vm.tab.collectAsState(); val floor by vm.floor.collectAsState()
-    val cart by vm.cart.collectAsState(); val busy by vm.busy.collectAsState()
+    val cart by c.cart.items.collectAsState(); val busy by vm.busy.collectAsState()
     vm.liveLocked.collectAsState().value; vm.liveReleased.collectAsState().value
     val snackHost = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.snack.collect { snackHost.showSnackbar(it) } }
@@ -155,7 +181,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                     Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("${mine.size} selected • ${mine.joinToString { it.label }}", style = MaterialTheme.typography.bodySmall, color = Brand.Muted, maxLines = 1)
-                            Text(money(mine.sumOf { it.price }), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
+                            Text(money(mine.sumOf { it.lineTotal }), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
                         }
                         GradientButton(stringResource(R.string.continue_checkout), Modifier.width(190.dp)) { nav.go(Routes.CHECKOUT) }
                     }

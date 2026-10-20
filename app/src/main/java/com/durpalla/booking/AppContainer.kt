@@ -7,11 +7,11 @@ import com.durpalla.booking.data.session.SessionStore
 import com.durpalla.booking.realtime.PusherManager
 import com.durpalla.booking.security.WebViewRecaptchaProvider
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
-/** Manual DI container. */
+/** Manual DI container (master Flutter parity). */
 class AppContainer(context: Context) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val session = SessionStore(context, appScope)
@@ -24,9 +24,14 @@ class AppContainer(context: Context) {
     val payments = PaymentRepository(apiClient)
     val hotels = HotelRepository(apiClient)
     val profile = ProfileRepository(apiClient, session)
-    val experiences: ExperienceRepository = MockExperienceRepository()
+    val tours = TourRepository(apiClient)
+    val entertainment = EntertainmentRepository(apiClient)
+    val boats = BoatRentalRepository(apiClient)
+    val experiences: ExperienceRepository = ApiExperienceRepository(tours, entertainment)
+    val cart = CartStore(trips, appScope)
     val pusher = PusherManager()
 
-    /** In-memory cart (Flutter CartProvider). */
-    val cart = MutableStateFlow<List<CartItem>>(emptyList())
+    init {
+        appScope.launch { cart.syncFromServer() }
+    }
 }

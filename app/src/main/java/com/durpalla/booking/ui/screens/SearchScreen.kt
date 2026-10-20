@@ -56,12 +56,19 @@ fun SearchScreen(initialService: String) {
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                if (service == "hotel") {
-                    SuggestField(stringResource(R.string.city), from, Icons.Default.LocationCity, { from = it }) { q -> LocalSuggest.city(q) }
+                if (service == "hotel" || service == "boat") {
+                    if (service == "hotel") {
+                        SuggestField(stringResource(R.string.city), from, Icons.Default.LocationCity, { from = it }) { q -> LocalSuggest.city(q) }
+                    } else {
+                        OutlinedTextField(from, { from = it }, Modifier.fillMaxWidth(), label = { Text("Search boats (optional)") }, singleLine = true, shape = RoundedCornerShape(14.dp))
+                    }
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DateField(stringResource(R.string.check_in), date, Modifier.weight(1f)) { date = it; if (checkOut <= it) checkOut = java.time.LocalDate.parse(it).plusDays(1).toString() }
-                        DateField(stringResource(R.string.check_out), checkOut, Modifier.weight(1f)) { checkOut = it }
+                        DateField(if (service == "boat") "Starts" else stringResource(R.string.check_in), date, Modifier.weight(1f)) {
+                            date = it
+                            if (checkOut <= it) checkOut = java.time.LocalDate.parse(it).plusDays(1).toString()
+                        }
+                        DateField(if (service == "boat") "Ends" else stringResource(R.string.check_out), checkOut, Modifier.weight(1f)) { checkOut = it }
                     }
                 } else {
                     Box {
@@ -88,10 +95,18 @@ fun SearchScreen(initialService: String) {
                 Spacer(Modifier.height(16.dp))
                 GradientButton(stringResource(if (service == "hotel") R.string.search_hotels else R.string.search_trips), Modifier.fillMaxWidth()) {
                     error = null
-                    if (service == "hotel") {
-                        if (from.isBlank()) error = "Enter a city" else nav.go(Routes.hotelResults(from.trim(), date, checkOut))
-                    } else if (from.isBlank() || to.isBlank()) error = "Enter both From and To"
-                    else nav.go(Routes.results(service, from.trim(), to.trim(), date))
+                    when (service) {
+                        "hotel" -> if (from.isBlank()) error = "Enter a city"
+                        else nav.go(Routes.hotelResults(from.trim(), date, checkOut))
+                        // Master: boat → boat-rental/search (not search?type=boat)
+                        "boat" -> {
+                            val starts = "${date}T09:00:00"
+                            val ends = "${checkOut.ifBlank { date }}T18:00:00"
+                            nav.go(Routes.boatList(from.trim().ifBlank { to.trim() }, starts, ends))
+                        }
+                        else -> if (from.isBlank() || to.isBlank()) error = "Enter both From and To"
+                        else nav.go(Routes.results(service, from.trim(), to.trim(), date))
+                    }
                 }
             }
         }

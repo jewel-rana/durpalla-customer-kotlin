@@ -7,13 +7,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -21,6 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.durpalla.booking.R
 import com.durpalla.booking.core.*
 import com.durpalla.booking.data.repo.Service
@@ -31,6 +31,7 @@ import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
+import java.time.LocalDate
 
 @Composable
 fun HotelResultsScreen(city: String, ci: String, co: String) {
@@ -51,7 +52,7 @@ fun HotelResultsScreen(city: String, ci: String, co: String) {
     }
 }
 
-/** hotel/{id} + hotel/{id}/rooms → hotel/quote → hotel/hold (Idempotency-Key) → hotel/booking/confirm → payment. */
+/** hotel/{id} + rooms → quote → hold (lines[], Idempotency-Key) → confirm → payment. Release via POST hotel/hold/release. */
 @Composable
 fun HotelDetailsScreen(id: Int, ci: String, co: String) {
     val c = LocalContainer.current; val nav = LocalNav.current
@@ -104,15 +105,30 @@ fun HotelDetailsScreen(id: Int, ci: String, co: String) {
                                         if (!nav.ensureAuth(self)) return@GradientButton
                                         scope.launch {
                                             busy = "$rtId"; err = null
+                                            var holdId: Int? = null
                                             runCatching {
-                                                val body = jsonOf("hotel_id" to id, "room_type_id" to rtId, "check_in" to ci, "check_out" to co, "rooms" to 1, "adults" to 2)
-                                                c.hotels.quote(body)
-                                                val hold = c.hotels.hold(body)
-                                                val holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id") ?: throw ApiException("Hold failed")
-                                                val conf = c.hotels.confirm(holdId)
-                                                val bid = conf.o("data").i("booking_id", "id") ?: conf.i("booking_id") ?: throw ApiException("Booking ID missing")
-                                                bid to (conf.o("data").d("total_payable", "amount", "total") ?: r.d("total", "price") ?: 0.0)
-                                            }.onSuccess { (bid, amt) -> nav.go(Routes.payment(bid, amt)) }.onFailure { err = it.message }
+                                                val quoteBody = jsonOf(
+                                                    "hotel_id" to id,
+                                                    "lines" to listOf(mapOf("room_type_id" to rtId, "quantity" to 1)),
+                                                    "check_in" to ci, "check_out" to co, "adults" to 2, "children" to 0,
+                                                )
+                                                c.hotels.quote(quoteBody)
+                                                val hold = c.hotels.hold(id, listOf(rtId to 1), ci, co, adults = 2, children = 0)
+                                                holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
+                                                    ?: throw ApiException("Hold failed")
+                                                val conf = c.hotels.confirm(holdId!!)
+                                                val booking = conf.o("data").o("booking") ?: conf.o("booking") ?: conf.o("data")
+                                                val bid = booking.i("id") ?: conf.o("data").i("booking_id", "order_id", "id")
+                                                    ?: conf.i("booking_id") ?: throw ApiException("Booking ID missing")
+                                                val amt = booking.d("total_payable")
+                                                    ?: conf.o("data").d("total_payable", "amount", "total")
+                                                    ?: r.d("total", "price") ?: 0.0
+                                                bid to amt
+                                            }.onSuccess { (bid, amt) -> nav.go(Routes.payment(bid, amt)) }
+                                                .onFailure {
+                                                    err = it.message
+                                                    holdId?.let { hid -> scope.launch { runCatching { c.hotels.releaseHold(hid) } } }
+                                                }
                                             busy = null
                                         }
                                     }
@@ -130,22 +146,28 @@ fun HotelDetailsScreen(id: Int, ci: String, co: String) {
 @Composable
 fun ExperienceListScreen(service: String) {
     val c = LocalContainer.current; val nav = LocalNav.current
-    val svc = if (service == "tour") Service.TOUR else Service.ENTERTAINMENT
+    val svc = when (service) {
+        "tour", "tours" -> Service.TOUR
+        else -> Service.ENTERTAINMENT
+    }
     var q by remember { mutableStateOf("") }
     val vm = rememberLoad("exp-$service-$q") { c.experiences.list(svc, q) }
     val state by vm.state.collectAsState()
     Scaffold(topBar = { DTopBar(stringResource(if (svc == Service.TOUR) R.string.svc_tour else R.string.svc_entertainment), onBack = nav::back) }) { pad ->
         Column(Modifier.padding(pad)) {
             OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().padding(16.dp, 8.dp), leadingIcon = { Icon(Icons.Default.Search, null) }, placeholder = { Text("Search destinations or events") }, shape = RoundedCornerShape(14.dp), singleLine = true)
-            Pill(stringResource(R.string.sample_data), Brand.Amber.copy(.15f), Brand.AmberDark, Icons.Default.Info).let { Box(Modifier.padding(horizontal = 16.dp)) { it } }
             when (val s = state) {
                 Load.Loading -> LoadingList()
                 is Load.Err -> ErrorState(s.message) { vm.reload() }
                 is Load.Ok -> LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(s.value) { e ->
-                        SoftCard(onClick = { nav.go(Routes.experience(e.id)) }) {
+                        SoftCard(onClick = { nav.go(Routes.experience(e.id, service)) }) {
                             Box {
-                                Image(painterResource(e.photoRes), null, Modifier.fillMaxWidth().height(160.dp), contentScale = ContentScale.Crop)
+                                if (e.photoUrl != null) {
+                                    AsyncImage(e.photoUrl, null, Modifier.fillMaxWidth().height(160.dp), contentScale = ContentScale.Crop)
+                                } else {
+                                    Image(painterResource(e.photoRes), null, Modifier.fillMaxWidth().height(160.dp), contentScale = ContentScale.Crop)
+                                }
                                 Box(Modifier.padding(10.dp)) { Pill("★ ${e.rating}", Color.White.copy(.9f), Brand.Navy) }
                             }
                             Column(Modifier.padding(14.dp)) {
@@ -162,22 +184,25 @@ fun ExperienceListScreen(service: String) {
 }
 
 @Composable
-fun ExperienceDetailScreen(id: Int) {
+fun ExperienceDetailScreen(id: Int, service: String = "tour") {
     val c = LocalContainer.current; val nav = LocalNav.current
-    val vm = rememberLoad("expd-$id") { c.experiences.details(id) ?: throw ApiException("Not found") }
+    val vm = rememberLoad("expd-$service-$id") {
+        c.experiences.details(id) ?: throw ApiException("Not found")
+    }
     val state by vm.state.collectAsState()
     (state as? Load.Ok)?.value?.let { e ->
         Scaffold(bottomBar = {
             Surface(shadowElevation = 16.dp) {
                 Row(Modifier.navigationBarsPadding().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(money(e.price), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
-                    GradientButton(stringResource(R.string.book_now), Modifier.width(170.dp)) { nav.go(Routes.bookExperience(e.id)) }
+                    GradientButton(stringResource(R.string.book_now), Modifier.width(170.dp)) { nav.go(Routes.bookExperience(e.id, service)) }
                 }
             }
         }) { pad ->
             Column(Modifier.padding(pad).verticalScroll(rememberScrollState())) {
                 Box(Modifier.fillMaxWidth().height(280.dp)) {
-                    Image(painterResource(e.photoRes), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                    if (e.photoUrl != null) AsyncImage(e.photoUrl, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                    else Image(painterResource(e.photoRes), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(.3f), Color.Transparent, Brand.Navy.copy(.85f)))))
                     Box(Modifier.statusBarsPadding().padding(12.dp)) { FrostedIcon(Icons.AutoMirrored.Filled.ArrowBack) { nav.back() } }
                     Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
@@ -186,41 +211,104 @@ fun ExperienceDetailScreen(id: Int) {
                     }
                 }
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Pill(stringResource(R.string.sample_data), Brand.Amber.copy(.15f), Brand.AmberDark, Icons.Default.Info)
                     Text("Highlights", style = MaterialTheme.typography.titleMedium)
                     e.highlights.forEach { Row { Icon(Icons.Default.CheckCircle, null, tint = Brand.Success, modifier = Modifier.size(18.dp)); Text("  $it") } }
-                    Text("Schedule: ${e.date}", color = Brand.Muted)
+                    if (e.date.isNotBlank()) Text("Schedule: ${e.date}", color = Brand.Muted)
                 }
             }
         }
     } ?: LoadingList(2)
 }
 
-/** Protected. TODO(backend): no Tour/Entertainment booking API yet — UI only. */
+/** Real tour / entertainment checkout → quote → hold → confirm → PaymentOptionsScreen. */
 @Composable
-fun ExperienceBookScreen(id: Int) {
+fun ExperienceBookScreen(id: Int, service: String = "tour") {
     val c = LocalContainer.current; val nav = LocalNav.current
-    val vm = rememberLoad("expb-$id") { c.experiences.details(id) ?: throw ApiException("Not found") }
-    val e = (vm.state.collectAsState().value as? Load.Ok)?.value
-    var qty by remember { mutableIntStateOf(1) }; var done by remember { mutableStateOf(false) }
+    val isTour = service != "entertainment"
+    val vm = rememberLoad("expb-$service-$id") {
+        if (isTour) c.tours.details(id) else c.entertainment.details(id)
+    }
+    val state by vm.state.collectAsState()
+    var qty by remember { mutableIntStateOf(1) }
+    var name by remember { mutableStateOf("") }
+    var mobile by remember { mutableStateOf("") }
+    var visitDate by remember { mutableStateOf(LocalDate.now().toString()) }
+    var loading by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val self = Routes.bookExperience(id, service)
+
     Scaffold(topBar = { DTopBar(stringResource(R.string.checkout), onBack = nav::back) }) { pad ->
-        if (e == null) LoadingList(1) else Column(Modifier.padding(pad).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            StepIndicator(1)
-            SoftCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(e.title, style = MaterialTheme.typography.titleMedium); Text(e.date, color = Brand.Muted)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Guests", Modifier.weight(1f))
-                        IconButton({ if (qty > 1) qty-- }) { Icon(Icons.Default.RemoveCircleOutline, null) }
-                        Text("$qty", style = MaterialTheme.typography.titleMedium)
-                        IconButton({ qty++ }) { Icon(Icons.Default.AddCircleOutline, null, tint = Brand.Primary) }
+        when (val s = state) {
+            Load.Loading -> Box(Modifier.padding(pad)) { LoadingList(1) }
+            is Load.Err -> Box(Modifier.padding(pad)) { ErrorState(s.message) { vm.reload() } }
+            is Load.Ok -> {
+                val d = s.value
+                val title = d.str("title", "name")
+                val price = d.d("price", "price_from", "min_price") ?: 0.0
+                Column(Modifier.padding(pad).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    StepIndicator(1)
+                    SoftCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(title, style = MaterialTheme.typography.titleMedium)
+                            if (!isTour) {
+                                OutlinedTextField(visitDate, { visitDate = it }, Modifier.fillMaxWidth(), label = { Text("Visit date (YYYY-MM-DD)") })
+                            }
+                            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.full_name)) })
+                            OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.mobile_number)) })
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (isTour) "Places" else "Tickets", Modifier.weight(1f))
+                                IconButton({ if (qty > 1) qty-- }) { Icon(Icons.Default.RemoveCircleOutline, null) }
+                                Text("$qty", style = MaterialTheme.typography.titleMedium)
+                                IconButton({ qty++ }) { Icon(Icons.Default.AddCircleOutline, null, tint = Brand.Primary) }
+                            }
+                            HorizontalDivider()
+                            Row(Modifier.padding(top = 8.dp)) {
+                                Text(stringResource(R.string.total), Modifier.weight(1f))
+                                Text(money(price * qty), fontWeight = FontWeight.ExtraBold, color = Brand.AmberDark)
+                            }
+                        }
                     }
-                    HorizontalDivider()
-                    Row(Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.total), Modifier.weight(1f)); Text(money(e.price * qty), fontWeight = FontWeight.ExtraBold, color = Brand.AmberDark) }
+                    err?.let { Text(it, color = Brand.Error) }
+                    GradientButton(stringResource(R.string.confirm_booking), Modifier.fillMaxWidth(), loading = loading) {
+                        if (!nav.ensureAuth(self)) return@GradientButton
+                        if (name.isBlank() || mobile.isBlank()) {
+                            err = "Guest name and mobile are required"
+                            return@GradientButton
+                        }
+                        scope.launch {
+                            loading = true; err = null
+                            runCatching {
+                                if (isTour) {
+                                    val departureId = d.i("departure_id", "id") ?: id
+                                    c.tours.quote(jsonOf("departure_id" to departureId, "places" to qty))
+                                    val hold = c.tours.hold(departureId, qty, name.trim(), mobile.trim())
+                                    val holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
+                                        ?: throw ApiException("Hold failed")
+                                    val conf = c.tours.confirm(holdId, name.trim(), mobile.trim())
+                                    val bid = conf.o("data").i("booking_id", "order_id", "id") ?: conf.i("booking_id")
+                                        ?: throw ApiException("Booking ID missing")
+                                    bid to (conf.o("data").d("total_payable", "amount", "total") ?: price * qty)
+                                } else {
+                                    val ticketTypeId = d.a("ticket_types").objects().firstOrNull().i("id")
+                                        ?: d.i("ticket_type_id") ?: 0
+                                    val lines = listOf(mapOf("ticket_type_id" to ticketTypeId, "qty" to qty))
+                                    c.entertainment.quote(jsonOf("venue_id" to id, "visit_date" to visitDate, "lines" to lines))
+                                    val hold = c.entertainment.hold(id, visitDate, lines, name.trim(), mobile.trim())
+                                    val holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
+                                        ?: throw ApiException("Hold failed")
+                                    val conf = c.entertainment.confirm(holdId, name.trim(), mobile.trim())
+                                    val bid = conf.o("data").i("booking_id", "order_id", "id") ?: conf.i("booking_id")
+                                        ?: throw ApiException("Booking ID missing")
+                                    bid to (conf.o("data").d("total_payable", "amount", "total") ?: price * qty)
+                                }
+                            }.onSuccess { (bid, amt) -> nav.go(Routes.payment(bid, amt)) }
+                                .onFailure { err = it.message }
+                            loading = false
+                        }
+                    }
                 }
             }
-            if (done) Text("Request saved locally. Online booking for this service is coming soon — our team will contact you.", color = Brand.Primary)
-            GradientButton(stringResource(R.string.confirm_booking), Modifier.fillMaxWidth(), enabled = !done) { done = true }
         }
     }
 }

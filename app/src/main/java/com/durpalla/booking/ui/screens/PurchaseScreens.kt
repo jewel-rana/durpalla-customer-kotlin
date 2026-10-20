@@ -38,23 +38,34 @@ import kotlinx.coroutines.launch
 @Composable
 fun CheckoutScreen() {
     val c = LocalContainer.current; val nav = LocalNav.current
-    val cart by c.cart.collectAsState()
+    val cart by c.cart.items.collectAsState()
     val user by c.session.user.collectAsState()
     var forSelf by remember { mutableStateOf(true) }
     var name by remember { mutableStateOf("") }; var mobile by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val total = cart.sumOf { it.price }
+    val subtotal = c.cart.subtotal()
+    val charge = c.cart.totalCharge()
+    val vat = c.cart.totalVat()
+    val total = c.cart.amountWithCharges()
 
     Scaffold(topBar = { DTopBar(stringResource(R.string.checkout), onBack = nav::back) }, bottomBar = {
         Surface(shadowElevation = 16.dp) {
             Column(Modifier.navigationBarsPadding().padding(16.dp)) {
                 err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
                 GradientButton(stringResource(R.string.confirm_booking) + " • " + money(total), Modifier.fillMaxWidth(), enabled = cart.isNotEmpty(), loading = loading) {
+                    if (!forSelf && (name.isBlank() || mobile.isBlank())) {
+                        err = "Enter passenger name and mobile"
+                        return@GradientButton
+                    }
                     scope.launch {
                         loading = true; err = null
-                        runCatching { c.bookings.confirm(cart, total, if (forSelf) null else name, if (forSelf) null else mobile) }
-                            .onSuccess { (id, _) -> c.cart.value = emptyList(); nav.go(Routes.payment(id, total)) }
+                        runCatching { c.bookings.confirm(cart, if (forSelf) null else name, if (forSelf) null else mobile) }
+                            .onSuccess { (id, _) ->
+                                c.cart.retainHoldsAfterBooking()
+                                c.cart.clearLocal()
+                                nav.go(Routes.payment(id, total))
+                            }
                             .onFailure { err = it.message }
                         loading = false
                     }
@@ -75,8 +86,12 @@ fun CheckoutScreen() {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.EventSeat, null, tint = Brand.Primary, modifier = Modifier.size(18.dp))
                                 Text(" ${ci.type.replaceFirstChar { it.uppercase() }} ${ci.label}", Modifier.weight(1f))
-                                Text(money(ci.price), fontWeight = FontWeight.SemiBold)
-                                IconButton({ scope.launch { if (c.trips.releaseLock(ci.lockId, ci.itemId)) c.cart.value = c.cart.value - ci } }) { Icon(Icons.Default.Close, null) }
+                                Text(money(ci.lineTotal), fontWeight = FontWeight.SemiBold)
+                                IconButton({
+                                    scope.launch {
+                                        if (c.trips.releaseLock(ci.lockId, ci.itemId)) c.cart.remove(ci)
+                                    }
+                                }) { Icon(Icons.Default.Close, null) }
                             }
                             ci.expiresAt?.let { Text("Held until $it", style = MaterialTheme.typography.labelSmall, color = Brand.AmberDark) }
                         }
@@ -96,8 +111,9 @@ fun CheckoutScreen() {
             SoftCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Price breakdown", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp))
-                    Row { Text("Fare", Modifier.weight(1f)); Text(money(total)) }
-                    Row { Text("Service charge & VAT", Modifier.weight(1f), color = Brand.Muted); Text("Calculated at payment", color = Brand.Muted, style = MaterialTheme.typography.bodySmall) }
+                    Row { Text("Fare", Modifier.weight(1f)); Text(money(subtotal)) }
+                    Row { Text("Service charge", Modifier.weight(1f), color = Brand.Muted); Text(money(charge), color = Brand.Muted) }
+                    Row { Text("VAT", Modifier.weight(1f), color = Brand.Muted); Text(money(vat), color = Brand.Muted) }
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     Row { Text(stringResource(R.string.total), Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(money(total), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold) }
                 }
@@ -123,7 +139,12 @@ fun StepIndicator(step: Int) {
 @Composable
 fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
     val c = LocalContainer.current; val nav = LocalNav.current
-    val vm = rememberLoad("gw-$bookingId") { c.payments.gateways(bookingId) }
+    val vm = rememberLoad("gw-$bookingId") {
+        val rc = com.durpalla.booking.data.remote.RemoteAppConfig.fetch()
+        c.payments.gateways(bookingId).filter {
+            com.durpalla.booking.data.remote.RemoteAppConfig.paymentEnabled(rc, it.name)
+        }
+    }
     val state by vm.state.collectAsState()
     var selected by remember { mutableStateOf<Int?>(null) }
     var loading by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
@@ -153,7 +174,12 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
                     SoftCard(Modifier.fillMaxWidth(), onClick = { selected = g.id }) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (g.icon != null) AsyncImage(g.icon, null, Modifier.size(40.dp)) else Icon(Icons.Default.Payment, null, Modifier.size(40.dp), tint = Brand.Primary)
-                            Text(g.name, Modifier.weight(1f).padding(start = 12.dp), style = MaterialTheme.typography.titleSmall)
+                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(g.name, style = MaterialTheme.typography.titleSmall)
+                                g.fee?.takeIf { it > 0 }?.let {
+                                    Text("Fee ${money(it)}", style = MaterialTheme.typography.labelSmall, color = Brand.Muted)
+                                }
+                            }
                             RadioButton(selected == g.id, { selected = g.id })
                         }
                     }
@@ -180,9 +206,22 @@ fun PaymentWebViewScreen(url: String, bookingId: Int) {
     var progress by remember { mutableFloatStateOf(0f) }
     var confirmExit by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
-    val successHints = listOf("/success", "status=success", "payment_status=success", "paid", "complete")
-    val failHints = listOf("/failed", "/cancel", "status=failed", "payment_status=failed", "declined")
-    fun finish(cancelled: Boolean) { if (done) return; done = true; nav.nav.navigate(Routes.payResult(bookingId, cancelled)) { popUpTo("payment/{bid}/{amount}") { inclusive = true } } }
+    // Master global_payment_page hints (+ sslcommerz / payment_id / result)
+    val successHints = listOf(
+        "/payment/success", "/sslcommerz/success", "/success",
+        "status=success", "payment_status=success", "result=success", "paid", "complete", "payment_id=",
+    )
+    val failHints = listOf(
+        "/payment/failed", "/payment/fail", "/sslcommerz/fail", "/failed", "/cancel",
+        "status=failed", "payment_status=failed", "result=failed", "result=canceled", "result=error", "declined",
+    )
+    fun finish(cancelled: Boolean) {
+        if (done) return
+        done = true
+        nav.nav.navigate(Routes.payResult(bookingId, cancelled)) {
+            popUpTo("payment/{bid}/{amount}") { inclusive = true }
+        }
+    }
 
     BackHandler { confirmExit = true }
     Scaffold(topBar = { DTopBar(stringResource(R.string.payment), onBack = { confirmExit = true }) }) { pad ->

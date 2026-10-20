@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Master Flutter pins apigw.durpalla.com to assets/certs/api_cert.pem (no system roots).
+  TODO(assets): copy api_cert.pem from Flutter master into res/raw/api_cert.pem and add pin-set:
+
+  <domain-config cleartextTrafficPermitted="false">
+    <domain includeSubdomains="true">apigw.durpalla.com</domain>
+    <pin-set expiration="2027-12-31">
+      <pin digest="SHA-256">BASE64_OF_CERT_PUBLIC_KEY</pin>
+    </pin-set>
+  </domain-config>
+
+  Until the PEM is available, release builds use system TLS (same fallback Flutter uses if load fails).
+  Debug may need cleartext/dev hosts — keep base-config restrictive.
+-->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">durpalla.com</domain>
+        <domain includeSubdomains="true">dev-apigw.durpalla.com</domain>
+        <domain includeSubdomains="true">apigw.durpalla.com</domain>
+        <domain includeSubdomains="true">dev-assets.durpalla.com</domain>
+        <domain includeSubdomains="true">assets.durpalla.com</domain>
+    </domain-config>
 </network-security-config>

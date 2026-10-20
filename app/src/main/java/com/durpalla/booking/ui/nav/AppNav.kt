@@ -53,8 +53,13 @@ object Routes {
     fun hotelResults(city: String, ci: String, co: String) = "hotels/${Uri.encode(city)}/$ci/$co"
     fun hotel(id: Int, ci: String, co: String) = "hotel/$id/$ci/$co"
     fun experiences(service: String) = "exp/$service"
-    fun experience(id: Int) = "expd/$id"
-    fun bookExperience(id: Int) = "expbook/$id"
+    fun experience(id: Int, service: String = "tour") = "expd/$service/$id"
+    fun bookExperience(id: Int, service: String = "tour") = "expbook/$service/$id"
+    fun boatList(q: String = "", starts: String = "", ends: String = "") =
+        "boats/${Uri.encode(q.ifBlank { "_" })}/${Uri.encode(starts.ifBlank { "_" })}/${Uri.encode(ends.ifBlank { "_" })}"
+    fun boatDetails(id: Int, starts: String, ends: String) =
+        "boat/$id/${Uri.encode(starts)}/${Uri.encode(ends)}"
+    fun boatCustomTrip() = "boatcustom"
     const val PROFILE = "profile"; const val SAVED = "saved"; const val SUPPORT = "support"; const val FAQ = "faq"
     const val ABOUT = "about"; const val TERMS = "terms"; const val SETTINGS = "settings"; const val NOTIFICATIONS = "notifications"
 
@@ -183,8 +188,34 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                     val a = e.arguments!!; HotelDetailsScreen(a.getInt("id"), a.getString("ci")!!, a.getString("co")!!)
                 }
                 composable("exp/{service}") { ExperienceListScreen(it.arguments!!.getString("service")!!) }
-                composable("expd/{id}", arguments = listOf(navArgument("id") { type = NavType.IntType })) { ExperienceDetailScreen(it.arguments!!.getInt("id")) }
-                composable("expbook/{id}", arguments = listOf(navArgument("id") { type = NavType.IntType })) { ExperienceBookScreen(it.arguments!!.getInt("id")) }
+                composable(
+                    "expd/{service}/{id}",
+                    arguments = listOf(navArgument("id") { type = NavType.IntType }),
+                ) {
+                    ExperienceDetailScreen(it.arguments!!.getInt("id"), it.arguments!!.getString("service")!!)
+                }
+                composable(
+                    "expbook/{service}/{id}",
+                    arguments = listOf(navArgument("id") { type = NavType.IntType }),
+                ) {
+                    ExperienceBookScreen(it.arguments!!.getInt("id"), it.arguments!!.getString("service")!!)
+                }
+                composable("boats/{q}/{starts}/{ends}") {
+                    fun decode(s: String?) = Uri.decode(s.orEmpty()).let { if (it == "_") "" else it }
+                    BoatListScreen(
+                        decode(it.arguments?.getString("q")),
+                        decode(it.arguments?.getString("starts")),
+                        decode(it.arguments?.getString("ends")),
+                    )
+                }
+                composable("boat/{id}/{starts}/{ends}", arguments = listOf(navArgument("id") { type = NavType.IntType })) {
+                    BoatDetailsScreen(
+                        it.arguments!!.getInt("id"),
+                        it.arguments!!.getString("starts")!!,
+                        it.arguments!!.getString("ends")!!,
+                    )
+                }
+                composable("boatcustom") { BoatCustomTripScreen() }
 
                 composable(Routes.PROFILE) { ProfileScreen() }
                 composable(Routes.SAVED) { SavedScreen() }

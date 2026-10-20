@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -89,6 +90,7 @@ private fun BookingRow(b: Booking, onClick: () -> Unit) {
 @Composable
 fun TicketScreen(id: Int) {
     val c = LocalContainer.current; val nav = LocalNav.current
+    val ctx = LocalContext.current
     val vm = rememberLoad("ticket-$id") { c.bookings.bookingDetails(id) }
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -113,7 +115,8 @@ fun TicketScreen(id: Int) {
                             }
                         }
                         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            val qrText = root.s("qr") ?: root.s("qr_code") ?: "DURPALLA|PNR:${b.pnr}|BID:${b.id}"
+                            val qrText = root.s("qr_code") ?: root.s("qr") ?: root.s("qrCode")
+                                ?: "DURPALLA|PNR:${b.pnr}|BID:${b.id}"
                             val bmp = remember(qrText) { qr(qrText) }
                             Image(bmp.asImageBitmap(), "QR", Modifier.size(200.dp))
                             Text("PNR ${b.pnr}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -131,7 +134,18 @@ fun TicketScreen(id: Int) {
                         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("${it0.str("cabin_type", "item_type", "type")} ${it0.str("cabin_no")}", Modifier.weight(1f))
                             Text(money(it0.d("fare", "price")))
-                            if (it0.b("cancellable") || b.cancellable) TextButton({ confirmCancel = it0.i("id") }) { Text(stringResource(R.string.cancel_ticket), color = Brand.Error) }
+                            if (com.durpalla.booking.core.BookingCancelRules.canCancelItem(b, it0)) {
+                                TextButton({ confirmCancel = it0.i("id") }) {
+                                    Text(stringResource(R.string.cancel_ticket), color = Brand.Error)
+                                }
+                            }
+                            b.invoiceUrl?.takeIf { it.isNotBlank() && b.downloadable }?.let { url ->
+                                TextButton({
+                                    runCatching {
+                                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                    }
+                                }) { Text("Invoice") }
+                            }
                         }
                     }
                     msg?.let { Text(it, color = Brand.Primary) }

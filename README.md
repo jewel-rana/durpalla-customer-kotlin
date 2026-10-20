@@ -1,6 +1,6 @@
 # durpalla-customer-kotlin
 
-Durpalla Customer Kotlin app — native Android (Jetpack Compose) rewrite of the Durpalla customer app (Flutter repo `Durpalla/durpalla-flutter-app`) implementing the 2026 Figma redesign.
+Durpalla Customer Kotlin app — native Android (Jetpack Compose) rewrite of the Durpalla customer app, targeting Flutter **`master`** (`8ee2bed`), not `main`. See [API_MAP.md](API_MAP.md) and [MASTER_PORT_TODOS.md](MASTER_PORT_TODOS.md).
 
 * Package / applicationId / namespace: **`com.durpalla.booking`** (matches the Flutter app's Firebase registration)
 * minSdk 24, targetSdk/compileSdk 35, Kotlin 2.0.21, AGP 8.7.3, Gradle 8.10.2, JDK 17
@@ -33,8 +33,8 @@ Copy `google-services.json` and API/Pusher/reCAPTCHA keys from the Flutter app (
 ```
 core/            Json helpers (loose Map-like access), ApiException
 data/net/        DurpallaApi (Retrofit, raw bodies) + ApiClient (headers, _decode semantics, 401 → logout)
-data/session/    SessionStore (DataStore: token, auth_user, device_id, lang, dark)
-data/repo/       Auth, Home, Trip, Booking, Payment, Hotel, Profile repositories (real API), ExperienceRepository (+Mock)
+data/session/    SessionStore (secure token + guest id + DataStore user/lang/dark)
+data/repo/       Auth, Home, Trip, Booking, Payment, Hotel, Tour, Entertainment, BoatRental, CartStore, Profile
 realtime/ push/ security/
 ui/theme         Brand palette (#106E9D, 50/100/300/600/700, navy #0A3550, amber #F59E0B), Inter variable font, light/dark
 ui/components    SoftCard (blue-tinted shadow), GradientButton (amber glow), FrostedIcon, Pill, Skeleton shimmer, EmptyState…
@@ -56,15 +56,15 @@ Auth matches Flutter **dev/master** email+mobile (`channel` + `email`|`mobile`):
 - Country picker defaults to +880 and helps compose the `mobile` string (BD `01XXXXXXXXX`, intl as typed `^\+?[1-9]\d{7,14}$`). No `country_code`/`dial_code` fields.
 
 ### Screens
-Splash · Home (guest & signed-in; 6-service grid, upcoming ticket, offers carousel, popular routes, top hotels, explore) · Search (Launch/Bus/Boat/Hotel, ghat & city autocomplete, swap, Today/Tomorrow/date picker) · Results (date strip, sort/AC filter, seat-availability bars, skeletons) · Trip details (cabin/seat/sofa tabs, floors, legend, live Pusher locking, sticky summary) · Checkout (stepper, passenger, price breakdown, release item) · Payment methods · Payment WebView · Payment result (verify, confetti) · Tickets (Upcoming/Past/Cancelled) · Ticket (QR, cancel item) · Offers · Account (guest & signed-in) · Edit profile · Saved hotels · Settings (dark mode, English/বাংলা) · Support · FAQ · About · Terms · Notifications · Sign in · Password · OTP · Register · Hotel results · Hotel details (rooms → quote → hold → confirm → payment) · Tour/Entertainment list · Experience details · Experience booking (mock).
+Splash · Home (guest & signed-in; 6-service grid, upcoming ticket, offers carousel, popular routes, top hotels, explore) · Search (Launch/Bus/Boat/Hotel, ghat & city autocomplete, swap, Today/Tomorrow/date picker) · Results (date strip, sort/AC filter, seat-availability bars, skeletons) · Trip details (cabin/seat/sofa tabs, floors, legend, live Pusher locking, sticky summary) · Checkout (stepper, passenger, price breakdown, release item) · Payment methods · Payment WebView · Payment result (verify, confetti) · Tickets (Upcoming/Past/Cancelled) · Ticket (QR, cancel item) · Offers · Account (guest & signed-in) · Edit profile · Saved hotels · Settings (dark mode, English/বাংলা) · Support · FAQ · About · Terms · Notifications · Sign in · Password · OTP · Register · Hotel results · Hotel details (rooms → quote → hold → confirm → payment) · Tour/Entertainment list + checkout (real APIs) · Boat rental list/details/custom-trip+bids.
 
 ## Real vs mock
-* **Real:** everything in API_MAP.md (auth, search, suggestions, trip layout, cart lock/unlock, booking confirm, gateways, payment make/verify, bookings, cancel, profile, hotels, favourites, home feeds).
-* **Mock / TODO:** Tour & Entertainment (`MockExperienceRepository`, labelled in UI), Notifications inbox, Terms CMS page, coupons, avatar upload UI.
+* **Real:** everything in API_MAP.md including tour/*, entertainment/*, boat-rental/*, cart sync, hotel multi-room hold.
+* **Still TODO / polish:** see MASTER_PORT_TODOS.md (cert PEM, SolaimanLipi, full ARB, home re-skin, remote l10n). Notifications inbox, Terms CMS, coupons, avatar upload UI.
 
 ## Known gaps
 * Runtime not exercised on a device/emulator (built only). Search/popular endpoints returned empty lists on dev, so result cards and seat map are coded against the Flutter field names, not live data.
 * Response field names for hotel rooms/hold/confirm and booking-details wrappers are inferred from the Flutter code with fallbacks; verify against real responses.
 * Bus "ladies seat" and per-seat passenger forms aren't modelled (Flutter doesn't either).
-* Cart is in memory (like Flutter CartProvider); held locks are released when items are removed but not on app kill.
+* Cart syncs from `GET cart` at startup (master); local expiry timers release holds; app-kill release is still best-effort.
 Photo credits: [PHOTO_CREDITS.md](PHOTO_CREDITS.md) (Wikimedia Commons). Inter font: SIL OFL.
