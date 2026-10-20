@@ -127,6 +127,11 @@
     <string name="edit_profile">প্রোফাইল সম্পাদনা</string>
     <string name="saved">সংরক্ষিত</string>
     <string name="language">ভাষা</string>
+    <string name="choose_language">আপনার ভাষা বেছে নিন</string>
+    <string name="choose_language_body">সেটিংস থেকে যেকোনো সময় পরিবর্তন করতে পারবেন।</string>
+    <string name="continue_label">এগিয়ে যান</string>
+    <string name="lang_bundled">ডিভাইসে</string>
+    <string name="lang_remote">ডাউনলোড করা</string>
     <string name="dark_mode">ডার্ক মোড</string>
     <string name="support">সাপোর্ট</string>
     <string name="faq">প্রশ্নোত্তর</string>

@@ -127,6 +127,11 @@
     <string name="edit_profile">Edit profile</string>
     <string name="saved">Saved</string>
     <string name="language">Language</string>
+    <string name="choose_language">Choose your language</string>
+    <string name="choose_language_body">You can change this anytime in Settings.</string>
+    <string name="continue_label">Continue</string>
+    <string name="lang_bundled">On device</string>
+    <string name="lang_remote">Downloaded</string>
     <string name="dark_mode">Dark mode</string>
     <string name="support">Support</string>
     <string name="faq">FAQ</string>

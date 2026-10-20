@@ -89,7 +89,7 @@ All vertical checkouts land on the same `PaymentOptionsScreen(bookingId, amount)
 | Popular trips | GET `public/popular-upcoming-trips` |
 | Offers | GET `offers` |
 | Hotel top | GET `hotel/home/top` |
-| Remote languages | GET `localizations/customer-app/{code}` → `data.translations` (**TODO** client overlay) |
+| Remote languages | GET `localizations/customer-app/{code}` → `data.translations` + `data.version` (cached overlay; RTL for ar/ur/fa) |
 
 Firebase Remote Config keys: maintenance_*, booking_enabled, payment_*_enabled, booking_hold_minutes, support_*, show_new_*, minimum/recommended_app_version.
 

@@ -16,13 +16,20 @@ import kotlinx.serialization.json.JsonObject
 private val Context.dataStore by preferencesDataStore(name = "durpalla_session")
 
 /**
- * Port of Flutter Session: token (secure), auth_user, device_id, lang, dark, **x_guest_id**.
+ * Port of Flutter Session + LocaleProvider prefs:
+ * - `app_locale` (migrated from legacy `lang` / `locale_chosen`)
+ * - `language_onboarding_done`
+ * - token (secure), auth_user, device_id, dark, x_guest_id
  */
 class SessionStore(private val context: Context, private val scope: CoroutineScope) {
     private val kToken = stringPreferencesKey("token")
     private val kUser = stringPreferencesKey("auth_user")
     private val kDeviceId = stringPreferencesKey("device_id")
-    private val kLang = stringPreferencesKey("lang")
+    /** Legacy key — migrated to [kAppLocale]. */
+    private val kLangLegacy = stringPreferencesKey("lang")
+    private val kAppLocale = stringPreferencesKey("app_locale")
+    private val kOnboardingDone = booleanPreferencesKey("language_onboarding_done")
+    private val kLocaleChosenLegacy = booleanPreferencesKey("locale_chosen")
     private val kDark = booleanPreferencesKey("dark")
     private val kGuestId = stringPreferencesKey("x_guest_id")
 
@@ -53,7 +60,12 @@ class SessionStore(private val context: Context, private val scope: CoroutineSco
 
     val forcedLogout = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    val language: Flow<String> = context.dataStore.data.map { it[kLang] ?: "en" }
+    val language: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[kAppLocale] ?: prefs[kLangLegacy] ?: "en"
+    }
+    val languageOnboardingDone: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[kOnboardingDone] == true || prefs[kLocaleChosenLegacy] == true
+    }
     val darkMode: Flow<Boolean> = context.dataStore.data.map { it[kDark] ?: false }
 
     init {
@@ -63,7 +75,6 @@ class SessionStore(private val context: Context, private val scope: CoroutineSco
 
     suspend fun restore() {
         val p = context.dataStore.data.first()
-        // Prefer EncryptedSharedPreferences token; migrate from DataStore if needed.
         val secureToken = securePrefs?.getString("token", null)
         val dsToken = p[kToken]
         val t = secureToken ?: dsToken
@@ -73,7 +84,15 @@ class SessionStore(private val context: Context, private val scope: CoroutineSco
             context.dataStore.edit { it.remove(kToken) }
         }
         guestId = p[kGuestId] ?: securePrefs?.getString("x_guest_id", null)
-        contentLanguage = p[kLang] ?: "en"
+        // Migrate lang → app_locale
+        val locale = p[kAppLocale] ?: p[kLangLegacy] ?: "en"
+        if (p[kAppLocale] == null && p[kLangLegacy] != null) {
+            context.dataStore.edit {
+                it[kAppLocale] = locale
+                it.remove(kLangLegacy)
+            }
+        }
+        contentLanguage = locale
         _user.value = p[kUser]?.let { runCatching { LooseJson.parseToJsonElement(it) as JsonObject }.getOrNull() }
     }
 
@@ -120,9 +139,22 @@ class SessionStore(private val context: Context, private val scope: CoroutineSco
 
     suspend fun deviceId(): String? = context.dataStore.data.first()[kDeviceId]
     suspend fun saveDeviceId(id: String) { context.dataStore.edit { it[kDeviceId] = id } }
+
+    /** Persist `app_locale` and keep Content-Language in sync. */
     suspend fun setLanguage(l: String) {
         contentLanguage = l
-        context.dataStore.edit { it[kLang] = l }
+        context.dataStore.edit {
+            it[kAppLocale] = l
+            it.remove(kLangLegacy)
+        }
     }
+
+    suspend fun setLanguageOnboardingDone(done: Boolean = true) {
+        context.dataStore.edit {
+            it[kOnboardingDone] = done
+            it[kLocaleChosenLegacy] = done
+        }
+    }
+
     suspend fun setDark(d: Boolean) { context.dataStore.edit { it[kDark] = d } }
 }

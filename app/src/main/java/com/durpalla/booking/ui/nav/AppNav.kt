@@ -21,14 +21,18 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.*
 import com.durpalla.booking.AppContainer
 import com.durpalla.booking.R
+import com.durpalla.booking.l10n.ProvideAppLocale
 import com.durpalla.booking.ui.components.GradientButton
 import com.durpalla.booking.ui.screens.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 val LocalContainer = staticCompositionLocalOf<AppContainer> { error("no container") }
 
 object Routes {
     const val SPLASH = "splash"
+    const val LANGUAGE = "language"
     const val HOME = "home"; const val SEARCH = "search"; const val TICKETS = "tickets"; const val OFFERS = "offers"; const val ACCOUNT = "account"
     const val LOGIN = "login?redirect={redirect}"
     fun login(redirect: String?) = "login?redirect=" + Uri.encode(redirect ?: "")
@@ -102,6 +106,8 @@ val tabs = listOf(
 fun AppRoot(container: AppContainer, deepLink: String?) {
     val nav = rememberNavController()
     val loggedIn by container.session.loggedIn.collectAsState()
+    val localeCode by container.session.language.collectAsState(initial = "en")
+    val l10nOverlay by container.l10n.overlay.collectAsState()
     var pendingRoute by remember { mutableStateOf<String?>(null) }
     val navigator = remember(nav) { AppNavigator(nav, { container.session.isAuthenticated }, { pendingRoute = it }) }
 
@@ -110,13 +116,17 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
     }
     LaunchedEffect(deepLink, loggedIn) { if (deepLink != null && nav.currentDestination?.route != Routes.SPLASH) navigator.go(deepLink) }
 
+    ProvideAppLocale(code = localeCode, overlay = l10nOverlay) {
     CompositionLocalProvider(LocalContainer provides container, LocalNav provides navigator) {
         val back by nav.currentBackStackEntryAsState()
         val current = back?.destination?.route
         Scaffold(
             bottomBar = {
-                AnimatedVisibility(current in tabs.map { it.route } || current?.startsWith("search") == true,
-                    enter = slideInVertically { it }, exit = slideOutVertically { it }) {
+                AnimatedVisibility(
+                    (current in tabs.map { it.route } || current?.startsWith("search") == true) &&
+                        current != Routes.LANGUAGE && current != Routes.SPLASH,
+                    enter = slideInVertically { it }, exit = slideOutVertically { it },
+                ) {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {
                         tabs.forEach { t ->
                             val sel = back?.destination?.hierarchy?.any { it.route?.substringBefore("?") == t.route } == true
@@ -135,7 +145,23 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                 popEnterTransition = { fadeIn(tween(250)) },
                 popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(300)) + fadeOut(tween(300)) },
             ) {
-                composable(Routes.SPLASH) { SplashScreen { nav.navigate(Routes.HOME) { popUpTo(Routes.SPLASH) { inclusive = true } } } }
+                composable(Routes.SPLASH) {
+                    val scope = rememberCoroutineScope()
+                    SplashScreen {
+                        scope.launch {
+                            val done = container.session.languageOnboardingDone.first()
+                            val next = if (done) Routes.HOME else Routes.LANGUAGE
+                            nav.navigate(next) { popUpTo(Routes.SPLASH) { inclusive = true } }
+                        }
+                    }
+                }
+                composable(Routes.LANGUAGE) {
+                    LanguageSelectScreen(
+                        onFinished = {
+                            nav.navigate(Routes.HOME) { popUpTo(Routes.LANGUAGE) { inclusive = true } }
+                        },
+                    )
+                }
                 composable(Routes.HOME, enterTransition = { fadeIn(tween(220)) }, exitTransition = { fadeOut(tween(180)) }) { HomeScreen() }
                 composable("search?service={service}", arguments = listOf(navArgument("service") { defaultValue = "launch" }),
                     enterTransition = { fadeIn(tween(220)) }, exitTransition = { fadeOut(tween(180)) }) { SearchScreen(it.arguments?.getString("service") ?: "launch") }
@@ -247,4 +273,5 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
             }
         }
     }
+    } // ProvideAppLocale
 }

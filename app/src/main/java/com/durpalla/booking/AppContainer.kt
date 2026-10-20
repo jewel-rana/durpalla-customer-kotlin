@@ -8,14 +8,17 @@ import com.durpalla.booking.calling.MockCallRepository
 import com.durpalla.booking.data.net.ApiClient
 import com.durpalla.booking.data.repo.*
 import com.durpalla.booking.data.session.SessionStore
+import com.durpalla.booking.l10n.LocaleHelper
+import com.durpalla.booking.l10n.RemoteLocalizationService
 import com.durpalla.booking.realtime.PusherManager
 import com.durpalla.booking.security.WebViewRecaptchaProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/** Manual DI container (master Flutter parity + in-app calling). */
+/** Manual DI container (master Flutter parity + calling + remote l10n). */
 class AppContainer(context: Context) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val session = SessionStore(context, appScope)
@@ -34,6 +37,7 @@ class AppContainer(context: Context) {
     val experiences: ExperienceRepository = ApiExperienceRepository(tours, entertainment)
     val cart = CartStore(trips, appScope)
     val pusher = PusherManager()
+    val l10n = RemoteLocalizationService(context.applicationContext, apiClient, appScope)
 
     /**
      * Driver calling. Mock by default ([BuildConfig.USE_MOCK_CALLS]).
@@ -52,6 +56,16 @@ class AppContainer(context: Context) {
     }
 
     init {
-        appScope.launch { cart.syncFromServer() }
+        appScope.launch {
+            cart.syncFromServer()
+            val code = session.language.first()
+            LocaleHelper.apply(code)
+            l10n.load(code)
+        }
+        appScope.launch {
+            session.language.collect { code ->
+                l10n.load(code)
+            }
+        }
     }
 }

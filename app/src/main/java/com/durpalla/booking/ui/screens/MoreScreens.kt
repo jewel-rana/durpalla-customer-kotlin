@@ -201,30 +201,36 @@ fun InfoScreen(kind: InfoKind) {
 
 fun Modifier.animateContentSizeCompat() = this.then(Modifier.animateContentSize())
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
-    val c = LocalContainer.current; val nav = LocalNav.current; val ctx = LocalContext.current
-    val dark by c.session.darkMode.collectAsState(false); val lang by c.session.language.collectAsState("en")
+    val c = LocalContainer.current; val nav = LocalNav.current
+    val dark by c.session.darkMode.collectAsState(false)
+    val lang by c.session.language.collectAsState("en")
     val scope = rememberCoroutineScope()
+    var showLangSheet by remember { mutableStateOf(false) }
+    val localeLabel = com.durpalla.booking.l10n.SupportedLocales.find(lang).nativeName
     Scaffold(topBar = { DTopBar(stringResource(R.string.settings), onBack = nav::back) }) { pad ->
         Column(Modifier.padding(pad).padding(16.dp)) {
             SoftCard {
                 MenuRow(Icons.Default.DarkMode, stringResource(R.string.dark_mode), trailing = { Switch(dark, { v -> scope.launch { c.session.setDark(v) } }) }) { scope.launch { c.session.setDark(!dark) } }
-                MenuRow(Icons.Default.Translate, stringResource(R.string.language), trailing = { Text(if (lang == "bn") "বাংলা" else "English", color = Brand.Primary) }) {
-                    val next = if (lang == "bn") "en" else "bn"
-                    scope.launch { c.session.setLanguage(next); applyLocale(ctx, next) }
-                }
+                MenuRow(
+                    Icons.Default.Translate,
+                    stringResource(R.string.language),
+                    trailing = { Text(localeLabel, color = Brand.Primary) },
+                ) { showLangSheet = true }
             }
+        }
+    }
+    if (showLangSheet) {
+        ModalBottomSheet(onDismissRequest = { showLangSheet = false }) {
+            LanguagePickerSheet(onDismiss = { showLangSheet = false })
         }
     }
 }
 
+/** @deprecated Prefer [com.durpalla.booking.l10n.LocaleHelper.apply]. */
 fun applyLocale(ctx: android.content.Context, lang: String) {
-    if (android.os.Build.VERSION.SDK_INT >= 33) {
-        ctx.getSystemService(android.app.LocaleManager::class.java).applicationLocales = android.os.LocaleList.forLanguageTags(lang)
-    } else {
-        val locale = java.util.Locale(lang); java.util.Locale.setDefault(locale)
-        @Suppress("DEPRECATION") ctx.resources.updateConfiguration(android.content.res.Configuration(ctx.resources.configuration).apply { setLocale(locale) }, ctx.resources.displayMetrics)
-        (ctx as? Activity)?.recreate()
-    }
+    com.durpalla.booking.l10n.LocaleHelper.apply(lang)
+    if (android.os.Build.VERSION.SDK_INT < 33) (ctx as? Activity)?.recreate()
 }
