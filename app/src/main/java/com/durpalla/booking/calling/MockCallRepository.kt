@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 
 /**
@@ -37,6 +38,13 @@ class MockCallRepository(
 
     override fun logForTrip(tripId: Int): Flow<List<CallLogEntry>> =
         callLog.map { list -> list.filter { it.tripId == tripId } }
+
+    override fun ingestTripCallLog(tripId: Int, entries: List<JsonObject>) {
+        val parsed = entries.mapNotNull { CallLogEntry.fromTripJson(it, tripId) }
+        if (parsed.isEmpty()) return
+        val others = _log.value.filter { it.tripId != tripId }
+        _log.value = parsed + others
+    }
 
     override fun canCallDriver(tripId: Int, bidAccepted: Boolean, tripActive: Boolean): Boolean =
         bidAccepted || tripActive
@@ -103,6 +111,12 @@ class MockCallRepository(
         }
     }
 
+    override suspend fun onRemoteEnded(callId: String, status: CallStatus) {
+        val cur = _session.value ?: return
+        if (cur.callId != callId || !status.isTerminal) return
+        endInternal(status, endedBy = "remote", reason = status.wire)
+    }
+
     override suspend fun accept() {
         val s = _session.value ?: return
         // TODO(calling): POST /calls/{id}/accept
@@ -119,9 +133,9 @@ class MockCallRepository(
         CallNotifications.cancelIncoming(context)
     }
 
-    override suspend fun end() {
-        // TODO(calling): POST /calls/{id}/end
-        endInternal(CallStatus.ENDED, endedBy = mockCallerId)
+    override suspend fun end(reason: CallEndReason) {
+        val status = if (reason == CallEndReason.MISSED) CallStatus.MISSED else CallStatus.ENDED
+        endInternal(status, endedBy = mockCallerId, reason = reason.wire)
     }
 
     override suspend fun setMuted(muted: Boolean) {
@@ -157,7 +171,20 @@ class MockCallRepository(
         val duration = if (answered != null) (System.currentTimeMillis() - answered) / 1000 else 0L
         if (appendLog) {
             _log.value = listOf(
-                CallLogEntry(cur.callId, cur.tripId, cur.peerName, status, startedAt, duration, cur.isOutgoing),
+                CallLogEntry(
+                    callId = cur.callId,
+                    tripId = cur.tripId,
+                    peerName = cur.peerName,
+                    callerRole = CallRole.CUSTOMER.wire,
+                    status = status,
+                    createdAtMs = startedAt,
+                    answeredAtMs = answered,
+                    endedAtMs = System.currentTimeMillis(),
+                    durationSec = duration,
+                    endedBy = endedBy,
+                    reason = reason,
+                    isOutgoing = cur.isOutgoing,
+                ),
             ) + _log.value
         }
         _session.value = cur.copy(

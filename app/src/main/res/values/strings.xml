@@ -313,6 +313,14 @@
     <string name="err_booking_id_short">Booking ID missing</string>
     <string name="err_not_found">Not found</string>
     <string name="err_could_not_start_call">Could not start call</string>
+    <string name="err_call_unauthorized">Please sign in again to call</string>
+    <string name="err_call_trip_not_found">Trip not found for this call</string>
+    <string name="err_call_not_participant">You can only call the driver of this trip</string>
+    <string name="err_call_trip_not_active">Calling is available only for upcoming and live trips</string>
+    <string name="err_call_busy">Driver is on another call</string>
+    <string name="err_call_not_found">This call was not found</string>
+    <string name="err_call_already_ended">This call has already ended</string>
+    <string name="err_call_rate_limited">Too many calls. Try again in a minute</string>
     <string name="err_invalid_credential_hint"> This app may be using the new customer login; try \"Sign up\" or use the number you registered here.</string>
     <string name="hotel_review_prompt">How was your stay at %1$s?</string>
     <string name="sample_offer_1_title">Up to 15%% off launch cabins</string>

@@ -111,7 +111,7 @@ fun OutgoingCallScreen() {
                     icon = Icons.Default.CallEnd,
                     label = t(R.string.call_end),
                     danger = true,
-                ) { scope.launch { c.calls.end() } }
+                ) { scope.launch { c.calls.end(com.durpalla.booking.calling.CallEndReason.HANGUP) } }
                 CallRoundButton(
                     icon = if (s?.speakerOn == true) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
                     label = t(R.string.call_speaker),
@@ -190,8 +190,15 @@ fun CallDriverButton(
 }
 
 @Composable
-fun CallLogSection(tripId: Int) {
+fun CallLogSection(
+    tripId: Int,
+    /** Optional trip payload `callLog[]` (oldest first); ingested into CallRepository. */
+    tripCallLog: List<kotlinx.serialization.json.JsonObject> = emptyList(),
+) {
     val c = LocalContainer.current
+    LaunchedEffect(tripId, tripCallLog) {
+        if (tripCallLog.isNotEmpty()) c.calls.ingestTripCallLog(tripId, tripCallLog)
+    }
     val log by c.calls.logForTrip(tripId).collectAsState(initial = emptyList())
     val locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
     if (log.isEmpty()) return
@@ -206,7 +213,13 @@ fun CallLogSection(tripId: Int) {
                     tint = if (e.status == CallStatus.MISSED) Brand.Error else Brand.Primary,
                 )
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                    Text(e.peerName, style = MaterialTheme.typography.titleSmall)
+                    val title = e.peerName.ifBlank {
+                        when (e.callerRole) {
+                            "driver" -> t(R.string.call_driver)
+                            else -> t(R.string.you)
+                        }
+                    }
+                    Text(title, style = MaterialTheme.typography.titleSmall)
                     Text(
                         when (e.status) {
                             CallStatus.MISSED -> t(R.string.call_status_missed)
@@ -217,6 +230,9 @@ fun CallLogSection(tripId: Int) {
                         color = Brand.Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    e.reason?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, color = Brand.Muted, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
                 if (e.durationSec > 0) {
                     Text(BanglaDigits.formatDuration(e.durationSec, locale), style = MaterialTheme.typography.labelLarge)

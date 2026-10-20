@@ -159,7 +159,9 @@ fun TicketScreen(id: Int) {
                     if (tripActive) {
                         Spacer(Modifier.height(12.dp))
                         CallDriverButton(tripId = b.id, driverName = driverName, tripActive = true)
-                        CallLogSection(b.id)
+                        val tripLog = b.raw.a("callLog").objects()
+                            .ifEmpty { b.firstItem.a("callLog").objects() }
+                        CallLogSection(b.id, tripCallLog = tripLog)
                     }
                 }
             }

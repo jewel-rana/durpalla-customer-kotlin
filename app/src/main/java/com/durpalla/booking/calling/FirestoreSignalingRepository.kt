@@ -10,9 +10,8 @@ import kotlinx.coroutines.tasks.await
 
 /**
  * Firestore `calls/{callId}` — field names match driver contract exactly.
- * Security: only caller/callee may read/write (enforced by Firestore rules).
- *
- * TODO(calling): Durpalla/durpalla-driver docs/calling-contract.md
+ * Doc is created by the backend Admin SDK; clients write offer/answer/status and candidates.
+ * See docs/calling-contract.md and docs/firestore.rules.
  */
 class FirestoreSignalingRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
@@ -27,7 +26,11 @@ class FirestoreSignalingRepository(
             trySend(
                 SignalingSnapshot(
                     callId = d["callId"] as? String ?: callId,
-                    tripId = (d["tripId"] as? Number)?.toInt() ?: 0,
+                    tripId = when (val t = d["tripId"]) {
+                        is Number -> t.toInt()
+                        is String -> t.filter { it.isDigit() }.toIntOrNull() ?: 0
+                        else -> 0
+                    },
                     status = CallStatus.fromWire(d["status"] as? String),
                     callerId = d["callerId"] as? String ?: "",
                     callerRole = d["callerRole"] as? String ?: CallRole.CUSTOMER.wire,
@@ -51,26 +54,13 @@ class FirestoreSignalingRepository(
         calleeId: String,
         calleeRole: CallRole,
     ) {
-        callRef(callId).set(
-            mapOf(
-                "callId" to callId,
-                "tripId" to tripId,
-                "callerId" to callerId,
-                "callerRole" to callerRole.wire,
-                "calleeId" to calleeId,
-                "calleeRole" to calleeRole.wire,
-                "status" to CallStatus.RINGING.wire,
-                "createdAt" to FieldValue.serverTimestamp(),
-            ),
-        ).await()
+        // Backend Admin SDK creates the doc on POST /calls (rules: create=false). No-op for production.
     }
 
     override suspend fun setOffer(callId: String, offer: SdpPayload) {
+        // Parties may write offer only (ICE restart must not reset status to ringing).
         callRef(callId).set(
-            mapOf(
-                "offer" to mapOf("type" to offer.type, "sdp" to offer.sdp),
-                "status" to CallStatus.RINGING.wire,
-            ),
+            mapOf("offer" to mapOf("type" to offer.type, "sdp" to offer.sdp)),
             SetOptions.merge(),
         ).await()
     }

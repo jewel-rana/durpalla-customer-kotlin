@@ -109,7 +109,7 @@ fun BoatDetailsScreen(id: Int, startsAt: String, endsAt: String) {
                             driverName = d.str("driver_name", "name", "title", default = t(R.string.call_driver)),
                             tripActive = true,
                         )
-                        CallLogSection(id)
+                        CallLogSection(id, tripCallLog = d.a("callLog").objects())
                     }
                     err?.let { Text(it, color = Brand.Error) }
                     GradientButton(t(R.string.book_now), Modifier.fillMaxWidth(), loading = loading) {
@@ -260,7 +260,10 @@ fun BoatCustomTripScreen() {
                                     driverName = driverName,
                                     bidAccepted = true,
                                 )
-                                CallLogSection(tripIdForCall)
+                                CallLogSection(
+                                    tripIdForCall,
+                                    tripCallLog = b.a("callLog").objects(),
+                                )
                             }
                         }
                     }

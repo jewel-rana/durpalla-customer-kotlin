@@ -55,15 +55,52 @@ data class CallSession(
     val weakConnection: Boolean = false,
 )
 
+/**
+ * Trip payload `callLog[]` entry (oldest first), plus local session appends.
+ * Wire fields: callId, callerRole, status, createdAt, answeredAt, endedAt, durationSec, endedBy, reason.
+ */
 data class CallLogEntry(
     val callId: String,
     val tripId: Int,
-    val peerName: String,
+    val peerName: String = "",
+    val callerRole: String = "",
     val status: CallStatus,
-    val startedAtMs: Long,
+    val createdAtMs: Long = 0L,
+    val answeredAtMs: Long? = null,
+    val endedAtMs: Long? = null,
     val durationSec: Long = 0,
-    val isOutgoing: Boolean,
-)
+    val endedBy: String? = null,
+    val reason: String? = null,
+    val isOutgoing: Boolean = false,
+) {
+    val startedAtMs get() = createdAtMs
+
+    companion object {
+        fun fromTripJson(m: kotlinx.serialization.json.JsonObject, tripId: Int): CallLogEntry? {
+            val callId = with(com.durpalla.booking.core) { m.s("callId") } ?: return null
+            val role = with(com.durpalla.booking.core) { m.str("callerRole") }
+            return CallLogEntry(
+                callId = callId,
+                tripId = tripId,
+                callerRole = role,
+                status = CallStatus.fromWire(with(com.durpalla.booking.core) { m.s("status") }),
+                createdAtMs = with(com.durpalla.booking.core) {
+                    m.d("createdAt")?.toLong() ?: m.i("createdAt")?.toLong() ?: 0L
+                },
+                answeredAtMs = with(com.durpalla.booking.core) {
+                    m.d("answeredAt")?.toLong() ?: m.i("answeredAt")?.toLong()
+                },
+                endedAtMs = with(com.durpalla.booking.core) {
+                    m.d("endedAt")?.toLong() ?: m.i("endedAt")?.toLong()
+                },
+                durationSec = with(com.durpalla.booking.core) { m.i("durationSec")?.toLong() ?: 0L },
+                endedBy = with(com.durpalla.booking.core) { m.s("endedBy") },
+                reason = with(com.durpalla.booking.core) { m.s("reason") },
+                isOutgoing = role == CallRole.CUSTOMER.wire,
+            )
+        }
+    }
+}
 
 /** One entry from GET /calls/ice-servers → `[{urls, username, credential}]` (+ ttl). */
 data class IceServerEntry(

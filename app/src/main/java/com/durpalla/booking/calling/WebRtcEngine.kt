@@ -23,16 +23,15 @@ import org.webrtc.audio.JavaAudioDeviceModule
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
-import kotlin.math.max
 
 /**
- * Audio-only WebRTC tuned for weak networks (driver parity):
- * Opus mono, fmtp FEC/DTX, adaptive sender bitrate 24→12→8 kbps, ICE restart on network change.
- * ICE from GET /calls/ice-servers (fallback STUN).
+ * Audio-only WebRTC (driver contract §7).
+ * Only the **caller** performs ICE restart on network change / ICE DISCONNECTED.
  */
 class WebRtcEngine(
     private val appContext: Context,
     private val iceProvider: suspend () -> IceServersResponse,
+    private val isCaller: Boolean = false,
 ) {
     private var factory: PeerConnectionFactory? = null
     private var audioDeviceModule: JavaAudioDeviceModule? = null
@@ -50,9 +49,8 @@ class WebRtcEngine(
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var lastNetwork: Network? = null
     private var lastIceRestartAt = 0L
-    private var prevPacketsLost = 0L
-    private var prevPacketsRecv = 0L
     private var targetBitrateBps = BITRATE_HIGH
+    private var goodStreak = 0
     private var weakHint = false
     private var audioModeBefore: Int = AudioManager.MODE_NORMAL
     private var speakerBefore = false
@@ -71,16 +69,17 @@ class WebRtcEngine(
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(appContext).createInitializationOptions(),
         )
+        val useHwAec = JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported()
+        val useHwNs = JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported()
         val adm = JavaAudioDeviceModule.builder(appContext)
-            .setUseHardwareAcousticEchoCanceler(true)
-            .setUseHardwareNoiseSuppressor(true)
+            .setUseHardwareAcousticEchoCanceler(useHwAec)
+            .setUseHardwareNoiseSuppressor(useHwNs)
             .createAudioDeviceModule()
         audioDeviceModule = adm
         factory = PeerConnectionFactory.builder()
             .setAudioDeviceModule(adm)
             .createPeerConnectionFactory()
         val audioConstraints = MediaConstraints().apply {
-            // Keep software AEC / NS / AGC on (in addition to hardware where available).
             optional.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
             optional.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
             optional.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
@@ -93,7 +92,7 @@ class WebRtcEngine(
         pc = factory!!.createPeerConnection(rtcConfig(ice), observer)
         audioSender = pc?.addTrack(localAudio)
         applySenderBitrate(BITRATE_HIGH)
-        registerNetworkCallback()
+        if (isCaller) registerNetworkCallback()
     }
 
     private fun enterCommunicationMode() {
@@ -101,12 +100,13 @@ class WebRtcEngine(
         audioModeBefore = am.mode
         speakerBefore = am.isSpeakerphoneOn
         am.mode = AudioManager.MODE_IN_COMMUNICATION
+        am.isSpeakerphoneOn = false
     }
 
     private fun restoreAudioMode() {
         val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         am.isSpeakerphoneOn = speakerBefore
-        am.mode = audioModeBefore
+        am.mode = AudioManager.MODE_NORMAL
     }
 
     private fun rtcConfig(ice: IceServersResponse): PeerConnection.RTCConfiguration {
@@ -130,11 +130,17 @@ class WebRtcEngine(
     private val observer = object : PeerConnection.Observer {
         override fun onSignalingChange(newState: PeerConnection.SignalingState?) {}
         override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
-            if (newState == PeerConnection.IceConnectionState.CONNECTED ||
-                newState == PeerConnection.IceConnectionState.COMPLETED
-            ) {
-                onConnected?.invoke()
-                startStatsPolling()
+            when (newState) {
+                PeerConnection.IceConnectionState.CONNECTED,
+                PeerConnection.IceConnectionState.COMPLETED,
+                -> {
+                    onConnected?.invoke()
+                    startStatsPolling()
+                }
+                PeerConnection.IceConnectionState.DISCONNECTED -> {
+                    if (isCaller) restartIce()
+                }
+                else -> {}
             }
         }
         override fun onIceConnectionReceivingChange(receiving: Boolean) {}
@@ -224,14 +230,14 @@ class WebRtcEngine(
         am.isSpeakerphoneOn = on
     }
 
-    /** ConnectivityManager-driven ICE restart (debounced). */
+    /** Caller-only ICE restart (debounced). */
     fun restartIce() {
+        if (!isCaller) return
         val now = System.currentTimeMillis()
         if (now - lastIceRestartAt < ICE_RESTART_MIN_MS) return
         lastIceRestartAt = now
         val peer = pc ?: return
         peer.restartIce()
-        // Renegotiate with ice-restart so both sides refresh ufrag/pwd (driver parity).
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
@@ -274,12 +280,10 @@ class WebRtcEngine(
 
     private fun startStatsPolling() {
         stopStatsPolling()
-        prevPacketsLost = 0L
-        prevPacketsRecv = 0L
+        goodStreak = 0
         val r = object : Runnable {
             override fun run() {
-                val peer = pc
-                if (peer == null) return
+                val peer = pc ?: return
                 peer.getStats { report -> onStats(report) }
                 mainHandler.postDelayed(this, STATS_INTERVAL_MS)
             }
@@ -293,45 +297,61 @@ class WebRtcEngine(
         statsRunnable = null
     }
 
+    /**
+     * Driver BitrateController: prefer `remote-inbound-rtp` fractionLost + RTT;
+     * step down on loss>5% or RTT>400ms; step up after 3 good samples (loss<2%, RTT<250ms).
+     */
     private fun onStats(report: RTCStatsReport) {
-        var packetsLost = 0L
-        var packetsRecv = 0L
+        var fractionLost: Double? = null
         var rttMs: Double? = null
         for (stats in report.statsMap.values) {
             when (stats.type) {
-                "inbound-rtp" -> {
+                "remote-inbound-rtp" -> {
                     val kind = stats.members["kind"] as? String
                         ?: stats.members["mediaType"] as? String
                     if (kind == null || kind == "audio") {
-                        packetsLost += (stats.members["packetsLost"] as? Number)?.toLong() ?: 0L
-                        packetsRecv += (stats.members["packetsReceived"] as? Number)?.toLong() ?: 0L
+                        (stats.members["fractionLost"] as? Number)?.toDouble()?.let { fractionLost = it }
+                        (stats.members["roundTripTime"] as? Number)?.toDouble()?.let { rttMs = it * 1000.0 }
                     }
                 }
                 "candidate-pair" -> {
                     val selected = stats.members["selected"] as? Boolean
                         ?: ((stats.members["nominated"] as? Boolean) == true)
-                    if (selected) {
-                        val rttSec = (stats.members["currentRoundTripTime"] as? Number)?.toDouble()
-                        if (rttSec != null) rttMs = rttSec * 1000.0
+                    if (selected && rttMs == null) {
+                        (stats.members["currentRoundTripTime"] as? Number)?.toDouble()?.let {
+                            rttMs = it * 1000.0
+                        }
                     }
                 }
             }
         }
-        val dLost = max(0L, packetsLost - prevPacketsLost)
-        val dRecv = max(0L, packetsRecv - prevPacketsRecv)
-        prevPacketsLost = packetsLost
-        prevPacketsRecv = packetsRecv
-        val total = dLost + dRecv
-        val lossPct = if (total > 0) (dLost.toDouble() / total.toDouble()) * 100.0 else 0.0
-        val bad = lossPct > LOSS_THRESHOLD_PCT || (rttMs != null && rttMs > RTT_THRESHOLD_MS)
-        val next = when {
-            bad && targetBitrateBps > BITRATE_MID -> BITRATE_MID
-            bad && targetBitrateBps > BITRATE_LOW -> BITRATE_LOW
-            !bad && targetBitrateBps < BITRATE_MID -> BITRATE_MID
-            !bad && targetBitrateBps < BITRATE_HIGH -> BITRATE_HIGH
-            else -> targetBitrateBps
+        val lossPct = (fractionLost ?: 0.0) * 100.0
+        val bad = lossPct > LOSS_BAD_PCT || (rttMs != null && rttMs > RTT_BAD_MS)
+        val good = lossPct < LOSS_GOOD_PCT && (rttMs == null || rttMs < RTT_GOOD_MS)
+        when {
+            bad -> {
+                goodStreak = 0
+                val next = when {
+                    targetBitrateBps > BITRATE_MID -> BITRATE_MID
+                    targetBitrateBps > BITRATE_LOW -> BITRATE_LOW
+                    else -> targetBitrateBps
+                }
+                if (next != targetBitrateBps) applySenderBitrate(next)
+            }
+            good -> {
+                goodStreak++
+                if (goodStreak >= GOOD_STREAK_TO_UP) {
+                    goodStreak = 0
+                    val next = when {
+                        targetBitrateBps < BITRATE_MID -> BITRATE_MID
+                        targetBitrateBps < BITRATE_HIGH -> BITRATE_HIGH
+                        else -> targetBitrateBps
+                    }
+                    if (next != targetBitrateBps) applySenderBitrate(next)
+                }
+            }
+            else -> goodStreak = 0
         }
-        if (next != targetBitrateBps) applySenderBitrate(next)
     }
 
     private fun registerNetworkCallback() {
@@ -340,12 +360,6 @@ class WebRtcEngine(
             override fun onAvailable(network: Network) {
                 val prev = lastNetwork
                 lastNetwork = network
-                if (prev != null && prev != network) restartIce()
-            }
-            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-                val prev = lastNetwork
-                lastNetwork = network
-                // Restart only when the default network instance changes (Wi‑Fi ↔ cellular).
                 if (prev != null && prev != network) restartIce()
             }
             override fun onLost(network: Network) {
@@ -377,6 +391,7 @@ class WebRtcEngine(
         onWeakConnection?.invoke(false)
         weakHint = false
         targetBitrateBps = BITRATE_HIGH
+        goodStreak = 0
     }
 
     private open class SdpObserverAdapter : SdpObserver {
@@ -391,8 +406,11 @@ class WebRtcEngine(
         const val BITRATE_MID = 12_000
         const val BITRATE_LOW = 8_000
         const val STATS_INTERVAL_MS = 2_000L
-        const val LOSS_THRESHOLD_PCT = 5.0
-        const val RTT_THRESHOLD_MS = 400.0
+        const val LOSS_BAD_PCT = 5.0
+        const val LOSS_GOOD_PCT = 2.0
+        const val RTT_BAD_MS = 400.0
+        const val RTT_GOOD_MS = 250.0
+        const val GOOD_STREAK_TO_UP = 3
         const val ICE_RESTART_MIN_MS = 3_000L
     }
 }

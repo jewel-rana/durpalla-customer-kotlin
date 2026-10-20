@@ -2,9 +2,14 @@ package com.durpalla.booking
 
 import android.content.Context
 import com.durpalla.booking.calling.ApiCallRepository
+import com.durpalla.booking.calling.CallNotifications
 import com.durpalla.booking.calling.CallRepository
+import com.durpalla.booking.calling.CallStatus
 import com.durpalla.booking.calling.FirestoreSignalingRepository
+import com.durpalla.booking.calling.IncomingCallPayload
 import com.durpalla.booking.calling.MockCallRepository
+import com.durpalla.booking.core.s
+import com.durpalla.booking.core.str
 import com.durpalla.booking.data.net.ApiClient
 import com.durpalla.booking.data.repo.*
 import com.durpalla.booking.data.session.SessionStore
@@ -15,11 +20,14 @@ import com.durpalla.booking.security.WebViewRecaptchaProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /** Manual DI container (master Flutter parity + calling + remote l10n). */
 class AppContainer(context: Context) {
+    private val appContext = context.applicationContext
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val session = SessionStore(context, appScope)
     val apiClient = ApiClient(session)
@@ -41,7 +49,7 @@ class AppContainer(context: Context) {
 
     /**
      * Driver calling. Mock by default ([BuildConfig.USE_MOCK_CALLS]).
-     * TODO(calling): Durpalla/durpalla-driver docs/calling-contract.md
+     * Contract: docs/calling-contract.md (Durpalla/durpalla-driver).
      */
     val calls: CallRepository = if (BuildConfig.USE_MOCK_CALLS) {
         MockCallRepository(context.applicationContext, appScope)
@@ -65,6 +73,46 @@ class AppContainer(context: Context) {
         appScope.launch {
             session.language.collect { code ->
                 l10n.load(code)
+            }
+        }
+        // Private user channel for secondary call ring / end events (contract §2).
+        appScope.launch {
+            session.loggedIn.collect { loggedIn ->
+                if (!loggedIn) {
+                    val uid = session.user.value.str("id", "_id")
+                    if (uid.isNotBlank()) pusher.unsubscribeUser(uid)
+                    return@collect
+                }
+                pusher.connect { session.token }
+                val uid = session.user.value.str("id", "_id")
+                if (uid.isNotBlank()) pusher.subscribeUser(uid)
+            }
+        }
+        appScope.launch {
+            session.user.map { it.str("id", "_id") }.distinctUntilChanged().collect { uid ->
+                if (uid.isBlank() || !session.loggedIn.value) return@collect
+                pusher.connect { session.token }
+                pusher.subscribeUser(uid)
+            }
+        }
+        appScope.launch {
+            pusher.events.collect { e ->
+                if (!e.channel.startsWith("private-user-")) return@collect
+                when (e.name) {
+                    "call.incoming" -> {
+                        val call = IncomingCallPayload.fromPusher(e.data) ?: return@collect
+                        calls.handleIncoming(call.callId, call.tripIdInt, call.callerName)
+                        CallNotifications.showIncoming(appContext, call.callId, call.tripIdInt, call.callerName)
+                    }
+                    "call.ended", "call.declined", "call.missed" -> {
+                        val callId = e.data.s("callId") ?: return@collect
+                        val status = CallStatus.fromWire(
+                            e.data.s("status") ?: e.name.removePrefix("call."),
+                        ).takeIf { it.isTerminal } ?: CallStatus.ENDED
+                        calls.onRemoteEnded(callId, status)
+                        CallNotifications.cancelIncoming(appContext)
+                    }
+                }
             }
         }
     }

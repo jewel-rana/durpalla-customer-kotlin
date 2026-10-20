@@ -19,7 +19,7 @@ class DurpallaApp : Application() {
         container = AppContainer(this)
         Notifications.init(this)
         CallNotifications.ensureChannels(this)
-        container.pusher.connect()
+        container.pusher.connect { container.session.token }
         // Firebase is initialised automatically by google-services; guard in case the json is missing.
         if (FirebaseApp.getApps(this).isNotEmpty() || FirebaseApp.initializeApp(this) != null) {
             container.appScope.launch {

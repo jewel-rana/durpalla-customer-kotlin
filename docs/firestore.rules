@@ -1,0 +1,36 @@
+rules_version = '2';
+// Sample rules for in-app calling signaling (docs/calling-contract.md).
+// request.auth.uid is the Durpalla userId (backend-issued Firebase custom token).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isParty(call) {
+      return request.auth != null
+        && (request.auth.uid == call.callerId || request.auth.uid == call.calleeId);
+    }
+
+    match /calls/{callId} {
+      // The backend (Admin SDK, bypasses rules) creates the doc on POST /calls.
+      allow read: if isParty(resource.data);
+      allow create, delete: if false;
+      // Parties may write offer/answer and end-state fields only; ids, roles, trip and createdAt are immutable.
+      allow update: if isParty(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['offer', 'answer', 'status', 'answeredAt', 'endedAt', 'endedBy', 'reason'])
+        && (!('status' in request.resource.data)
+            || request.resource.data.status in ['ringing', 'accepted', 'declined', 'ended', 'missed']);
+
+      match /callerCandidates/{candidateId} {
+        allow read: if isParty(get(/databases/$(database)/documents/calls/$(callId)).data);
+        allow create: if request.auth != null
+          && request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.callerId;
+        allow update, delete: if false;
+      }
+      match /calleeCandidates/{candidateId} {
+        allow read: if isParty(get(/databases/$(database)/documents/calls/$(callId)).data);
+        allow create: if request.auth != null
+          && request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.calleeId;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

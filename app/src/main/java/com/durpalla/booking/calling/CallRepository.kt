@@ -2,22 +2,11 @@ package com.durpalla.booking.calling
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.JsonObject
 
 /**
  * In-app driver calling (audio WebRTC + Firestore signaling).
- *
- * HTTP (exact):
- * - POST /calls {tripId} → {callId}
- * - POST /calls/{id}/accept
- * - POST /calls/{id}/decline {reason}
- * - POST /calls/{id}/end
- * - GET /calls/ice-servers → [{urls, username, credential}] + ttl (fallback stun:stun.l.google.com:19302)
- * - POST /devices/voip {voipToken, platform:'ios', userId} — iOS only (N/A on Android)
- *
- * Ring: FCM high-priority data `type=call.incoming {callId, tripId, callerName}`; Pusher secondary.
- * Missed after 30s unanswered.
- *
- * TODO(calling): Durpalla/durpalla-driver docs/calling-contract.md
+ * Contract: docs/calling-contract.md (Durpalla/durpalla-driver).
  */
 interface CallRepository {
     val session: StateFlow<CallSession?>
@@ -25,17 +14,22 @@ interface CallRepository {
 
     fun logForTrip(tripId: Int): Flow<List<CallLogEntry>>
 
+    /** Merge server trip `callLog[]` into the local log for UI. */
+    fun ingestTripCallLog(tripId: Int, entries: List<JsonObject>)
+
     fun canCallDriver(tripId: Int, bidAccepted: Boolean = false, tripActive: Boolean = false): Boolean
 
     suspend fun startOutgoing(tripId: Int, driverName: String, callerName: String = ""): CallSession
     suspend fun handleIncoming(callId: String, tripId: Int, callerName: String)
+    /** FCM / Pusher `call.ended|declined|missed` when Firestore listener is not yet attached. */
+    suspend fun onRemoteEnded(callId: String, status: CallStatus)
     suspend fun accept()
     suspend fun decline(reason: String = "declined")
-    suspend fun end()
+    suspend fun end(reason: CallEndReason = CallEndReason.HANGUP)
     suspend fun setMuted(muted: Boolean)
     suspend fun setSpeaker(on: Boolean)
 
-    /** GET /calls/ice-servers with STUN fallback. */
+    /** GET /calls/ice-servers with STUN fallback + ttl/2 cache. */
     suspend fun fetchIceServers(): IceServersResponse
 }
 

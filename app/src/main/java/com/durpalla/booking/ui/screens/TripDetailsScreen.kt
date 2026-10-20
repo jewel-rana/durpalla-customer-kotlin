@@ -238,7 +238,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                         val driver = d.str("driver_name", "captain_name", "vehicle_name", default = t(R.string.call_driver))
                         Column(Modifier.padding(horizontal = 16.dp)) {
                             CallDriverButton(tripId = tripId, driverName = driver, tripActive = true)
-                            CallLogSection(tripId)
+                            CallLogSection(tripId, tripCallLog = d.a("callLog").objects())
                         }
                     }
                     Spacer(Modifier.height(90.dp))

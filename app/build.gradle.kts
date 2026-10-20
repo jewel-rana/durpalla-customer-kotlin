@@ -91,6 +91,7 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.config)
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.auth)
     implementation(libs.stream.webrtc)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)

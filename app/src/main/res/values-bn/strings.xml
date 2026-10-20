@@ -313,6 +313,14 @@
     <string name="err_booking_id_short">বুকিং আইডি নেই</string>
     <string name="err_not_found">পাওয়া যায়নি</string>
     <string name="err_could_not_start_call">কল শুরু করা যায়নি</string>
+    <string name="err_call_unauthorized">কল করতে আবার লগইন করুন</string>
+    <string name="err_call_trip_not_found">এই কলের ট্রিপ পাওয়া যায়নি</string>
+    <string name="err_call_not_participant">শুধু এই ট্রিপের ড্রাইভারকে কল করা যায়</string>
+    <string name="err_call_trip_not_active">শুধু আসন্ন ও চলমান ট্রিপে কল করা যায়</string>
+    <string name="err_call_busy">ড্রাইভার অন্য কলে আছেন</string>
+    <string name="err_call_not_found">এই কলটি পাওয়া যায়নি</string>
+    <string name="err_call_already_ended">এই কলটি ইতিমধ্যে শেষ হয়েছে</string>
+    <string name="err_call_rate_limited">অনেক বেশি কল। এক মিনিট পরে চেষ্টা করুন</string>
     <string name="err_invalid_credential_hint"> এই অ্যাপ নতুন কাস্টমার লগইন ব্যবহার করতে পারে; \"সাইন আপ\" চেষ্টা করুন বা যে নম্বর দিয়ে রেজিস্টার করেছেন সেটি ব্যবহার করুন।</string>
     <string name="hotel_review_prompt">%1$s এ আপনার থাকার অভিজ্ঞতা কেমন ছিল?</string>
     <string name="sample_offer_1_title">লঞ্চ কেবিনে ১৫%% পর্যন্ত ছাড়</string>
