@@ -55,13 +55,16 @@ enum class CallProvider(val wire: String) {
     }
 }
 
-/** GET /calls/{id}/agora-token — appId is never hard-coded; always from the server. */
+/**
+ * From `GET /calls/{id}/agora-token` body `{ data: { appId, channel, token, uid, expiresAt } }`.
+ * `uid` = customer id (drivers use 2000000000+id). App ID never hard-coded.
+ */
 data class AgoraCredentials(
     val appId: String,
     val channel: String,
     val token: String,
     val uid: Int,
-    /** Epoch millis when the token expires, if the server sent `expiresAt`. */
+    /** Derived from wire `expiresAt` (epoch seconds) × 1000. */
     val expiresAtMs: Long? = null,
 )
 

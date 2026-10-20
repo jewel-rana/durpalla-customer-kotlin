@@ -15,12 +15,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Agora Voice SDK transport. App ID / channel / token / uid come from
- * `GET /calls/{id}/agora-token` (never hard-coded).
+ * Agora Voice SDK transport. Credentials from `GET /calls/{id}/agora-token` only (no hard-coded App ID).
  *
- * Profile: CHANNEL_PROFILE_COMMUNICATION + AUDIO_PROFILE_SPEECH_STANDARD.
- * Renews token on [IRtcEngineEventHandler.onTokenPrivilegeWillExpire].
- * Network quality ≥ poor → same "Weak connection" hint as WebRTC.
+ * Caller joins right after POST /calls; callee joins after accept.
+ * COMMUNICATION + SPEECH_STANDARD + CHATROOM; renew on token expiry;
+ * weak hint from network quality (≥ BAD) and rtc stats (loss ≥ 5% or lastmile RTT ≥ 400ms),
+ * cleared after 3 good samples.
  */
 class AgoraTransport(
     private val appContext: Context,
@@ -34,6 +34,7 @@ class AgoraTransport(
     private var activeCallId: String? = null
     private var joined = false
     private var weakHint = false
+    private var goodStreak = 0
     private var audioModeBefore = AudioManager.MODE_NORMAL
     private var speakerBefore = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -64,19 +65,41 @@ class AgoraTransport(
         }
 
         override fun onNetworkQuality(uid: Int, txQuality: Int, rxQuality: Int) {
-            // Local user reports as uid 0. Quality: 0 unknown, 1 excellent … 3 poor … 6 down.
+            // Local uid 0; tx/rx ≥ QUALITY_BAD (4) → weak (driver contract §0).
             if (uid != 0) return
             val worst = maxOf(txQuality, rxQuality)
-            val weak = worst >= Constants.QUALITY_POOR
-            if (weak != weakHint) {
-                weakHint = weak
-                mainHandler.post { callbacks.onWeakConnection(weak) }
-            }
+            applyWeakSample(bad = worst >= Constants.QUALITY_BAD)
+        }
+
+        override fun onRtcStats(stats: RtcStats?) {
+            if (stats == null) return
+            val loss = maxOf(stats.txPacketLossRate, stats.rxPacketLossRate)
+            val rtt = stats.lastmileDelay
+            applyWeakSample(bad = loss >= LOSS_BAD_PCT || rtt >= RTT_BAD_MS)
         }
 
         override fun onError(err: Int) {
             Log.w(TAG, "agora error $err")
         }
+    }
+
+    private fun applyWeakSample(bad: Boolean) {
+        if (bad) {
+            goodStreak = 0
+            setWeak(true)
+        } else {
+            goodStreak++
+            if (goodStreak >= GOOD_STREAK_TO_CLEAR) {
+                goodStreak = 0
+                setWeak(false)
+            }
+        }
+    }
+
+    private fun setWeak(weak: Boolean) {
+        if (weak == weakHint) return
+        weakHint = weak
+        mainHandler.post { callbacks.onWeakConnection(weak) }
     }
 
     override suspend fun prepare(asCaller: Boolean, callbacks: CallTransportCallbacks) {
@@ -104,7 +127,7 @@ class AgoraTransport(
             val eng = engine ?: return@post
             eng.setAudioProfile(
                 Constants.AUDIO_PROFILE_SPEECH_STANDARD,
-                Constants.AUDIO_SCENARIO_DEFAULT,
+                Constants.AUDIO_SCENARIO_CHATROOM,
             )
             val options = ChannelMediaOptions().apply {
                 channelProfile = Constants.CHANNEL_PROFILE_COMMUNICATION
@@ -126,6 +149,7 @@ class AgoraTransport(
             mAppId = appId
             mEventHandler = handler
             mChannelProfile = Constants.CHANNEL_PROFILE_COMMUNICATION
+            mAudioScenario = Constants.AUDIO_SCENARIO_CHATROOM
         }
         engine = RtcEngine.create(config)
         engine?.enableAudio()
@@ -151,6 +175,7 @@ class AgoraTransport(
         engine = null
         joined = false
         activeCallId = null
+        goodStreak = 0
         if (weakHint) callbacks.onWeakConnection(false)
         weakHint = false
         restoreAudioMode()
@@ -172,5 +197,8 @@ class AgoraTransport(
 
     companion object {
         private const val TAG = "AgoraTransport"
+        private const val LOSS_BAD_PCT = 5
+        private const val RTT_BAD_MS = 400
+        private const val GOOD_STREAK_TO_CLEAR = 3
     }
 }

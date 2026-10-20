@@ -1,47 +1,54 @@
 # In-app calling contract (driver ⇄ customer)
 
-Audio-only calls between the driver and the customer of a trip. The server selects the **media transport** (`webrtc` or `agora`). **Firebase Firestore** carries the shared call document (status, parties, WebRTC SDP/ICE when applicable). Ringing (FCM / CallStyle), UI, call log, and status flow are the same for both transports.
+Audio-only calls between the driver and the customer of a trip. The **server picks the media provider per call**: **Agora** (launch default) or **WebRTC** (section 0). **Firebase Firestore** carries call status for both, and SDP/ICE signaling for WebRTC. This contract is shared with the customer apps (Android and iOS), so field names, statuses and audio settings must match exactly.
 
-> **Confirmed** by the driver team (including Agora). At launch the **server** sends `provider: "agora"` by default. If `provider` is **missing**, clients (driver and customer) default to **`webrtc`** — they do not assume agora.
+> **Confirmed** with Durpalla/durpalla-driver `docs/calling-contract.md` §0 and apigw.
 
 - Android WebRTC: `io.getstream:stream-webrtc-android` (`org.webrtc`).
-- Android Agora: `io.agora.rtc:voice-sdk` (Voice SDK; appId from the token endpoint — never hard-coded).
+- Android Agora: `io.agora.rtc:voice-sdk` 4.6.x (App ID from the token endpoint — never hard-coded).
 - Driver code: `app/src/main/java/com/durpalla/driver/call/`.
 - Customer code: `app/src/main/java/com/durpalla/booking/calling/` (`CallTransport`: `WebRtcTransport` | `AgoraTransport`).
+
+## 0. Provider (Agora / WebRTC)
+
+- `provider` is `"agora"` or `"webrtc"`, chosen by the server when the call is created.
+- It is carried by: the `POST /calls` response, the FCM `call.incoming` data (which has both `event` and `type`), every Pusher `call.*` event, the Firestore doc `calls/{callId}`, the **accept/decline/end responses**, and every `callLog` entry.
+- **Missing or unknown `provider` means `webrtc`.** Clients never assume agora. Both sides use the provider stored on the call.
+- Shared for both providers: ringing (FCM/Pusher/CallStyle), Firestore `status`, REST accept/decline/end, 30 s missed timeout, and `callLog`.
+- **agora:** no `offer`/`answer`/candidates. Each party calls `GET /calls/{callId}/agora-token` — **caller right after `POST /calls`**, **callee after accept** — and joins channel `call_{callId}`:
+  - audio only, `CHANNEL_PROFILE_COMMUNICATION`, role broadcaster, `AUDIO_PROFILE_SPEECH_STANDARD`, `AUDIO_SCENARIO_CHATROOM`;
+  - active when the remote uid joins (`onUserJoined`);
+  - renew on `onTokenPrivilegeWillExpire` via the same endpoint + `renewToken`;
+  - `leaveChannel` on end, decline or failure;
+  - weak-network hint from `onNetworkQuality` (local uid 0, tx/rx ≥ 4 = bad) and `onRtcStats` (loss ≥ 5 % or lastmile RTT ≥ 400 ms); clears after 3 good samples;
+  - App ID only from the token response.
+- Server selection (apigw): overrides → webrtc percent → `CALL_PROVIDER_DEFAULT=agora`. While Agora isn't configured the server picks webrtc.
 
 ## 1. REST endpoints
 
 - Base URL: `API_BASE_URL`.
 - Every request sends `Authorization: Bearer <access token>`.
-- Request and response bodies are JSON.
+- Request and response bodies are JSON. Customer `ApiClient` may surface bodies under `data`.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/calls` | `{ "tripId": "t_123" }` | `201 { "callId": "c_456", "provider": "webrtc" \| "agora" }` (server launch default `"agora"`; **client omit → `"webrtc"`**) |
-| POST | `/calls/{callId}/accept` | `{}` | `200 {}` |
-| POST | `/calls/{callId}/decline` | `{}` | `200 {}` |
-| POST | `/calls/{callId}/end` | `{ "reason": "hangup" \| "cancelled" \| "missed" \| "failed" }` | `200 {}` |
+| POST | `/calls` | `{ "tripId": "123" }` | `201 { "callId": "456", "provider": "agora" }` (omit/`provider` unknown → client uses **webrtc**) |
+| GET | `/calls/{callId}/agora-token` | – | `200 { "data": { "appId", "channel": "call_456", "token", "uid", "expiresAt" } }` — agora only; `expiresAt` epoch **seconds**; `uid` = customer id (drivers `2000000000+id`) |
+| POST | `/calls/{callId}/accept` | `{}` | `200 { "provider": "agora" \| "webrtc" }` (use `provider`) |
+| POST | `/calls/{callId}/decline` | `{}` | `200 { "provider": "…" }` (use `provider`) |
+| POST | `/calls/{callId}/end` | `{ "reason": "hangup" \| "cancelled" \| "missed" \| "failed" }` | `200 { "provider": "…" }` (use `provider`) |
 | GET | `/calls/ice-servers` | – | `200 [ { "urls": ["turn:…"], "username": "…", "credential": "…" } ]` (or `{ "iceServers": [...], "ttl": 3600 }`) — **WebRTC only** |
-| GET | `/calls/{callId}/agora-token` | – | `200 { "appId", "channel", "token", "uid", "expiresAt" }` — **Agora only** (`channel` is normally `call_{callId}`) |
 | POST | `/devices/voip` | `{ "voipToken": "…", "platform": "ios", "userId": "…" }` | `200 {}` (iOS PushKit only) |
 | GET | `/auth/firebase-token` | – | `200 { "token": "<Firebase custom token>" }` (uid = Durpalla userId) |
 
 ### What the endpoints do
 
-- The `callId` is the handle for status/REST. WebRTC uses Firestore SDP/ICE; Agora uses the Voice SDK channel from `agora-token`.
-- **POST /calls** checks that the caller is a party to the trip and that the trip is calling-eligible (`UPCOMING`, `ON_THE_WAY`, `ARRIVED` or `IN_PROGRESS`). It then:
-  - creates the Firestore doc `calls/{callId}` with `status: "ringing"` and `provider` (server launch default **`agora`**);
-  - rings the callee (FCM includes the same `provider`);
-  - starts a server-side **30 s missed timeout**. If the doc is still `ringing` at 30 s, the server sets `status: "missed"`, `reason: "no_answer"` and `endedAt`, and sends `call.missed` to both parties.
-- **accept** sets `status: "accepted"` and `answeredAt`.
-- **decline** sets `status: "declined"`, `endedAt`, `endedBy` and `reason: "declined"`.
-- **end** sets `status: "ended"` (or `"missed"` when `reason` is `missed`), plus `endedAt`, `endedBy` and `reason`.
+- The `callId` is the call's handle. For agora calls the channel is always `call_{callId}` (use server `channel` when non-blank, else that fallback).
+- **agora-token:** RTC AccessToken2; `uid` stable per user (customer = customer id). Parties only.
+- **POST /calls** checks party + trip eligibility, creates Firestore doc `status: "ringing"`, rings callee, starts 30 s missed timeout.
+- **accept** / **decline** / **end** update Firestore status fields; responses include `provider` — clients apply it.
 - The server writes the call-log entry on the trip (section 6), including `provider`.
-- **ice-servers** (WebRTC):
-  - TURN credentials are short-lived. `ttl` is in seconds; clients cache for at most `ttl/2`.
-  - `urls` may be a string or an array.
-  - If the call fails or returns an empty list, clients fall back to `stun:stun.l.google.com:19302`.
-- **agora-token:** short-lived Agora RTC token + `appId` / `channel` / `uid`. Channel name is `call_{callId}`; clients use the server `channel` when present and non-blank, otherwise fall back to `call_{callId}`. Clients renew via the same endpoint on `onTokenPrivilegeWillExpire`.
+- **ice-servers** (WebRTC): cache at most `ttl/2`; STUN fallback if empty/fail.
 
 ### Errors
 
@@ -56,15 +63,17 @@ Error responses have the shape `{ "error": { "code": "CALL_BUSY", "message": "�
 | 409 | `CALL_BUSY` | Callee already has a ringing or accepted call |
 | 404 | `CALL_NOT_FOUND` | Unknown callId |
 | 409 | `CALL_ALREADY_ENDED` | accept, decline or end on a terminal call |
+| 409 | `CALL_PROVIDER_MISMATCH` | agora-token on a webrtc call |
+| 503 | `CALL_PROVIDER_UNAVAILABLE` | Agora isn't configured on the server |
 | 429 | `RATE_LIMITED` | Too many call attempts |
 
 ## 2. Ringing the callee
 
 - **Primary path (Android and iOS):** a high-priority FCM **data** message, `priority: high`, with no `notification` block:
   ```json
-  { "event": "call.incoming", "callId": "c_456", "tripId": "t_123", "callerName": "Rahim", "provider": "agora" }
+  { "event": "call.incoming", "type": "call.incoming", "callId": "456", "tripId": "123", "callerName": "Rahim", "provider": "agora" }
   ```
-  - `provider` is `"webrtc"` or `"agora"`. Server launch default is `"agora"`; **client omit → `"webrtc"`** (same as driver).
+  - `provider` is `"webrtc"` or `"agora"`. **Client omit / unknown → `"webrtc"`** (never assume agora).
   - The fields may also be sent as a JSON string in `payload`.
   - Android shows a full-screen `CallStyle.forIncomingCall` notification that rings for up to 30 s.
 - **iOS:** the server also sends a **PushKit VoIP** push, which is reported to CallKit, to the token registered with `POST /devices/voip {voipToken, platform:"ios", userId}`.
@@ -81,7 +90,7 @@ calls/{callId} {
   callerRole:  "driver" | "customer"
   calleeId:    string
   calleeRole:  "driver" | "customer"
-  provider:    "webrtc" | "agora"   // server-set (launch default agora); client omit → webrtc
+  provider:    "agora" | "webrtc"   // server-set; missing = webrtc. agora: offer/answer/candidates stay empty
   offer:       { type: "offer",  sdp: string }    // WebRTC only — written by the caller
   answer:      { type: "answer", sdp: string }    // WebRTC only — written by the callee
   status:      "ringing" | "accepted" | "declined" | "ended" | "missed"
@@ -112,11 +121,11 @@ calls/{callId}/calleeCandidates/{auto} { candidate: string, sdpMid: string, sdpM
 
 ### Call flow — Agora (`provider: "agora"`)
 
-1. **Caller** after POST /calls (and **callee** on Accept): `GET /calls/{callId}/agora-token` → `{ appId, channel, token, uid, expiresAt }`.
-2. Join channel = server `channel` if non-blank, else `call_{callId}`. Audio-only Voice SDK: `CHANNEL_PROFILE_COMMUNICATION`, `AUDIO_PROFILE_SPEECH_STANDARD`, publish mic / subscribe audio.
-3. On `onTokenPrivilegeWillExpire` / `onRequestToken`, fetch a new token from the same endpoint and `renewToken`.
-4. Map local `onNetworkQuality` (tx/rx ≥ poor) to the same **"Weak connection"** UI hint as WebRTC.
-5. On end / terminal status: `leaveChannel` and destroy the engine. No Firestore SDP/ICE writes.
+1. **Caller** right after POST /calls: `GET /calls/{callId}/agora-token` → `{ data: { appId, channel, token, uid, expiresAt } }` (`expiresAt` epoch seconds) and join.
+2. **Callee** after accept: same token fetch + join. Channel = server `channel` if non-blank, else `call_{callId}`.
+3. Voice SDK: `CHANNEL_PROFILE_COMMUNICATION`, broadcaster, `AUDIO_PROFILE_SPEECH_STANDARD`, `AUDIO_SCENARIO_CHATROOM`.
+4. Connected on `onUserJoined`. Renew on `onTokenPrivilegeWillExpire`. Weak hint: quality ≥ 4 or rtc stats (loss ≥ 5% / lastmile RTT ≥ 400ms); clear after 3 good samples.
+5. On end / decline / failure: `leaveChannel`. No Firestore SDP/ICE writes.
 
 ### Busy / timeout
 
@@ -163,7 +172,7 @@ The trip payload carries `callLog`, oldest first:
 ```
 
 - `status` takes the same values as the Firestore doc.
-- `provider` is `"webrtc"` or `"agora"` (server launch default `"agora"`; **client omit → `"webrtc"`**).
+- `provider` is `"agora"` or `"webrtc"` (**client omit → `"webrtc"`**).
 - `durationSec` is `endedAt - answeredAt`, or 0 if the call was never answered.
 
 ## 7. Audio quality

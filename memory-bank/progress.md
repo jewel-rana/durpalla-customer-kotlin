@@ -8,7 +8,7 @@ Target: Flutter master `@8ee2bed`. Tracker detail: `MASTER_PORT_TODOS.md`.
 - L10n §10.2/§10.3: remote packs, language onboarding, settings picker, RTL for ar/ur/fa, bundled en/bn.
 - Hard-coded English audit: **173 found → 173 fixed** (0 intended leftovers for migration). Left intentionally: routes, API keys/paths, logs, place names, wire protocol strings, emails, date patterns.
 - Calling: WebRTC + Firestore contract copy; weak-network Opus/bitrate/ICE; driver PR #6 parity (firebase-token, ICE shapes/ttl/2, caller-only restart, `/end` reasons, CallApiErrors EN/BN, trip `callLog[]`, Pusher private user channel, FCM `event`).
-- **Agora transport** (confirmed): server launch default sends `provider: agora`; **client omit → webrtc** (driver parity); channel `call_{callId}` fallback; `callLog[].provider`; `CallTransport` + Voice SDK.
+- **Agora transport** (driver §0 / apigw): token wrapped in `data`, `expiresAt` seconds, caller join after POST / callee after accept, accept/decline/end `provider`, `CALL_PROVIDER_*` errors, CHATROOM + weak≥4/rtc stats; **client omit → webrtc**; channel `call_{callId}`; `callLog.provider`.
 - Memory bank + agent rules (`token-saving`, `memory-bank`).
 
 ## Partial / TODO (see MASTER_PORT_TODOS)
@@ -28,4 +28,4 @@ Target: Flutter master `@8ee2bed`. Tracker detail: `MASTER_PORT_TODOS.md`.
 - Wire `tripId` string vs local `Int` (POST `toString()`; push parse fallback).
 - FCM prefers `event`, still accepts `type`.
 - Pusher auth URL = customer `{BASE_URL}realtime/auth`.
-- Agora contract **confirmed**; client missing-`provider` fallback is **webrtc** (not agora).
+- Agora contract **confirmed** (driver §0); client missing-`provider` → **webrtc**.

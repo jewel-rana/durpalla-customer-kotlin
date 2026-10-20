@@ -3,8 +3,7 @@
 **Branch / PR:** `cursor/initial-kotlin-durpalla-d9f4` → [PR #1](https://github.com/jewel-rana/durpalla-customer-kotlin/pull/1) (base `main`).
 
 **Just done**
-- Correction: client omit/`provider` missing → **`webrtc`** (matches driver). Server still sends `provider: agora` at launch by default; clients do not assume agora.
-- Docs + memory bank updated; channel `call_{callId}` fallback and `callLog.provider` unchanged.
+- Matched driver/apigw §0: agora-token `{data:{…}}` + `expiresAt` seconds; uid = customer id; caller joins after POST, callee after accept; accept/decline/end apply `provider`; `CALL_PROVIDER_MISMATCH` / `CALL_PROVIDER_UNAVAILABLE` EN/BN; CHATROOM scenario + weak quality (≥4 / rtc stats); client omit → webrtc; channel `call_{callId}`; `callLog.provider`.
 
 **Current focus for next agents**
 - Remaining `MASTER_PORT_TODOS.md` assets/ops; live calling when backend ready (`USE_MOCK_CALLS=false`).

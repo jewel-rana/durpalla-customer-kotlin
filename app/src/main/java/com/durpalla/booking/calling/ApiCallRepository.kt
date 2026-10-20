@@ -99,6 +99,7 @@ class ApiCallRepository(
                 lastSeenOfferSdp = offer.sdp
                 signaling.setOffer(callId, offer)
             }
+            // Caller fetches agora-token and joins immediately after POST /calls (§0).
             CallProvider.AGORA -> transport!!.startOutgoing(callId)
         }
         watchRemote(callId, asCaller = true, provider = provider)
@@ -147,8 +148,9 @@ class ApiCallRepository(
         FirebaseCallAuth.ensureSignedIn(api, userId())
         val res = api.postJson("calls/${s.callId}/accept", jsonOf())
         runCatching { CallApiErrors.requireCallSuccess(res) }
+        applyProviderFromResponse(res)
         CallNotifications.cancelIncoming(context)
-        val provider = s.provider
+        val provider = _session.value?.provider ?: s.provider
         awaitTransport(provider, asCaller = false)
         when (provider) {
             CallProvider.WEBRTC -> {
@@ -164,6 +166,7 @@ class ApiCallRepository(
                         .collect { transport?.addIce(it) }
                 }
             }
+            // Callee joins Agora only after accept (contract §0).
             CallProvider.AGORA -> transport!!.startIncoming(s.callId)
         }
         update(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
@@ -171,7 +174,8 @@ class ApiCallRepository(
 
     override suspend fun decline(reason: String) {
         val s = _session.value ?: return
-        runCatching { api.postJson("calls/${s.callId}/decline", jsonOf()) }
+        val res = runCatching { api.postJson("calls/${s.callId}/decline", jsonOf()) }.getOrNull()
+        res?.let { applyProviderFromResponse(it) }
         runCatching {
             signaling.setStatus(s.callId, CallStatus.DECLINED, endedBy = userId(), reason = "declined")
         }
@@ -186,13 +190,22 @@ class ApiCallRepository(
             else -> CallEndReason.HANGUP.wire
         }
         val status = if (wireReason == CallEndReason.MISSED.wire) CallStatus.MISSED else CallStatus.ENDED
-        runCatching {
+        val res = runCatching {
             api.postJson("calls/${s.callId}/end", jsonOf("reason" to wireReason))
-        }
+        }.getOrNull()
+        res?.let { applyProviderFromResponse(it) }
         runCatching {
             signaling.setStatus(s.callId, status, endedBy = userId(), reason = wireReason)
         }
         finish(status, endedBy = userId(), reason = wireReason)
+    }
+
+    /** accept/decline/end (and POST /calls) may echo `provider` — always prefer the wire value. */
+    private fun applyProviderFromResponse(r: JsonObject) {
+        val p = CallApiErrors.providerOf(r) ?: return
+        if (_session.value?.provider != p) {
+            _session.value = _session.value?.copy(provider = p)
+        }
     }
 
     override suspend fun setMuted(muted: Boolean) {

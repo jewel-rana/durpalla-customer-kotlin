@@ -5,30 +5,27 @@ import com.durpalla.booking.core.o
 import com.durpalla.booking.core.s
 import com.durpalla.booking.data.net.ApiClient
 
-/** GET /calls/{callId}/agora-token → { appId, channel, token, uid, expiresAt }. */
+/**
+ * `GET /calls/{callId}/agora-token` → `{ "data": { appId, channel, token, uid, expiresAt } }`.
+ * `expiresAt` is epoch **seconds**. `uid` is the customer id (drivers use 2000000000+id).
+ * Channel is normally `call_{callId}`; blank → that fallback.
+ */
 object AgoraTokenClient {
     suspend fun fetch(api: ApiClient, callId: String): AgoraCredentials {
         val r = api.get("calls/$callId/agora-token")
         CallApiErrors.requireCallSuccess(r)
         val o = r.o("data") ?: r
-        val appId = o.s("appId") ?: r.s("appId")
-            ?: throw CallApiErrors.toException(r)
-        // Server channel preferred; blank → caller fills `call_{callId}`.
-        val channel = (o.s("channel") ?: r.s("channel")).orEmpty()
-        val token = o.s("token") ?: r.s("token")
-            ?: throw CallApiErrors.toException(r)
-        val uid = o.i("uid") ?: r.i("uid") ?: 0
-        val expiresRaw = o.i("expiresAt")?.toLong()
+        val appId = o.s("appId") ?: throw CallApiErrors.toException(r)
+        val channel = o.s("channel").orEmpty()
+        val token = o.s("token") ?: throw CallApiErrors.toException(r)
+        val uid = o.i("uid") ?: 0
+        val expiresAtSec = o.i("expiresAt")?.toLong()
             ?: o.s("expiresAt")?.toLongOrNull()
-            ?: r.i("expiresAt")?.toLong()
-        val expiresAtMs = expiresRaw?.let { v ->
-            // Seconds vs millis heuristic.
-            if (v < 10_000_000_000L) v * 1000L else v
-        }
+        val expiresAtMs = expiresAtSec?.times(1000L)
         return AgoraCredentials(appId, channel, token, uid, expiresAtMs)
     }
 
-    /** Resolve join channel: server value, else `call_{callId}`. */
+    /** Prefer server `channel`; else `call_{callId}`. */
     fun resolveChannel(creds: AgoraCredentials, callId: String): String =
         creds.channel.ifBlank { "call_$callId" }
 }

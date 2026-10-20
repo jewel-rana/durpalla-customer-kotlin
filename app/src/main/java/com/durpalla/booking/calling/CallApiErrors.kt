@@ -23,8 +23,16 @@ object CallApiErrors {
         "CALL_BUSY" -> AppCtx.str(R.string.err_call_busy)
         "CALL_NOT_FOUND" -> AppCtx.str(R.string.err_call_not_found)
         "CALL_ALREADY_ENDED" -> AppCtx.str(R.string.err_call_already_ended)
+        "CALL_PROVIDER_MISMATCH" -> AppCtx.str(R.string.err_call_provider_mismatch)
+        "CALL_PROVIDER_UNAVAILABLE" -> AppCtx.str(R.string.err_call_provider_unavailable)
         "RATE_LIMITED" -> AppCtx.str(R.string.err_call_rate_limited)
         else -> AppCtx.str(R.string.err_could_not_start_call)
+    }
+
+    /** `provider` from a wrapped or flat JSON body; null if the field is absent. */
+    fun providerOf(r: JsonObject): CallProvider? {
+        val raw = r.o("data").s("provider") ?: r.s("provider") ?: return null
+        return CallProvider.fromWire(raw)
     }
 
     fun toException(r: JsonObject, fallback: String = AppCtx.str(R.string.err_could_not_start_call)): ApiException {

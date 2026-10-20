@@ -320,6 +320,8 @@
     <string name="err_call_busy">ড্রাইভার অন্য কলে আছেন</string>
     <string name="err_call_not_found">এই কলটি পাওয়া যায়নি</string>
     <string name="err_call_already_ended">এই কলটি ইতিমধ্যে শেষ হয়েছে</string>
+    <string name="err_call_provider_mismatch">এই কলটি অন্য ধরনের সংযোগ ব্যবহার করে</string>
+    <string name="err_call_provider_unavailable">ভয়েস কল সাময়িকভাবে অনুপলব্ধ</string>
     <string name="err_call_rate_limited">অনেক বেশি কল। এক মিনিট পরে চেষ্টা করুন</string>
     <string name="err_invalid_credential_hint"> এই অ্যাপ নতুন কাস্টমার লগইন ব্যবহার করতে পারে; \"সাইন আপ\" চেষ্টা করুন বা যে নম্বর দিয়ে রেজিস্টার করেছেন সেটি ব্যবহার করুন।</string>
     <string name="hotel_review_prompt">%1$s এ আপনার থাকার অভিজ্ঞতা কেমন ছিল?</string>

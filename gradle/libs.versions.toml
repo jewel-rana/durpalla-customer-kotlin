@@ -22,7 +22,7 @@ webkit = "1.12.1"
 splash = "1.0.1"
 libphonenumber = "8.13.50"
 streamWebrtc = "1.3.8"
-agoraVoice = "4.5.2"
+agoraVoice = "4.6.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

@@ -320,6 +320,8 @@
     <string name="err_call_busy">Driver is on another call</string>
     <string name="err_call_not_found">This call was not found</string>
     <string name="err_call_already_ended">This call has already ended</string>
+    <string name="err_call_provider_mismatch">This call uses a different connection type</string>
+    <string name="err_call_provider_unavailable">Voice calling is temporarily unavailable</string>
     <string name="err_call_rate_limited">Too many calls. Try again in a minute</string>
     <string name="err_invalid_credential_hint"> This app may be using the new customer login; try \"Sign up\" or use the number you registered here.</string>
     <string name="hotel_review_prompt">How was your stay at %1$s?</string>
