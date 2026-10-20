@@ -32,9 +32,16 @@ object Routes {
     const val HOME = "home"; const val SEARCH = "search"; const val TICKETS = "tickets"; const val OFFERS = "offers"; const val ACCOUNT = "account"
     const val LOGIN = "login?redirect={redirect}"
     fun login(redirect: String?) = "login?redirect=" + Uri.encode(redirect ?: "")
-    fun otp(mobile: String, redirect: String) = "otp/$mobile?redirect=" + Uri.encode(redirect)
-    fun password(mobile: String, redirect: String) = "password/$mobile?redirect=" + Uri.encode(redirect)
-    fun register(mobile: String, otp: String, redirect: String) = "register/$mobile/$otp?redirect=" + Uri.encode(redirect)
+    fun otp(id: com.durpalla.booking.core.AuthIdentifier, redirect: String) =
+        "otp/${Uri.encode(id.encode())}?redirect=" + Uri.encode(redirect)
+    fun password(id: com.durpalla.booking.core.AuthIdentifier, redirect: String) =
+        "password/${Uri.encode(id.encode())}?redirect=" + Uri.encode(redirect)
+    fun register(id: com.durpalla.booking.core.AuthIdentifier, otp: String, redirect: String) =
+        "register/${Uri.encode(id.encode())}/${Uri.encode(otp)}?redirect=" + Uri.encode(redirect)
+    /** Forgot is BD-mobile only (Flutter E5) — never pass an email. */
+    fun forgot(mobile: String = "") = "forgot?mobile=" + Uri.encode(mobile)
+    fun forgotOtp(mobile: String) = "forgototp/${Uri.encode(mobile)}"
+    fun forgotReset(mobile: String) = "forgotreset/${Uri.encode(mobile)}"
     fun searchFor(service: String) = "search?service=$service"
     fun results(type: String, from: String, to: String, date: String) = "results/$type/${Uri.encode(from)}/${Uri.encode(to)}/$date"
     fun trip(id: Int, type: String) = "trip/$id/$type"
@@ -132,11 +139,25 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
 
                 val redirectArg = navArgument("redirect") { defaultValue = "" }
                 composable(Routes.LOGIN, arguments = listOf(redirectArg)) { LoginScreen(it.arguments?.getString("redirect").orEmpty()) }
-                composable("otp/{mobile}?redirect={redirect}", arguments = listOf(redirectArg)) { OtpScreen(it.arguments!!.getString("mobile")!!, it.arguments?.getString("redirect").orEmpty()) }
-                composable("password/{mobile}?redirect={redirect}", arguments = listOf(redirectArg)) { PasswordScreen(it.arguments!!.getString("mobile")!!, it.arguments?.getString("redirect").orEmpty()) }
-                composable("register/{mobile}/{otp}?redirect={redirect}", arguments = listOf(redirectArg)) {
-                    RegisterScreen(it.arguments!!.getString("mobile")!!, it.arguments!!.getString("otp")!!, it.arguments?.getString("redirect").orEmpty())
+                composable("otp/{id}?redirect={redirect}", arguments = listOf(redirectArg)) {
+                    OtpScreen(it.arguments!!.getString("id")!!, it.arguments?.getString("redirect").orEmpty())
                 }
+                composable("password/{id}?redirect={redirect}", arguments = listOf(redirectArg)) {
+                    PasswordScreen(it.arguments!!.getString("id")!!, it.arguments?.getString("redirect").orEmpty())
+                }
+                composable("register/{id}/{otp}?redirect={redirect}", arguments = listOf(redirectArg)) {
+                    RegisterScreen(
+                        it.arguments!!.getString("id")!!,
+                        it.arguments!!.getString("otp")!!,
+                        it.arguments?.getString("redirect").orEmpty(),
+                    )
+                }
+                composable(
+                    "forgot?mobile={mobile}",
+                    arguments = listOf(navArgument("mobile") { defaultValue = "" }),
+                ) { ForgotStartScreen(it.arguments?.getString("mobile").orEmpty()) }
+                composable("forgototp/{mobile}") { ForgotOtpScreen(it.arguments!!.getString("mobile")!!) }
+                composable("forgotreset/{mobile}") { ForgotResetScreen(it.arguments!!.getString("mobile")!!) }
 
                 composable("results/{type}/{from}/{to}/{date}") { e ->
                     val a = e.arguments!!

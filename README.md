@@ -45,19 +45,26 @@ ui/screens       All screens
 See [API_MAP.md](API_MAP.md) for the Flutter → Kotlin endpoint map.
 
 ### Guest mode / auth guard
-Splash → Guest Home. Search, results, trip details/seat map, hotels, tours/events, offers are public. `Routes.isProtected` covers Tickets tab, checkout, payment, payment WebView/result, ticket, profile, saved, notifications and experience booking; in-page actions (hotel Book now, favourite) call `ensureAuth`. Guests get the **Sign in required** bottom sheet → phone (+880, 01XXXXXXXXX) → `auth/check` → OTP (or password if the account has one / register if new) → `finishAuth(redirect)` lands on the intended page.
+Splash → Guest Home. Search, results, trip details/seat map, hotels, tours/events, offers are public. `Routes.isProtected` covers Tickets tab, checkout, payment, payment WebView/result, ticket, profile, saved, notifications and experience booking; in-page actions (hotel Book now, favourite) call `ensureAuth`.
+
+Auth matches Flutter **dev/master** email+mobile (`channel` + `email`|`mobile`):
+- **Mobile | Email** segmented tabs (explicit; switching clears the field — no auto-detect).
+- `auth/check` → login (password + Use OTP / Forgot) | otp (manual Send OTP, 60s resend, exactly 6 digits) | register (may skip OTP).
+- `use_email: true` switches to the Email tab with the international-SMS warning.
+- Register: name required; password ≥ 8 + confirm; per-channel mobile/email rules (see API_MAP / Flutter E4).
+- Forgot/reset: **BD mobile only** (no email).
+- Country picker defaults to +880 and helps compose the `mobile` string (BD `01XXXXXXXXX`, intl as typed `^\+?[1-9]\d{7,14}$`). No `country_code`/`dial_code` fields.
 
 ### Screens
 Splash · Home (guest & signed-in; 6-service grid, upcoming ticket, offers carousel, popular routes, top hotels, explore) · Search (Launch/Bus/Boat/Hotel, ghat & city autocomplete, swap, Today/Tomorrow/date picker) · Results (date strip, sort/AC filter, seat-availability bars, skeletons) · Trip details (cabin/seat/sofa tabs, floors, legend, live Pusher locking, sticky summary) · Checkout (stepper, passenger, price breakdown, release item) · Payment methods · Payment WebView · Payment result (verify, confetti) · Tickets (Upcoming/Past/Cancelled) · Ticket (QR, cancel item) · Offers · Account (guest & signed-in) · Edit profile · Saved hotels · Settings (dark mode, English/বাংলা) · Support · FAQ · About · Terms · Notifications · Sign in · Password · OTP · Register · Hotel results · Hotel details (rooms → quote → hold → confirm → payment) · Tour/Entertainment list · Experience details · Experience booking (mock).
 
 ## Real vs mock
 * **Real:** everything in API_MAP.md (auth, search, suggestions, trip layout, cart lock/unlock, booking confirm, gateways, payment make/verify, bookings, cancel, profile, hotels, favourites, home feeds).
-* **Mock / TODO:** Tour & Entertainment (`MockExperienceRepository`, labelled in UI), Notifications inbox, Terms CMS page, coupons, forgot-password UI (repository methods exist), avatar upload UI.
+* **Mock / TODO:** Tour & Entertainment (`MockExperienceRepository`, labelled in UI), Notifications inbox, Terms CMS page, coupons, avatar upload UI.
 
 ## Known gaps
 * Runtime not exercised on a device/emulator (built only). Search/popular endpoints returned empty lists on dev, so result cards and seat map are coded against the Flutter field names, not live data.
 * Response field names for hotel rooms/hold/confirm and booking-details wrappers are inferred from the Flutter code with fallbacks; verify against real responses.
 * Bus "ladies seat" and per-seat passenger forms aren't modelled (Flutter doesn't either).
 * Cart is in memory (like Flutter CartProvider); held locks are released when items are removed but not on app kill.
-
 Photo credits: [PHOTO_CREDITS.md](PHOTO_CREDITS.md) (Wikimedia Commons). Inter font: SIL OFL.

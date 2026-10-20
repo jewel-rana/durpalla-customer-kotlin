@@ -4,83 +4,8 @@ import com.durpalla.booking.core.*
 import com.durpalla.booking.data.net.ApiClient
 import com.durpalla.booking.data.net.requireSuccess
 import com.durpalla.booking.data.session.SessionStore
-import com.durpalla.booking.security.RecaptchaProvider
 import kotlinx.serialization.json.*
 import java.util.UUID
-
-/** Port of lib/services/auth_api.dart (uses API_AUTH_BASE_URL == API_BASE_URL, i.e. auth endpoints under the base). */
-class AuthRepository(private val api: ApiClient, private val session: SessionStore, private val recaptcha: RecaptchaProvider) {
-
-    private fun tokenOf(r: JsonObject) = r.s("token") ?: r.s("access_token") ?: r.o("data").s("token") ?: r.o("data").s("access_token")
-    private fun userOf(r: JsonObject) = r.o("user") ?: r.o("data").o("user") ?: r.o("data").o("customer")
-
-    /** `POST auth/check` → step login | otp | register (same inference as check_mobile_screen.dart). */
-    suspend fun checkStep(mobile: String): String {
-        val r = api.postForm("auth/check", mapOf("mobile" to mobile, "recaptchaToken" to recaptcha.token("login")))
-        if (!r.success && r.s("step") == null && r.o("data").s("step") == null) throw ApiException(r.message ?: "Could not continue")
-        val raw = (r.s("step") ?: r.o("data").s("step"))?.lowercase()?.trim()
-        if (raw != null) {
-            if (raw.startsWith("log")) return "login"
-            if (raw == "otp") return "otp"
-            if (raw.startsWith("reg") || raw == "signup" || raw == "sign_up") return "register"
-        }
-        val exists = r.s("exists") ?: r.o("data").s("exists") ?: r.s("found") ?: r.o("data").s("found") ?: r.s("account_exists")
-        return if (exists == "true") "login" else "otp"
-    }
-
-    suspend fun sendOtp(mobile: String): JsonObject =
-        api.postForm("auth/otp/send", mapOf("mobile" to mobile, "recaptchaToken" to recaptcha.token("login")))
-
-    /** `POST auth/verify` {mobile, otp, type, recaptchaToken}. Saves token when returned. */
-    suspend fun verifyOtp(mobile: String, otp: String, type: String = "register"): JsonObject {
-        val r = api.postForm("auth/verify", mapOf("mobile" to mobile, "otp" to otp, "type" to type, "recaptchaToken" to recaptcha.token("login")))
-        val t = tokenOf(r)
-        if (r.success && !t.isNullOrEmpty()) session.saveLogin(t, userOf(r))
-        return r
-    }
-
-    /** `POST auth/login` {mobile, password, device_id, device_platform, fcm_token, recaptchaToken}. */
-    suspend fun login(mobile: String, password: String): JsonObject {
-        val device = session.deviceId().orEmpty()
-        val r = api.postForm("auth/login", mapOf(
-            "mobile" to mobile, "password" to password.trim(), "device_id" to device,
-            "device_platform" to "android", "fcm_token" to device, "recaptchaToken" to recaptcha.token("login")))
-        val t = tokenOf(r)
-        if (r.success && !t.isNullOrEmpty()) session.saveLogin(t, userOf(r)) else r.requireSuccess("Login failed")
-        return r
-    }
-
-    /** `POST auth/register`. */
-    suspend fun register(name: String, email: String, mobile: String, password: String, otp: String): JsonObject {
-        val device = session.deviceId().orEmpty()
-        val r = api.postForm("auth/register", mapOf(
-            "name" to name, "email" to email, "mobile" to mobile, "password" to password, "confirm_password" to password,
-            "otp_code" to otp, "device_id" to device, "device_platform" to "android", "fcm_token" to device,
-            "recaptchaToken" to recaptcha.token("login")))
-        r.requireSuccess("Registration failed")
-        val t = tokenOf(r)
-        if (!t.isNullOrEmpty()) session.saveLogin(t, userOf(r)) else login(mobile, password)
-        return r
-    }
-
-    suspend fun forgotStart(mobile: String) = api.postForm("auth/forgot", mapOf("mobile" to mobile))
-    suspend fun forgotVerify(mobile: String, otp: String) =
-        api.postForm("auth/verify", mapOf("mobile" to mobile, "otp_code" to otp, "type" to "forgot", "recaptchaToken" to recaptcha.token("login")))
-    suspend fun forgotReset(mobile: String, password: String): JsonObject {
-        val r = api.postJson("auth/reset", jsonOf("mobile" to mobile, "password" to password, "confirm_password" to password, "recaptchaToken" to recaptcha.token("login")))
-        val t = tokenOf(r); if (r.success && t != null) session.saveLogin(t, userOf(r))
-        return r
-    }
-
-    /** `POST auth/push/bind` {token, platform} — called after login and on FCM token refresh. */
-    suspend fun bindPushToken() {
-        val id = session.deviceId() ?: return
-        if (!session.isAuthenticated) return
-        runCatching { api.postJson("auth/push/bind", jsonOf("token" to id, "platform" to "android")) }
-    }
-
-    suspend fun logout() = session.clear()
-}
 
 class HomeRepository(private val api: ApiClient) {
     /** `GET public/app-config` → sections toggles. */
