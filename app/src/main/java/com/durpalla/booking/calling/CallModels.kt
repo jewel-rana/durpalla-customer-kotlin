@@ -56,8 +56,9 @@ enum class CallProvider(val wire: String) {
 }
 
 /**
- * From `GET /calls/{id}/agora-token` body `{ data: { appId, channel, token, uid, expiresAt } }`.
+ * Agora block from create/accept: `{ appId, channel, token, uid, expiresAt }`.
  * `uid` = customer id (drivers use 2000000000+id). App ID never hard-coded.
+ * Renewal uses `POST /calls/{id}/token` → `{ data: { token, expiresAt } }` only.
  */
 data class AgoraCredentials(
     val appId: String,
@@ -66,7 +67,24 @@ data class AgoraCredentials(
     val uid: Int,
     /** Derived from wire `expiresAt` (epoch seconds) × 1000. */
     val expiresAtMs: Long? = null,
-)
+) {
+    companion object {
+        fun parse(o: kotlinx.serialization.json.JsonObject): AgoraCredentials? {
+            val appId = with(com.durpalla.booking.core) { o.s("appId") } ?: return null
+            val token = with(com.durpalla.booking.core) { o.s("token") } ?: return null
+            val channel = with(com.durpalla.booking.core) { o.s("channel") }.orEmpty()
+            val uid = with(com.durpalla.booking.core) { o.i("uid") } ?: 0
+            val expiresAtSec = with(com.durpalla.booking.core) {
+                o.i("expiresAt")?.toLong() ?: o.s("expiresAt")?.toLongOrNull()
+            }
+            return AgoraCredentials(appId, channel, token, uid, expiresAtSec?.times(1000L))
+        }
+
+        /** Prefer server `channel`; else `call_{callId}`. */
+        fun resolveChannel(creds: AgoraCredentials, callId: String): String =
+            creds.channel.ifBlank { "call_$callId" }
+    }
+}
 
 data class CallSession(
     val callId: String,
@@ -136,7 +154,7 @@ data class CallLogEntry(
     }
 }
 
-/** One entry from GET /calls/ice-servers → `[{urls, username, credential}]` (+ ttl). */
+/** One ICE server entry (`urls` string|array + optional username/credential). */
 data class IceServerEntry(
     val urls: List<String>,
     val username: String? = null,

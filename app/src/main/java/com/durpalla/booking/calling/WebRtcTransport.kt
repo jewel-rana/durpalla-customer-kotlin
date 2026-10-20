@@ -3,11 +3,15 @@ package com.durpalla.booking.calling
 import android.content.Context
 import com.durpalla.booking.data.net.ApiClient
 
-/** WebRTC audio transport (existing [WebRtcEngine] + Firestore SDP/ICE). */
+/**
+ * WebRTC audio transport. ICE from create/accept `iceServers` when non-null;
+ * otherwise [IceServersClient] GET /calls/ice-servers / STUN.
+ */
 class WebRtcTransport(
     private val appContext: Context,
     private val api: ApiClient?,
     private val isCaller: Boolean,
+    private val iceBootstrap: IceServersResponse? = null,
 ) : CallTransport {
     override val provider = CallProvider.WEBRTC
     private var engine: WebRtcEngine? = null
@@ -15,7 +19,7 @@ class WebRtcTransport(
     override suspend fun prepare(asCaller: Boolean, callbacks: CallTransportCallbacks) {
         val e = WebRtcEngine(
             appContext = appContext,
-            iceProvider = { IceServersClient.fetch(api) },
+            iceProvider = { IceServersClient.resolve(api, iceBootstrap) },
             isCaller = asCaller || isCaller,
         )
         engine = e

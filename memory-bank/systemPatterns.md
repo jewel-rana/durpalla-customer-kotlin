@@ -38,7 +38,7 @@ calling / realtime / push / l10n / security / core
 
 ## Calling
 - `CallRepository` → `MockCallRepository` or `ApiCallRepository` (`USE_MOCK_CALLS`).
-- **Transport:** `CallTransport` — `WebRtcTransport` | `AgoraTransport` | `MockCallTransport`; server sends `provider` (launch default agora); **client omit → webrtc**; apply `provider` from accept/decline/end.
-- Shared: FCM/CallStyle ringing, UI, call log (+ `provider`), Firestore status. WebRTC: SDP/ICE. Agora: token in `data`, caller joins after POST, callee after accept, channel `call_{callId}`.
-- Firebase custom token before Firestore; ICE ttl/2 cache; caller-only ICE restart (WebRTC).
+- **Transport:** `CallTransport` — `WebRtcTransport` | `AgoraTransport` | `MockCallTransport`; create/accept media bootstrap chooses transport from `provider` (**omit → webrtc**).
+- Shared: FCM/CallStyle ringing, UI, call log (+ `provider`), Firestore status. WebRTC: `iceServers` from create/accept (null → GET ice-servers). Agora: `agora` block from create/accept; renew `POST …/token`; channel `call_{callId}`.
+- Firebase custom token before Firestore; ICE ttl/2 on GET fallback; caller-only ICE restart (WebRTC).
 - Contract + rules: `docs/calling-contract.md`, `docs/firestore.rules`.

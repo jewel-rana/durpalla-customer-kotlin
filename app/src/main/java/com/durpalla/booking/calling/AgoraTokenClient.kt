@@ -6,26 +6,22 @@ import com.durpalla.booking.core.s
 import com.durpalla.booking.data.net.ApiClient
 
 /**
- * `GET /calls/{callId}/agora-token` → `{ "data": { appId, channel, token, uid, expiresAt } }`.
- * `expiresAt` is epoch **seconds**. `uid` is the customer id (drivers use 2000000000+id).
- * Channel is normally `call_{callId}`; blank → that fallback.
+ * Agora token **renewal** only: `POST /calls/{callId}/token` → `{ "data": { token, expiresAt } }`.
+ * Initial credentials come from create/accept ([CallMediaPayload]); there is no GET agora-token.
  */
 object AgoraTokenClient {
-    suspend fun fetch(api: ApiClient, callId: String): AgoraCredentials {
-        val r = api.get("calls/$callId/agora-token")
+    data class RenewedToken(
+        val token: String,
+        val expiresAtMs: Long? = null,
+    )
+
+    suspend fun renew(api: ApiClient, callId: String): RenewedToken {
+        val r = api.postJson("calls/$callId/token", com.durpalla.booking.core.jsonOf())
         CallApiErrors.requireCallSuccess(r)
         val o = r.o("data") ?: r
-        val appId = o.s("appId") ?: throw CallApiErrors.toException(r)
-        val channel = o.s("channel").orEmpty()
         val token = o.s("token") ?: throw CallApiErrors.toException(r)
-        val uid = o.i("uid") ?: 0
         val expiresAtSec = o.i("expiresAt")?.toLong()
             ?: o.s("expiresAt")?.toLongOrNull()
-        val expiresAtMs = expiresAtSec?.times(1000L)
-        return AgoraCredentials(appId, channel, token, uid, expiresAtMs)
+        return RenewedToken(token, expiresAtSec?.times(1000L))
     }
-
-    /** Prefer server `channel`; else `call_{callId}`. */
-    fun resolveChannel(creds: AgoraCredentials, callId: String): String =
-        creds.channel.ifBlank { "call_$callId" }
 }

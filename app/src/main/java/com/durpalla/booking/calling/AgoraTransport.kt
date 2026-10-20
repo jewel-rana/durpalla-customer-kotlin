@@ -15,10 +15,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Agora Voice SDK transport. Credentials from `GET /calls/{id}/agora-token` only (no hard-coded App ID).
+ * Agora Voice SDK transport. Initial credentials from create/accept `agora` block
+ * (no separate token fetch at call start). Renewal: `POST /calls/{id}/token`.
  *
  * Caller joins right after POST /calls; callee joins after accept.
- * COMMUNICATION + SPEECH_STANDARD + CHATROOM; renew on token expiry;
+ * COMMUNICATION + SPEECH_STANDARD + CHATROOM;
  * weak hint from network quality (≥ BAD) and rtc stats (loss ≥ 5% or lastmile RTT ≥ 400ms),
  * cleared after 3 good samples.
  */
@@ -26,6 +27,7 @@ class AgoraTransport(
     private val appContext: Context,
     private val api: ApiClient?,
     private val scope: CoroutineScope,
+    private val initialCredentials: AgoraCredentials?,
 ) : CallTransport {
     override val provider = CallProvider.AGORA
 
@@ -54,8 +56,8 @@ class AgoraTransport(
             val client = api ?: return
             scope.launch {
                 runCatching {
-                    val creds = AgoraTokenClient.fetch(client, callId)
-                    engine?.renewToken(creds.token)
+                    val renewed = AgoraTokenClient.renew(client, callId)
+                    engine?.renewToken(renewed.token)
                 }.onFailure { Log.w(TAG, "token renew failed", it) }
             }
         }
@@ -118,10 +120,10 @@ class AgoraTransport(
     }
 
     private suspend fun join(callId: String) {
-        val client = api ?: error("Agora requires ApiClient")
         activeCallId = callId
-        val creds = AgoraTokenClient.fetch(client, callId)
-        if (creds.appId.isBlank()) error("agora-token missing appId")
+        val creds = initialCredentials
+            ?: error("agora credentials missing from create/accept response")
+        if (creds.appId.isBlank()) error("agora block missing appId")
         mainHandler.post {
             ensureEngine(creds.appId)
             val eng = engine ?: return@post
@@ -136,7 +138,7 @@ class AgoraTransport(
                 publishMicrophoneTrack = true
                 publishCameraTrack = false
             }
-            val channel = AgoraTokenClient.resolveChannel(creds, callId)
+            val channel = AgoraCredentials.resolveChannel(creds, callId)
             val code = eng.joinChannel(creds.token, channel, creds.uid, options)
             if (code != 0) Log.w(TAG, "joinChannel returned $code")
         }

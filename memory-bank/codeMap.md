@@ -57,10 +57,11 @@ Package root: `app/src/main/java/com/durpalla/booking/`
 | Prod / mock | `ApiCallRepository.kt`, `MockCallRepository.kt` |
 | Models / timeouts / `CallProvider` / callLog.`provider` | `CallModels.kt` (client omit → webrtc) |
 | **Media transports** | `CallTransport.kt`, `WebRtcTransport.kt`, `AgoraTransport.kt`, `MockCallTransport.kt` |
-| Agora token REST | `AgoraTokenClient.kt` (`GET` → `{data:{appId,channel,token,uid,expiresAt}}`, seconds) |
+| Create/accept media parse | `CallMediaPayload.kt` (`callId`, `provider`, `agora`, `iceServers`, `ttl`) |
+| Agora token renew | `AgoraTokenClient.kt` (`POST …/token` → `{data:{token,expiresAt}}`) |
 | Firestore signaling | `FirestoreSignalingRepository.kt`, `SignalingRepository.kt` |
 | WebRTC engine + Opus / ICE restart | `WebRtcEngine.kt`, `OpusSdpMunger.kt` |
-| ICE REST + cache | `IceServersClient.kt` |
+| ICE resolve (inline or GET) | `IceServersClient.kt` |
 | Firebase custom token | `FirebaseCallAuth.kt` |
 | API error → l10n | `CallApiErrors.kt` |
 | FCM/Pusher payload parse | `IncomingCallPayload.kt` (includes `provider`) |

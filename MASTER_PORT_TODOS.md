@@ -25,7 +25,7 @@ Remote languages hi/ar/zh/ur/fa/tr/es/it + first-launch language select + settin
 
 See [docs/calling-contract.md](docs/calling-contract.md). Mock on by default (`USE_MOCK_CALLS=true`). Wire HTTP + Firestore when backend is ready; iOS-only `POST /devices/voip` is N/A here.
 
-**Agora transport:** matched driver §0 / apigw. Token `{data:…}`, `expiresAt` seconds, caller/callee join timing, accept/decline/end `provider`, `CALL_PROVIDER_*` errors; **client omit → webrtc**. See `docs/calling-contract.md`.
+**Calling media:** create + accept return `{callId, provider, agora|null, iceServers|null, ttl?}`; renew `POST /calls/{id}/token` only; no GET agora-token; **client omit → webrtc**. See `docs/calling-contract.md`.
 
 ## l10n note
 

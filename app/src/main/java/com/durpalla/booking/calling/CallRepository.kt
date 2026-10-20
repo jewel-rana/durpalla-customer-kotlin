@@ -34,7 +34,7 @@ interface CallRepository {
     suspend fun setMuted(muted: Boolean)
     suspend fun setSpeaker(on: Boolean)
 
-    /** GET /calls/ice-servers with STUN fallback + ttl/2 cache. */
+    /** Fallback GET /calls/ice-servers (used when create/accept omit iceServers). */
     suspend fun fetchIceServers(): IceServersResponse
 }
 

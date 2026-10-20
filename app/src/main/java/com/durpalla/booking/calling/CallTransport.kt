@@ -1,15 +1,15 @@
 package com.durpalla.booking.calling
 
 /**
- * Audio media transport selected by the server (`provider` on POST /calls, FCM, Firestore).
- * Ringing, call log, status, and Firestore doc stay outside this interface.
+ * Audio media transport selected by the server (`provider` on POST /calls + accept).
+ * Media bootstrap (agora / iceServers) comes from those responses — no separate start token fetch.
  */
 interface CallTransport {
     val provider: CallProvider
 
     suspend fun prepare(asCaller: Boolean, callbacks: CallTransportCallbacks)
 
-    /** WebRTC: createOffer. Agora: join channel with server token. */
+    /** WebRTC: createOffer. Agora: join with create/accept `agora` credentials. */
     suspend fun startOutgoing(callId: String): SdpPayload?
 
     /** WebRTC: wait is done by repo; Agora: join on accept. Returns local answer SDP for WebRTC after [setRemote]. */
@@ -39,8 +39,9 @@ object CallTransportFactory {
         api: com.durpalla.booking.data.net.ApiClient?,
         scope: kotlinx.coroutines.CoroutineScope,
         isCaller: Boolean,
+        media: CallMediaBootstrap = CallMediaBootstrap(),
     ): CallTransport = when (provider) {
-        CallProvider.AGORA -> AgoraTransport(context.applicationContext, api, scope)
-        CallProvider.WEBRTC -> WebRtcTransport(context.applicationContext, api, isCaller)
+        CallProvider.AGORA -> AgoraTransport(context.applicationContext, api, scope, media.agora)
+        CallProvider.WEBRTC -> WebRtcTransport(context.applicationContext, api, isCaller, media.iceServers)
     }
 }

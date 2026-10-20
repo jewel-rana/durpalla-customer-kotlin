@@ -26,8 +26,8 @@
 | `RECAPTCHA_SITE_KEY` / `RECAPTCHA_ORIGIN` | WebView v3; empty token fallback |
 | `GHAT_SUGGEST_API_PATH` | `trip/ghat-suggestions` |
 | **`USE_MOCK_CALLS`** | debug **true**, release **false** — mock calling until backend live |
-| `WEBRTC_*` | STUN defaults; TURN from `/calls/ice-servers` in prod path |
-| Agora | `GET /calls/{id}/agora-token` → `{data:{appId,channel,token,uid,expiresAt}}` (expiresAt seconds); channel `call_{callId}`; client omit provider → `webrtc` |
+| `WEBRTC_*` | ICE from create/accept `iceServers`; null → GET `/calls/ice-servers` / STUN |
+| Agora | create/accept `agora:{appId,channel,token,uid,expiresAt}`; renew `POST /calls/{id}/token`; channel `call_{callId}`; omit provider → `webrtc` |
 
 ## Config files
 - `app/google-services.json` — optional; google-services plugin applied only if present.

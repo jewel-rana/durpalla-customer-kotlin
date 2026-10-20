@@ -4,8 +4,6 @@ import android.content.Context
 import com.durpalla.booking.R
 import com.durpalla.booking.core.AppCtx
 import com.durpalla.booking.core.jsonOf
-import com.durpalla.booking.core.o
-import com.durpalla.booking.core.s
 import com.durpalla.booking.core.str
 import com.durpalla.booking.data.net.ApiClient
 import com.durpalla.booking.data.session.SessionStore
@@ -22,8 +20,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
 /**
- * Production calling: Firebase custom token → POST /calls → Firestore status +
- * [CallTransport] (WebRTC or Agora per server `provider`).
+ * Production calling: Firebase custom token → POST /calls (media bootstrap in response) →
+ * Firestore status + [CallTransport] (WebRTC or Agora per `provider`).
  */
 class ApiCallRepository(
     private val context: Context,
@@ -74,9 +72,9 @@ class ApiCallRepository(
         FirebaseCallAuth.ensureSignedIn(api, userId())
         val res = api.postJson("calls", jsonOf("tripId" to tripId.toString()))
         CallApiErrors.requireCallSuccess(res)
-        val callId = res.o("data").s("callId") ?: res.s("callId")
-            ?: throw CallApiErrors.toException(res)
-        val provider = CallProvider.fromWire(res.o("data").s("provider") ?: res.s("provider"))
+        val media = CallMediaPayload.parse(res)
+        val callId = media.callId
+        val provider = media.provider
         val callerId = userId()
         startedAt = System.currentTimeMillis()
         val s = CallSession(
@@ -90,7 +88,7 @@ class ApiCallRepository(
         )
         _session.value = s
         CallForegroundService.start(context, driverName, outgoing = true)
-        awaitTransport(provider, asCaller = true)
+        awaitTransport(provider, asCaller = true, bootstrap = CallMediaBootstrap.from(media))
         when (provider) {
             CallProvider.WEBRTC -> {
                 val offer = transport!!.startOutgoing(callId)
@@ -99,7 +97,7 @@ class ApiCallRepository(
                 lastSeenOfferSdp = offer.sdp
                 signaling.setOffer(callId, offer)
             }
-            // Caller fetches agora-token and joins immediately after POST /calls (§0).
+            // Caller joins Agora with create-response credentials (no separate token fetch).
             CallProvider.AGORA -> transport!!.startOutgoing(callId)
         }
         watchRemote(callId, asCaller = true, provider = provider)
@@ -148,10 +146,18 @@ class ApiCallRepository(
         FirebaseCallAuth.ensureSignedIn(api, userId())
         val res = api.postJson("calls/${s.callId}/accept", jsonOf())
         runCatching { CallApiErrors.requireCallSuccess(res) }
-        applyProviderFromResponse(res)
+        val media = runCatching { CallMediaPayload.parse(res, fallbackCallId = s.callId) }.getOrNull()
+        if (media != null) {
+            if (_session.value?.provider != media.provider) {
+                _session.value = _session.value?.copy(provider = media.provider)
+            }
+        } else {
+            applyProviderFromResponse(res)
+        }
         CallNotifications.cancelIncoming(context)
-        val provider = _session.value?.provider ?: s.provider
-        awaitTransport(provider, asCaller = false)
+        val provider = media?.provider ?: _session.value?.provider ?: s.provider
+        val bootstrap = media?.let { CallMediaBootstrap.from(it) } ?: CallMediaBootstrap()
+        awaitTransport(provider, asCaller = false, bootstrap = bootstrap)
         when (provider) {
             CallProvider.WEBRTC -> {
                 val snap = signaling.observeCall(s.callId).first { it.offer != null }
@@ -166,7 +172,7 @@ class ApiCallRepository(
                         .collect { transport?.addIce(it) }
                 }
             }
-            // Callee joins Agora only after accept (contract §0).
+            // Callee joins Agora with accept-response credentials.
             CallProvider.AGORA -> transport!!.startIncoming(s.callId)
         }
         update(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
@@ -220,10 +226,14 @@ class ApiCallRepository(
 
     override suspend fun fetchIceServers(): IceServersResponse = IceServersClient.fetch(api)
 
-    private suspend fun awaitTransport(provider: CallProvider, asCaller: Boolean) {
+    private suspend fun awaitTransport(
+        provider: CallProvider,
+        asCaller: Boolean,
+        bootstrap: CallMediaBootstrap = CallMediaBootstrap(),
+    ) {
         asCallerFlag = asCaller
         FirebaseCallAuth.ensureSignedIn(api, userId())
-        val t = CallTransportFactory.create(provider, context, api, scope, asCaller)
+        val t = CallTransportFactory.create(provider, context, api, scope, asCaller, bootstrap)
         transport = t
         t.prepare(
             asCaller = asCaller,

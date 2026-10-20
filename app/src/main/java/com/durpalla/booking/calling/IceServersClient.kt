@@ -10,12 +10,28 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * GET /calls/ice-servers — array shape **or** `{ iceServers, ttl }`.
- * Cache for at most `ttl/2` seconds (driver contract).
+ * ICE servers from create/accept (`iceServers` + optional `ttl`), or fallback
+ * `GET /calls/ice-servers` when that field is null. Cache GET for at most `ttl/2`.
  */
 object IceServersClient {
     @Volatile private var cached: IceServersResponse? = null
     @Volatile private var cachedUntilMs: Long = 0L
+
+    /**
+     * Prefer [inline] from create/accept when non-null; otherwise GET ice-servers / STUN.
+     */
+    suspend fun resolve(api: ApiClient?, inline: IceServersResponse?): IceServersResponse {
+        if (inline != null) return inline
+        return fetch(api)
+    }
+
+    fun parseArray(arr: JsonArray, ttlSeconds: Long?): IceServersResponse {
+        val servers = arr.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            parseEntry(o)
+        }
+        return IceServersResponse(servers, ttlSeconds)
+    }
 
     suspend fun fetch(api: ApiClient?): IceServersResponse {
         if (api == null) return fallback()
@@ -26,7 +42,6 @@ object IceServersClient {
             val code = r.i("http_status") ?: 200
             if (code !in 200..299) return@runCatching fallback()
 
-            // Shapes: [ {...} ] (wrapped as data), { iceServers, ttl }, { servers, ttl }, { data: [...] }
             val ttl = r.i("ttl")?.toLong()
                 ?: r.o("data").i("ttl")?.toLong()
             val arr: JsonArray? = when {
@@ -40,14 +55,7 @@ object IceServersClient {
             }
             val servers = arr?.mapNotNull { el ->
                 val o = el as? JsonObject ?: return@mapNotNull null
-                val urlsRaw = o["urls"]
-                val urls = when (urlsRaw) {
-                    is JsonArray -> urlsRaw.mapNotNull { (it as? JsonPrimitive)?.content }
-                    is JsonPrimitive -> listOf(urlsRaw.content)
-                    else -> o.s("url")?.let { listOf(it) } ?: emptyList()
-                }.filter { it.isNotBlank() }
-                if (urls.isEmpty()) return@mapNotNull null
-                IceServerEntry(urls, o.s("username"), o.s("credential"))
+                parseEntry(o)
             }.orEmpty()
 
             val result = if (servers.isEmpty()) fallback() else IceServersResponse(servers, ttl)
@@ -56,6 +64,17 @@ object IceServersClient {
             cachedUntilMs = now + ttlSec * 1000L / 2L
             result
         }.getOrElse { fallback() }
+    }
+
+    private fun parseEntry(o: JsonObject): IceServerEntry? {
+        val urlsRaw = o["urls"]
+        val urls = when (urlsRaw) {
+            is JsonArray -> urlsRaw.mapNotNull { (it as? JsonPrimitive)?.content }
+            is JsonPrimitive -> listOf(urlsRaw.content)
+            else -> o.s("url")?.let { listOf(it) } ?: emptyList()
+        }.filter { it.isNotBlank() }
+        if (urls.isEmpty()) return null
+        return IceServerEntry(urls, o.s("username"), o.s("credential"))
     }
 
     fun fallback() = IceServersResponse(

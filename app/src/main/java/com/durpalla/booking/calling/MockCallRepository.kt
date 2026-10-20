@@ -54,7 +54,7 @@ class MockCallRepository(
         val callerName = callerName.ifBlank { AppCtx.str(R.string.you) }
         endInternal(CallStatus.ENDED, appendLog = false)
         val callId = "mock_${UUID.randomUUID().toString().take(8)}"
-        // TODO(calling): POST /calls {tripId} → {callId}
+        // Prod: POST /calls → {data:{callId, provider, agora|null, iceServers|null, ttl?}}
         signaling.createCallDoc(callId, tripId, mockCallerId, CallRole.CUSTOMER, mockCalleeId, CallRole.DRIVER)
         startedAt = System.currentTimeMillis()
         val s = CallSession(
@@ -63,6 +63,7 @@ class MockCallRepository(
             peerName = driverName,
             isOutgoing = true,
             status = CallStatus.RINGING,
+            provider = CallProvider.WEBRTC,
             callerId = mockCallerId,
             calleeId = mockCalleeId,
         )
@@ -136,6 +137,7 @@ class MockCallRepository(
     override suspend fun accept() {
         val s = _session.value ?: return
         ringJob?.cancel()
+        // Prod: POST /calls/{id}/accept → {data:{callId, provider, agora|null, iceServers|null, ttl?}}
         val media = transport ?: MockCallTransport(scope).also { transport = it }
         media.prepare(asCaller = false, callbacks = CallTransportCallbacks())
         media.startIncoming(s.callId)
@@ -146,7 +148,7 @@ class MockCallRepository(
     }
 
     override suspend fun decline(reason: String) {
-        // TODO(calling): POST /calls/{id}/decline {reason}
+        // Prod: POST /calls/{id}/decline → may echo provider
         endInternal(CallStatus.DECLINED, endedBy = mockCallerId, reason = reason)
         CallNotifications.cancelIncoming(context)
     }
