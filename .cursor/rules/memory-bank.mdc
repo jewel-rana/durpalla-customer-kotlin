@@ -1,0 +1,12 @@
+---
+description: Require memory-bank orientation and code reuse before writing new code
+alwaysApply: true
+---
+
+# Memory bank
+
+- At the start of a task, read `memory-bank/` (at least `activeContext.md`, `progress.md`, `codeMap.md`; pull in `systemPatterns.md` / `techContext.md` when architecture or build flags matter).
+- Before adding a new screen, component, helper, repository method, or service, **search `memory-bank/codeMap.md` and the existing package** — reuse SoftCard/GradientButton/`rememberLoad`/`t()`/`AppCtx.str`/`ApiClient`/repos/calling stack instead of inventing parallels.
+- Prefer extending existing files listed in the code map over creating new packages or duplicate UI primitives.
+- Keep `memory-bank` files concise; do not dump large code into them.
+- At the **end of each task** (before the final summary), update `memory-bank/activeContext.md`, `memory-bank/progress.md`, and `memory-bank/codeMap.md` when you added, moved, or renamed reusable code or changed done/TODO status.
