@@ -61,7 +61,8 @@ Splash · Home (guest & signed-in; 6-service grid, upcoming ticket, offers carou
 ## Real vs mock
 * **Real:** everything in API_MAP.md including tour/*, entertainment/*, boat-rental/*, cart sync, hotel multi-room hold.
 * **Driver calling (UI + mock):** WebRTC audio + Firestore signaling; `USE_MOCK_CALLS` BuildConfig flag. Contract: [docs/calling-contract.md](docs/calling-contract.md) (matches Durpalla/durpalla-driver).
-* **Still TODO / polish:** see MASTER_PORT_TODOS.md (cert PEM, SolaimanLipi, full ARB, home re-skin, remote l10n). Notifications inbox, Terms CMS, coupons, avatar upload UI.
+* **l10n:** Bundled en/bn; remote hi/ar/zh/ur/fa/tr/es/it via `GET localizations/customer-app/{code}` overlay; RTL for ar/ur/fa; first-launch language select + Settings picker; `AppCompatDelegate` + `locales_config.xml`; `Accept-Language` / `Content-Language` from `app_locale`.
+* **Still TODO / polish:** see MASTER_PORT_TODOS.md (cert PEM, SolaimanLipi, full ARB, home re-skin). Notifications inbox, Terms CMS, coupons, avatar upload UI.
 
 ## Known gaps
 * Runtime not exercised on a device/emulator (built only). Search/popular endpoints returned empty lists on dev, so result cards and seat map are coded against the Flutter field names, not live data.
