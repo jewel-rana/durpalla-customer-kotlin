@@ -30,11 +30,11 @@ object Notifications {
         val sound = if (soundId != 0) android.net.Uri.parse("android.resource://${ctx.packageName}/$soundId")
                     else RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         nm.createNotificationChannel(NotificationChannel(REMINDER, ctx.getString(R.string.channel_reminder), NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Notifications for upcoming trip reminders"
+            description = ctx.getString(R.string.channel_reminder_desc)
             setSound(sound, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build())
         })
         nm.createNotificationChannel(NotificationChannel(DEFAULT, ctx.getString(R.string.channel_general), NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "General app notifications"
+            description = ctx.getString(R.string.channel_general_desc)
         })
     }
 

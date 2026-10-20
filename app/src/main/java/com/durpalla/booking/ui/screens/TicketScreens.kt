@@ -17,7 +17,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
@@ -31,6 +30,7 @@ import com.durpalla.booking.ui.theme.Brand
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.launch
+import com.durpalla.booking.l10n.t
 
 @Composable
 fun TicketsScreen() {
@@ -40,9 +40,9 @@ fun TicketsScreen() {
     var tab by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(Modifier.fillMaxWidth().background(Brand.HeroGradient).statusBarsPadding().padding(20.dp)) {
-            Text(stringResource(R.string.my_tickets), style = MaterialTheme.typography.headlineSmall, color = Color.White)
+            Text(t(R.string.my_tickets), style = MaterialTheme.typography.headlineSmall, color = Color.White)
         }
-        TabRow(tab) { listOf(R.string.upcoming, R.string.past, R.string.cancelled).forEachIndexed { i, l -> Tab(tab == i, { tab = i }, text = { Text(stringResource(l)) }) } }
+        TabRow(tab) { listOf(R.string.upcoming, R.string.past, R.string.cancelled).forEachIndexed { i, l -> Tab(tab == i, { tab = i }, text = { Text(t(l)) }) } }
         when (val s = state) {
             Load.Loading -> LoadingList()
             is Load.Err -> ErrorState(s.message) { vm.reload() }
@@ -51,7 +51,7 @@ fun TicketsScreen() {
                     val st = (b.status + " " + b.paymentStatus).lowercase()
                     when (tab) { 2 -> st.contains("cancel"); 1 -> b.isPast() && !st.contains("cancel"); else -> !b.isPast() && !st.contains("cancel") }
                 }
-                if (list.isEmpty()) EmptyState(Icons.Default.ConfirmationNumber, "No tickets here yet", "Your booked trips will appear here.", "Find a trip") { nav.tab(Routes.SEARCH) }
+                if (list.isEmpty()) EmptyState(Icons.Default.ConfirmationNumber, t(R.string.no_tickets_yet), t(R.string.no_tickets_body), t(R.string.find_a_trip)) { nav.tab(Routes.SEARCH) }
                 else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(list, key = { it.id }) { b -> BookingRow(b) { nav.go(Routes.ticket(b.id)) } }
                 }
@@ -74,7 +74,7 @@ private fun BookingRow(b: Booking, onClick: () -> Unit) {
                 Icon(if (i.str("item_type", "type").contains("hotel", true)) Icons.Default.Hotel else Icons.Default.DirectionsBoat, null, tint = Brand.Primary)
             }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(i.str("vehicle_name", "hotel_name", default = "Booking #${b.id}"), style = MaterialTheme.typography.titleSmall)
+                Text(i.str("vehicle_name", "hotel_name", default = t(R.string.booking_numbered, b.id)), style = MaterialTheme.typography.titleSmall)
                 Text(i.str("route_name", "room_type_title"), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
                 Text(i.str("leaving_time_formated", "schedule_date", default = b.bookingDate), style = MaterialTheme.typography.labelSmall, color = Brand.Primary)
             }
@@ -96,7 +96,7 @@ fun TicketScreen(id: Int) {
     val scope = rememberCoroutineScope()
     var confirmCancel by remember { mutableStateOf<Int?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
-    Scaffold(topBar = { DTopBar(stringResource(R.string.ticket), onBack = nav::back) }) { pad ->
+    Scaffold(topBar = { DTopBar(t(R.string.ticket), onBack = nav::back) }) { pad ->
         when (val s = state) {
             Load.Loading -> Box(Modifier.padding(pad)) { LoadingList(2) }
             is Load.Err -> Box(Modifier.padding(pad)) { ErrorState(s.message) { vm.reload() } }
@@ -110,7 +110,7 @@ fun TicketScreen(id: Int) {
                             Column {
                                 LogoHorizontal(Modifier.height(24.dp), white = true)
                                 Spacer(Modifier.height(10.dp))
-                                Text(b.firstItem.str("vehicle_name", "hotel_name", default = "Booking"), color = Color.White, style = MaterialTheme.typography.titleLarge)
+                                Text(b.firstItem.str("vehicle_name", "hotel_name", default = t(R.string.label_booking)), color = Color.White, style = MaterialTheme.typography.titleLarge)
                                 Text(b.firstItem.str("route_name", "room_type_title"), color = Color.White.copy(.85f))
                             }
                         }
@@ -118,25 +118,25 @@ fun TicketScreen(id: Int) {
                             val qrText = root.s("qr_code") ?: root.s("qr") ?: root.s("qrCode")
                                 ?: "DURPALLA|PNR:${b.pnr}|BID:${b.id}"
                             val bmp = remember(qrText) { qr(qrText) }
-                            Image(bmp.asImageBitmap(), "QR", Modifier.size(200.dp))
-                            Text("PNR ${b.pnr}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Image(bmp.asImageBitmap(), t(R.string.ticket), Modifier.size(200.dp))
+                            Text(t(R.string.label_pnr, b.pnr), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                            Info("Date", b.firstItem.str("leaving_time_formated", "schedule_date", default = b.bookingDate))
-                            Info("Boarding", b.firstItem.str("boarding_point", default = "—"))
-                            Info("Payment", b.paymentStatus)
-                            Info("Transaction", b.transactionId ?: "—")
-                            Info(stringResource(R.string.total), money(b.totalPayable))
+                            Info(t(R.string.label_date), b.firstItem.str("leaving_time_formated", "schedule_date", default = b.bookingDate))
+                            Info(t(R.string.label_boarding), b.firstItem.str("boarding_point", default = t(R.string.em_dash)))
+                            Info(t(R.string.label_payment), b.paymentStatus)
+                            Info(t(R.string.label_transaction), b.transactionId ?: t(R.string.em_dash))
+                            Info(t(R.string.total), money(b.totalPayable))
                         }
                     }
                     Spacer(Modifier.height(16.dp))
-                    Text("Items", style = MaterialTheme.typography.titleMedium)
+                    Text(t(R.string.label_items), style = MaterialTheme.typography.titleMedium)
                     b.items.forEach { it0 ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("${it0.str("cabin_type", "item_type", "type")} ${it0.str("cabin_no")}", Modifier.weight(1f))
                             Text(money(it0.d("fare", "price")))
                             if (com.durpalla.booking.core.BookingCancelRules.canCancelItem(b, it0)) {
                                 TextButton({ confirmCancel = it0.i("id") }) {
-                                    Text(stringResource(R.string.cancel_ticket), color = Brand.Error)
+                                    Text(t(R.string.cancel_ticket), color = Brand.Error)
                                 }
                             }
                             b.invoiceUrl?.takeIf { it.isNotBlank() && b.downloadable }?.let { url ->
@@ -144,7 +144,7 @@ fun TicketScreen(id: Int) {
                                     runCatching {
                                         ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                     }
-                                }) { Text("Invoice") }
+                                }) { Text(t(R.string.invoice)) }
                             }
                         }
                     }
@@ -155,7 +155,7 @@ fun TicketScreen(id: Int) {
                             listOf("paid", "success", "confirmed", "complete").any { st.contains(it) } &&
                                 listOf("cancel", "fail", "refund").none { st.contains(it) }
                         }
-                    val driverName = b.firstItem.str("driver_name", "vehicle_name", "operator_name", default = stringResource(R.string.call_driver))
+                    val driverName = b.firstItem.str("driver_name", "vehicle_name", "operator_name", default = t(R.string.call_driver))
                     if (tripActive) {
                         Spacer(Modifier.height(12.dp))
                         CallDriverButton(tripId = b.id, driverName = driverName, tripActive = true)
@@ -166,10 +166,10 @@ fun TicketScreen(id: Int) {
         }
     }
     confirmCancel?.let { itemId ->
-        AlertDialog(onDismissRequest = { confirmCancel = null }, title = { Text(stringResource(R.string.cancel_ticket) + "?") },
-            text = { Text("Refunds follow the operator's cancellation policy.") },
-            confirmButton = { Button({ confirmCancel = null; scope.launch { msg = runCatching { c.bookings.cancelItem(itemId).message ?: "Cancelled" }.getOrElse { it.message }; vm.reload() } }) { Text("Confirm") } },
-            dismissButton = { TextButton({ confirmCancel = null }) { Text("Keep") } })
+        AlertDialog(onDismissRequest = { confirmCancel = null }, title = { Text(t(R.string.cancel_ticket) + "?") },
+            text = { Text(t(R.string.cancel_refund_policy)) },
+            confirmButton = { Button({ confirmCancel = null; scope.launch { msg = runCatching { c.bookings.cancelItem(itemId).message ?: AppCtx.str(R.string.cancelled) }.getOrElse { it.message }; vm.reload() } }) { Text(t(R.string.confirm)) } },
+            dismissButton = { TextButton({ confirmCancel = null }) { Text(t(R.string.keep)) } })
     }
 }
 

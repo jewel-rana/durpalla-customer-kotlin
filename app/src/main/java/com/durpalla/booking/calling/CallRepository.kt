@@ -27,7 +27,7 @@ interface CallRepository {
 
     fun canCallDriver(tripId: Int, bidAccepted: Boolean = false, tripActive: Boolean = false): Boolean
 
-    suspend fun startOutgoing(tripId: Int, driverName: String, callerName: String = "You"): CallSession
+    suspend fun startOutgoing(tripId: Int, driverName: String, callerName: String = ""): CallSession
     suspend fun handleIncoming(callId: String, tripId: Int, callerName: String)
     suspend fun accept()
     suspend fun decline(reason: String = "declined")

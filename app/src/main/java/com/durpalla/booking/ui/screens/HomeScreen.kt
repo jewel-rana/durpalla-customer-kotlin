@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,6 +31,7 @@ import com.durpalla.booking.ui.nav.LocalContainer
 import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
+import com.durpalla.booking.l10n.t
 
 data class HomeData(val popular: List<TripSummary>, val hotels: List<Hotel>, val offers: List<Offer>, val upcoming: List<Booking>)
 
@@ -76,12 +76,12 @@ fun HomeScreen() {
                         Spacer(Modifier.weight(1f))
                         if (loggedIn) FrostedIcon(Icons.Outlined.Notifications) { nav.go(Routes.NOTIFICATIONS) }
                         else Button(onClick = { nav.go(Routes.login(Routes.HOME)) }, colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(.2f))) {
-                            Text(stringResource(R.string.sign_in), color = Color.White)
+                            Text(t(R.string.sign_in), color = Color.White)
                         }
                     }
                     Spacer(Modifier.height(22.dp))
-                    Text(if (loggedIn) "Hi, ${user.str("name", default = "traveller")}" else stringResource(R.string.greeting_guest), color = Color.White.copy(.8f))
-                    Text(stringResource(R.string.where_to), style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                    Text(if (loggedIn) t(R.string.hi_name, user.str("name", default = t(R.string.traveller))) else t(R.string.greeting_guest), color = Color.White.copy(.8f))
+                    Text(t(R.string.where_to), style = MaterialTheme.typography.headlineSmall, color = Color.White)
                 }
             }
         }
@@ -90,14 +90,14 @@ fun HomeScreen() {
                 Column(Modifier.padding(14.dp)) {
                     serviceTiles.chunked(3).forEach { row ->
                         Row(Modifier.fillMaxWidth()) {
-                            row.forEach { t ->
-                                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).clickable { openService(nav, t.key) }.padding(vertical = 10.dp),
+                            row.forEach { tile ->
+                                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).clickable { openService(nav, tile.key) }.padding(vertical = 10.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(Modifier.size(54.dp).clip(CircleShape).background(Brush.linearGradient(listOf(t.tint.copy(.16f), t.tint.copy(.06f)))), contentAlignment = Alignment.Center) {
-                                        Icon(t.icon, null, tint = t.tint)
+                                    Box(Modifier.size(54.dp).clip(CircleShape).background(Brush.linearGradient(listOf(tile.tint.copy(.16f), tile.tint.copy(.06f)))), contentAlignment = Alignment.Center) {
+                                        Icon(tile.icon, null, tint = tile.tint)
                                     }
                                     Spacer(Modifier.height(6.dp))
-                                    Text(stringResource(t.label), style = MaterialTheme.typography.labelMedium)
+                                    Text(t(tile.label), style = MaterialTheme.typography.labelMedium)
                                 }
                             }
                         }
@@ -110,7 +110,7 @@ fun HomeScreen() {
                 .background(Brand.PrimaryGradient).clickable { nav.go(Routes.login(Routes.HOME)) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Lock, null, tint = Brand.Amber)
                 Spacer(Modifier.width(12.dp))
-                Text(stringResource(R.string.guest_banner), color = Color.White, modifier = Modifier.weight(1f))
+                Text(t(R.string.guest_banner), color = Color.White, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.ChevronRight, null, tint = Color.White)
             }
         }
@@ -120,35 +120,35 @@ fun HomeScreen() {
             is Load.Ok -> {
                 val d = s.value
                 d.upcoming.firstOrNull()?.let { b ->
-                    item { SectionHeader(stringResource(R.string.upcoming_trips)) }
+                    item { SectionHeader(t(R.string.upcoming_trips)) }
                     item { UpcomingTicketCard(b) { nav.go(Routes.ticket(b.id)) } }
                 }
-                item { SectionHeader(stringResource(R.string.offers), "See all") { nav.tab(Routes.OFFERS) } }
+                item { SectionHeader(t(R.string.offers), t(R.string.see_all)) { nav.tab(Routes.OFFERS) } }
                 item { OffersCarousel(d.offers) }
-                item { SectionHeader(stringResource(R.string.popular_routes)) }
+                item { SectionHeader(t(R.string.popular_routes)) }
                 if (d.popular.isEmpty()) item { PopularFallback() } else item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(d.popular) { t -> TripMiniCard(t) { nav.go(Routes.trip(t.tripId, t.serviceType)) } }
+                        items(d.popular) { trip -> TripMiniCard(trip) { nav.go(Routes.trip(trip.tripId, trip.serviceType)) } }
                     }
                 }
                 if (d.hotels.isNotEmpty()) {
-                    item { SectionHeader(stringResource(R.string.top_hotels), "Search") { nav.tab(Routes.searchFor("hotel")) } }
+                    item { SectionHeader(t(R.string.top_hotels), t(R.string.tab_search)) { nav.tab(Routes.searchFor("hotel")) } }
                     item {
                         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(d.hotels) { h -> HotelCard(h, Modifier.width(230.dp)) { nav.go(Routes.hotel(h.id, todayIso(1), todayIso(2))) } }
                         }
                     }
                 }
-                item { SectionHeader(stringResource(R.string.explore)) }
+                item { SectionHeader(t(R.string.explore)) }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         val ex = listOf(Triple("Sajek", R.drawable.photo_sajek, "tour"), Triple("Sundarbans", R.drawable.photo_sundarbans, "tour"),
                             Triple("St. Martin's", R.drawable.photo_stmartin, "tour"), Triple("Concerts", R.drawable.photo_concert, "entertainment"))
-                        items(ex) { (t, img, svc) ->
+                        items(ex) { (title, img, svc) ->
                             Box(Modifier.size(150.dp, 180.dp).clip(RoundedCornerShape(18.dp)).clickable { nav.go(Routes.experiences(svc)) }) {
                                 Image(painterResource(img), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
                                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(.7f)))))
-                                Text(t, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.BottomStart).padding(12.dp))
+                                Text(title, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.BottomStart).padding(12.dp))
                             }
                         }
                     }
@@ -164,12 +164,12 @@ private fun PopularFallback() {
     val nav = LocalNav.current
     val routes = listOf("Dhaka (Sadar Ghat)" to "Barishal", "Dhaka (Sadar Ghat)" to "Bhola", "Dhaka (Sadar Ghat)" to "Patuakhali")
     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(routes) { (f, t) ->
-            SoftCard(Modifier.width(220.dp), onClick = { nav.go(Routes.results("launch", f, t, todayIso())) }) {
+        items(routes) { (f, dest) ->
+            SoftCard(Modifier.width(220.dp), onClick = { nav.go(Routes.results("launch", f, dest, todayIso())) }) {
                 Image(painterResource(R.drawable.photo_barishal), null, Modifier.fillMaxWidth().height(100.dp), contentScale = ContentScale.Crop)
                 Column(Modifier.padding(12.dp)) {
-                    Text("$f → $t", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("Launch • Tonight", style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                    Text("$f → $dest", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(t(R.string.launch_tonight), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
                 }
             }
         }
@@ -177,15 +177,15 @@ private fun PopularFallback() {
 }
 
 @Composable
-fun TripMiniCard(t: TripSummary, onClick: () -> Unit) {
+fun TripMiniCard(trip: TripSummary, onClick: () -> Unit) {
     SoftCard(Modifier.width(230.dp), onClick = onClick) {
-        PhotoBox(t.photo, R.drawable.photo_launch, Modifier.fillMaxWidth().height(110.dp))
+        PhotoBox(trip.photo, R.drawable.photo_launch, Modifier.fillMaxWidth().height(110.dp))
         Column(Modifier.padding(12.dp)) {
-            Text(t.vehicleName.ifBlank { t.routeName }, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-            Text("${t.from} → ${t.to}", style = MaterialTheme.typography.bodySmall, color = Brand.Muted, maxLines = 1)
+            Text(trip.vehicleName.ifBlank { trip.routeName }, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+            Text("${trip.from} → ${trip.to}", style = MaterialTheme.typography.bodySmall, color = Brand.Muted, maxLines = 1)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(t.leavingAt, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                Text(money(t.fare), color = Brand.AmberDark, fontWeight = FontWeight.Bold)
+                Text(trip.leavingAt, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                Text(money(trip.fare), color = Brand.AmberDark, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -203,7 +203,7 @@ fun HotelCard(h: Hotel, modifier: Modifier = Modifier, onClick: () -> Unit) {
             Text(h.city, style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(money(h.pricePerNight), color = Brand.AmberDark, fontWeight = FontWeight.Bold)
-                Text(stringResource(R.string.per_night), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                Text(t(R.string.per_night), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
             }
         }
     }
@@ -211,7 +211,7 @@ fun HotelCard(h: Hotel, modifier: Modifier = Modifier, onClick: () -> Unit) {
 
 @Composable
 fun OffersCarousel(offers: List<Offer>) {
-    val list = offers.ifEmpty { listOf(Offer(0, "Up to 15% off launch cabins", "Pay with bKash • limited time", null, "RIVER15"), Offer(0, "Weekend tours from ৳5,200", "Sajek, Sylhet & more", null, null)) }
+    val list = offers.ifEmpty { listOf(Offer(0, t(R.string.sample_offer_1_title), t(R.string.sample_offer_1_body), null, "RIVER15"), Offer(0, t(R.string.sample_offer_2_title), t(R.string.sample_offer_2_body), null, null)) }
     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(list) { o ->
             Box(Modifier.size(290.dp, 130.dp).clip(RoundedCornerShape(20.dp)).background(Brand.HeroGradient)) {
@@ -233,7 +233,7 @@ fun UpcomingTicketCard(b: Booking, onClick: () -> Unit) {
     Row(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.HeroGradient).clickable(onClick = onClick).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(it0.str("vehicle_name", "hotel_name", default = "Your trip"), color = Color.White, style = MaterialTheme.typography.titleMedium)
+            Text(it0.str("vehicle_name", "hotel_name", default = t(R.string.your_trip)), color = Color.White, style = MaterialTheme.typography.titleMedium)
             Text(it0.str("route_name"), color = Color.White.copy(.8f), style = MaterialTheme.typography.bodySmall)
             Text(it0.str("leaving_time_formated", "schedule_date", default = b.bookingDate), color = Brand.Amber, style = MaterialTheme.typography.labelMedium)
         }

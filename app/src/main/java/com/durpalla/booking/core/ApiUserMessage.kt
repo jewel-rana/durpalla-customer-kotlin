@@ -1,20 +1,23 @@
 package com.durpalla.booking.core
 
+import com.durpalla.booking.R
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
 /**
- * Flutter `lib/helpers/api_user_message.dart` — friendly EN copy (BN via string resources in UI).
+ * Flutter `lib/helpers/api_user_message.dart` — friendly copy via string resources (remote packs override).
  */
 object ApiUserMessage {
-    const val OFFLINE = "You appear to be offline. Check your connection and try again."
-    const val TIMEOUT = "The request timed out. Please check your connection and try again."
-    const val GENERIC = "Something went wrong. Please try again."
-    const val SERVER_UNAVAILABLE = "Our servers are temporarily unavailable. Please try again in a moment."
-    const val BAD_RESPONSE = "Received an unexpected response. Please try again."
-    const val TLS = "A secure connection could not be established. Please try again."
+    private fun s(id: Int): String = AppCtx.str(id)
+
+    val OFFLINE get() = s(R.string.offline_message)
+    val TIMEOUT get() = s(R.string.timeout_message)
+    val GENERIC get() = s(R.string.generic_error)
+    val SERVER_UNAVAILABLE get() = s(R.string.server_unavailable)
+    val BAD_RESPONSE get() = s(R.string.bad_response)
+    val TLS get() = s(R.string.tls_message)
 
     fun fromThrowable(t: Throwable): String = when (t) {
         is ApiException -> when {

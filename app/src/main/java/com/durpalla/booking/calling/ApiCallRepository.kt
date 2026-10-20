@@ -1,5 +1,8 @@
 package com.durpalla.booking.calling
 
+import com.durpalla.booking.R
+import com.durpalla.booking.core.AppCtx
+
 import android.content.Context
 import com.durpalla.booking.core.*
 import com.durpalla.booking.data.net.ApiClient
@@ -50,9 +53,10 @@ class ApiCallRepository(
         bidAccepted || tripActive
 
     override suspend fun startOutgoing(tripId: Int, driverName: String, callerName: String): CallSession {
+        val callerName = callerName.ifBlank { AppCtx.str(R.string.you) }
         disposeMedia()
         // POST /calls {tripId} → {callId}
-        val res = api.postJson("calls", jsonOf("tripId" to tripId)).requireSuccess("Could not start call")
+        val res = api.postJson("calls", jsonOf("tripId" to tripId)).requireSuccess(AppCtx.str(R.string.err_could_not_start_call))
         val callId = res.o("data").s("callId") ?: res.s("callId")
             ?: throw IllegalStateException("callId missing")
         val callerId = userId()

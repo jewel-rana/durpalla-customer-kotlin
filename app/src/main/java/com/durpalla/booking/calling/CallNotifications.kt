@@ -27,7 +27,7 @@ object CallNotifications {
         val ring = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_INCOMING, ctx.getString(R.string.call_channel_incoming), NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Incoming driver calls"
+                description = ctx.getString(R.string.channel_incoming_desc)
                 setSound(ring, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build())
                 enableVibration(true)
                 setBypassDnd(true)

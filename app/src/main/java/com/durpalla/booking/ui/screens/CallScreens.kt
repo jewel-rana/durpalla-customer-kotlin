@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -36,6 +35,7 @@ import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
+import com.durpalla.booking.l10n.t
 
 @Composable
 fun OutgoingCallScreen() {
@@ -73,7 +73,7 @@ fun OutgoingCallScreen() {
         ) {
             Spacer(Modifier.height(48.dp))
             Text(
-                s?.peerName ?: stringResource(R.string.call_driver),
+                s?.peerName ?: t(R.string.call_driver),
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -96,17 +96,17 @@ fun OutgoingCallScreen() {
             ) {
                 CallRoundButton(
                     icon = if (s?.muted == true) Icons.Default.MicOff else Icons.Default.Mic,
-                    label = stringResource(R.string.call_mute),
+                    label = t(R.string.call_mute),
                     selected = s?.muted == true,
                 ) { scope.launch { c.calls.setMuted(!(s?.muted ?: false)) } }
                 CallRoundButton(
                     icon = Icons.Default.CallEnd,
-                    label = stringResource(R.string.call_end),
+                    label = t(R.string.call_end),
                     danger = true,
                 ) { scope.launch { c.calls.end() } }
                 CallRoundButton(
                     icon = if (s?.speakerOn == true) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                    label = stringResource(R.string.call_speaker),
+                    label = t(R.string.call_speaker),
                     selected = s?.speakerOn == true,
                 ) { scope.launch { c.calls.setSpeaker(!(s?.speakerOn ?: false)) } }
             }
@@ -127,14 +127,14 @@ fun IncomingCallScreen(peerName: String, onAccept: () -> Unit, onDecline: () -> 
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(64.dp))
-            Text(stringResource(R.string.call_incoming_title), color = Color.White.copy(0.8f))
+            Text(t(R.string.call_incoming_title), color = Color.White.copy(0.8f))
             Spacer(Modifier.height(12.dp))
             Text(peerName, style = MaterialTheme.typography.headlineLarge, color = Color.White, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.call_status_ringing), color = Color.White.copy(0.75f), modifier = Modifier.padding(top = 8.dp))
+            Text(t(R.string.call_status_ringing), color = Color.White.copy(0.75f), modifier = Modifier.padding(top = 8.dp))
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                CallRoundButton(Icons.Default.CallEnd, stringResource(R.string.call_decline), danger = true, onClick = onDecline)
-                CallRoundButton(Icons.Default.Call, stringResource(R.string.call_accept), success = true, onClick = onAccept)
+                CallRoundButton(Icons.Default.CallEnd, t(R.string.call_decline), danger = true, onClick = onDecline)
+                CallRoundButton(Icons.Default.Call, t(R.string.call_accept), success = true, onClick = onAccept)
             }
             Spacer(Modifier.height(40.dp))
         }
@@ -175,7 +175,7 @@ fun CallDriverButton(
     ) {
         Icon(Icons.Default.Call, null)
         Spacer(Modifier.width(8.dp))
-        Text(stringResource(R.string.call_driver))
+        Text(t(R.string.call_driver))
     }
 }
 
@@ -186,7 +186,7 @@ fun CallLogSection(tripId: Int) {
     val locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
     if (log.isEmpty()) return
     Column(Modifier.padding(vertical = 8.dp)) {
-        Text(stringResource(R.string.call_log_title), style = MaterialTheme.typography.titleMedium)
+        Text(t(R.string.call_log_title), style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         log.forEach { e ->
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -199,9 +199,9 @@ fun CallLogSection(tripId: Int) {
                     Text(e.peerName, style = MaterialTheme.typography.titleSmall)
                     Text(
                         when (e.status) {
-                            CallStatus.MISSED -> stringResource(R.string.call_status_missed)
-                            CallStatus.DECLINED -> stringResource(R.string.call_status_declined)
-                            CallStatus.ENDED -> stringResource(R.string.call_status_ended)
+                            CallStatus.MISSED -> t(R.string.call_status_missed)
+                            CallStatus.DECLINED -> t(R.string.call_status_declined)
+                            CallStatus.ENDED -> t(R.string.call_status_ended)
                             else -> e.status.name
                         },
                         color = Brand.Muted,
@@ -249,10 +249,10 @@ private fun CallRoundButton(
 @Composable
 private fun statusLabel(status: CallStatus?): String = when (status) {
     // Outgoing before answer still shows "Calling…" while wire status is ringing
-    CallStatus.RINGING -> stringResource(R.string.call_status_calling)
-    CallStatus.ACCEPTED -> stringResource(R.string.call_status_connected)
-    CallStatus.ENDED -> stringResource(R.string.call_status_ended)
-    CallStatus.DECLINED -> stringResource(R.string.call_status_declined)
-    CallStatus.MISSED -> stringResource(R.string.call_status_missed)
+    CallStatus.RINGING -> t(R.string.call_status_calling)
+    CallStatus.ACCEPTED -> t(R.string.call_status_connected)
+    CallStatus.ENDED -> t(R.string.call_status_ended)
+    CallStatus.DECLINED -> t(R.string.call_status_declined)
+    CallStatus.MISSED -> t(R.string.call_status_missed)
     else -> ""
 }

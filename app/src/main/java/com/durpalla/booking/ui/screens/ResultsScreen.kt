@@ -15,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
@@ -26,6 +25,7 @@ import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
 import java.time.LocalDate
+import com.durpalla.booking.l10n.t
 
 @Composable
 fun ResultsScreen(type: String, from: String, to: String, initialDate: String) {
@@ -50,9 +50,9 @@ fun ResultsScreen(type: String, from: String, to: String, initialDate: String) {
             }
         }
         Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(sort == "time", { sort = "time" }, { Text("Earliest") }, leadingIcon = { Icon(Icons.Default.Schedule, null, Modifier.size(16.dp)) })
-            FilterChip(sort == "price", { sort = "price" }, { Text("Cheapest") }, leadingIcon = { Icon(Icons.Default.Payments, null, Modifier.size(16.dp)) })
-            FilterChip(acOnly, { acOnly = !acOnly }, { Text("AC") }, leadingIcon = { Icon(Icons.Default.AcUnit, null, Modifier.size(16.dp)) })
+            FilterChip(sort == "time", { sort = "time" }, { Text(t(R.string.sort_earliest)) }, leadingIcon = { Icon(Icons.Default.Schedule, null, Modifier.size(16.dp)) })
+            FilterChip(sort == "price", { sort = "price" }, { Text(t(R.string.sort_cheapest)) }, leadingIcon = { Icon(Icons.Default.Payments, null, Modifier.size(16.dp)) })
+            FilterChip(acOnly, { acOnly = !acOnly }, { Text(t(R.string.filter_ac)) }, leadingIcon = { Icon(Icons.Default.AcUnit, null, Modifier.size(16.dp)) })
         }
         when (val s = state) {
             Load.Loading -> LoadingList()
@@ -60,9 +60,9 @@ fun ResultsScreen(type: String, from: String, to: String, initialDate: String) {
             is Load.Ok -> {
                 var list = s.value.filter { !acOnly || it.isAc }
                 list = if (sort == "price") list.sortedBy { it.fare ?: Double.MAX_VALUE } else list
-                if (list.isEmpty()) EmptyState(Icons.Default.DirectionsBoat, stringResource(R.string.no_trips), "Try another date or route.")
+                if (list.isEmpty()) EmptyState(Icons.Default.DirectionsBoat, t(R.string.no_trips), t(R.string.try_another_date_route))
                 else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(list, key = { it.tripId }) { t -> TripCard(t) { nav.go(Routes.trip(t.tripId, type)) } }
+                    items(list, key = { it.tripId }) { trip -> TripCard(trip) { nav.go(Routes.trip(trip.tripId, type)) } }
                 }
             }
         }
@@ -70,34 +70,34 @@ fun ResultsScreen(type: String, from: String, to: String, initialDate: String) {
 }
 
 @Composable
-fun TripCard(t: TripSummary, onClick: () -> Unit) {
+fun TripCard(trip: TripSummary, onClick: () -> Unit) {
     SoftCard(onClick = onClick) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(t.vehicleName.ifBlank { "Trip #${t.tripId}" }, style = MaterialTheme.typography.titleMedium)
-                    Text(t.subLine.ifBlank { t.routeName }, style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                    Text(trip.vehicleName.ifBlank { t(R.string.trip_numbered, trip.tripId) }, style = MaterialTheme.typography.titleMedium)
+                    Text(trip.subLine.ifBlank { trip.routeName }, style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
                 }
-                Pill(if (t.isAc) "AC" else "Non-AC")
+                Pill(if (trip.isAc) t(R.string.filter_ac) else t(R.string.filter_non_ac))
             }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column { Text(t.leavingAt.ifBlank { "—" }, style = MaterialTheme.typography.titleSmall); Text(t.from, style = MaterialTheme.typography.bodySmall, color = Brand.Muted) }
+                Column { Text(trip.leavingAt.ifBlank { t(R.string.em_dash) }, style = MaterialTheme.typography.titleSmall); Text(trip.from, style = MaterialTheme.typography.bodySmall, color = Brand.Muted) }
                 Box(Modifier.weight(1f).padding(horizontal = 10.dp).height(2.dp).background(Brand.P300))
                 Icon(Icons.Default.DirectionsBoat, null, tint = Brand.Primary, modifier = Modifier.size(18.dp))
                 Box(Modifier.weight(1f).padding(horizontal = 10.dp).height(2.dp).background(Brand.P300))
-                Text(t.to, style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                Text(trip.to, style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
             }
             Spacer(Modifier.height(12.dp))
-            val avail = if (t.cabinAvailable > 0) t.cabinAvailable else t.seatAvailable
-            val total = maxOf(t.totalSeats, avail, 1)
+            val avail = if (trip.cabinAvailable > 0) trip.cabinAvailable else trip.seatAvailable
+            val total = maxOf(trip.totalSeats, avail, 1)
             LinearProgressIndicator(progress = { avail.toFloat() / total }, Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = Brand.Success, trackColor = Brand.P100)
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (t.cabinAvailable > 0) stringResource(R.string.cabins_left, t.cabinAvailable) else stringResource(R.string.seats_left, t.seatAvailable),
+                Text(if (trip.cabinAvailable > 0) t(R.string.cabins_left, trip.cabinAvailable) else t(R.string.seats_left, trip.seatAvailable),
                     style = MaterialTheme.typography.labelMedium, color = if (avail < 5) Brand.Error else Brand.Success, modifier = Modifier.weight(1f))
-                Text("from ", style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
-                Text(money(t.fare), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
+                Text(t(R.string.price_from), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                Text(money(trip.fare), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
             }
         }
     }

@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.durpalla.booking.R
+import com.durpalla.booking.core.AppCtx
+import com.durpalla.booking.l10n.t
 import com.durpalla.booking.ui.theme.Brand
 
 /** Soft blue-tinted elevated card used everywhere in the redesign. */
@@ -133,10 +135,10 @@ fun EmptyState(icon: ImageVector, title: String, body: String? = null, action: S
 }
 
 @Composable
-fun ErrorState(msg: String, onRetry: () -> Unit) = EmptyState(Icons.Default.CloudOff, msg, null, "Retry", onRetry)
+fun ErrorState(msg: String, onRetry: () -> Unit) = EmptyState(Icons.Default.CloudOff, msg, null, t(R.string.retry), onRetry)
 
-fun money(v: Double?): String = if (v == null) "—" else "৳" + String.format("%,.0f", v)
+fun money(v: Double?): String = if (v == null) AppCtx.str(R.string.em_dash) else "৳" + String.format("%,.0f", v)
 
 @Composable
 fun LogoHorizontal(modifier: Modifier = Modifier, white: Boolean = false) =
-    Image(painterResource(if (white) R.drawable.logo_horizontal_white else R.drawable.logo_horizontal_blue), "Durpalla", modifier)
+    Image(painterResource(if (white) R.drawable.logo_horizontal_white else R.drawable.logo_horizontal_blue), t(R.string.cd_app_name), modifier)

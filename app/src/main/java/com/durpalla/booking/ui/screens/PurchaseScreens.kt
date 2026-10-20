@@ -21,7 +21,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -34,6 +33,7 @@ import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.launch
+import com.durpalla.booking.l10n.t
 
 @Composable
 fun CheckoutScreen() {
@@ -49,13 +49,13 @@ fun CheckoutScreen() {
     val vat = c.cart.totalVat()
     val total = c.cart.amountWithCharges()
 
-    Scaffold(topBar = { DTopBar(stringResource(R.string.checkout), onBack = nav::back) }, bottomBar = {
+    Scaffold(topBar = { DTopBar(t(R.string.checkout), onBack = nav::back) }, bottomBar = {
         Surface(shadowElevation = 16.dp) {
             Column(Modifier.navigationBarsPadding().padding(16.dp)) {
                 err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
-                GradientButton(stringResource(R.string.confirm_booking) + " • " + money(total), Modifier.fillMaxWidth(), enabled = cart.isNotEmpty(), loading = loading) {
+                GradientButton(t(R.string.confirm_booking) + " • " + money(total), Modifier.fillMaxWidth(), enabled = cart.isNotEmpty(), loading = loading) {
                     if (!forSelf && (name.isBlank() || mobile.isBlank())) {
-                        err = "Enter passenger name and mobile"
+                        err = t(R.string.enter_passenger_name_mobile)
                         return@GradientButton
                     }
                     scope.launch {
@@ -75,7 +75,7 @@ fun CheckoutScreen() {
     }) { pad ->
         Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             StepIndicator(1)
-            if (cart.isEmpty()) EmptyState(Icons.Default.ShoppingCart, "Your cart is empty", "Pick a cabin or seat first.")
+            if (cart.isEmpty()) EmptyState(Icons.Default.ShoppingCart, t(R.string.cart_empty), t(R.string.cart_empty_body))
             cart.groupBy { it.tripId }.forEach { (_, items) ->
                 SoftCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
@@ -93,29 +93,29 @@ fun CheckoutScreen() {
                                     }
                                 }) { Icon(Icons.Default.Close, null) }
                             }
-                            ci.expiresAt?.let { Text("Held until $it", style = MaterialTheme.typography.labelSmall, color = Brand.AmberDark) }
+                            ci.expiresAt?.let { Text(t(R.string.held_until, it), style = MaterialTheme.typography.labelSmall, color = Brand.AmberDark) }
                         }
                     }
                 }
             }
             SoftCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Passenger", style = MaterialTheme.typography.titleMedium)
-                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(forSelf, { forSelf = it }); Text("I'm travelling (${user.str("name", default = "me")})") }
+                    Text(t(R.string.passenger), style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(forSelf, { forSelf = it }); Text(t(R.string.travelling_as_me, user.str("name", default = t(R.string.me)))) }
                     if (!forSelf) {
-                        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.full_name)) })
-                        OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.mobile_number)) })
+                        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.full_name)) })
+                        OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.mobile_number)) })
                     }
                 }
             }
             SoftCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Price breakdown", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp))
-                    Row { Text("Fare", Modifier.weight(1f)); Text(money(subtotal)) }
-                    Row { Text("Service charge", Modifier.weight(1f), color = Brand.Muted); Text(money(charge), color = Brand.Muted) }
-                    Row { Text("VAT", Modifier.weight(1f), color = Brand.Muted); Text(money(vat), color = Brand.Muted) }
+                    Text(t(R.string.price_breakdown), style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp))
+                    Row { Text(t(R.string.fare), Modifier.weight(1f)); Text(money(subtotal)) }
+                    Row { Text(t(R.string.service_charge), Modifier.weight(1f), color = Brand.Muted); Text(money(charge), color = Brand.Muted) }
+                    Row { Text(t(R.string.vat), Modifier.weight(1f), color = Brand.Muted); Text(money(vat), color = Brand.Muted) }
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    Row { Text(stringResource(R.string.total), Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(money(total), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold) }
+                    Row { Text(t(R.string.total), Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(money(total), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold) }
                 }
             }
         }
@@ -125,7 +125,7 @@ fun CheckoutScreen() {
 @Composable
 fun StepIndicator(step: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        listOf("Details", "Pay", "Ticket").forEachIndexed { i, l ->
+        listOf(t(R.string.step_details), t(R.string.step_pay), t(R.string.step_ticket)).forEachIndexed { i, l ->
             val on = i + 1 <= step
             Box(Modifier.size(26.dp).clip(CircleShape).background(if (on) Brand.Primary else Brand.Line), contentAlignment = Alignment.Center) {
                 Text("${i + 1}", color = if (on) Color.White else Brand.Muted, style = MaterialTheme.typography.labelMedium)
@@ -149,11 +149,11 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
     var selected by remember { mutableStateOf<Int?>(null) }
     var loading by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    Scaffold(topBar = { DTopBar(stringResource(R.string.payment_method), onBack = nav::back) }, bottomBar = {
+    Scaffold(topBar = { DTopBar(t(R.string.payment_method), onBack = nav::back) }, bottomBar = {
         Surface(shadowElevation = 16.dp) {
             Column(Modifier.navigationBarsPadding().padding(16.dp)) {
                 err?.let { Text(it, color = Brand.Error) }
-                GradientButton(stringResource(R.string.pay_now) + " • " + money(amount), Modifier.fillMaxWidth(), enabled = selected != null, loading = loading) {
+                GradientButton(t(R.string.pay_now) + " • " + money(amount), Modifier.fillMaxWidth(), enabled = selected != null, loading = loading) {
                     scope.launch {
                         loading = true; err = null
                         runCatching { c.payments.make(bookingId, selected!!, amount) }
@@ -166,7 +166,7 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
     }) { pad ->
         Column(Modifier.padding(pad).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             StepIndicator(2)
-            Text("Booking #$bookingId", style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+            Text(t(R.string.booking_numbered, bookingId), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
             when (val s = state) {
                 Load.Loading -> LoadingList(3)
                 is Load.Err -> ErrorState(s.message) { vm.reload() }
@@ -177,7 +177,7 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                                 Text(g.name, style = MaterialTheme.typography.titleSmall)
                                 g.fee?.takeIf { it > 0 }?.let {
-                                    Text("Fee ${money(it)}", style = MaterialTheme.typography.labelSmall, color = Brand.Muted)
+                                    Text(t(R.string.fee_amount, money(it)), style = MaterialTheme.typography.labelSmall, color = Brand.Muted)
                                 }
                             }
                             RadioButton(selected == g.id, { selected = g.id })
@@ -187,7 +187,7 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.VerifiedUser, null, tint = Brand.Success, modifier = Modifier.size(16.dp))
-                Text(" Secured payment. Your card details are never stored.", style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                Text(" " + t(R.string.secured_payment), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
             }
         }
     }
@@ -224,7 +224,7 @@ fun PaymentWebViewScreen(url: String, bookingId: Int) {
     }
 
     BackHandler { confirmExit = true }
-    Scaffold(topBar = { DTopBar(stringResource(R.string.payment), onBack = { confirmExit = true }) }) { pad ->
+    Scaffold(topBar = { DTopBar(t(R.string.payment), onBack = { confirmExit = true }) }) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             AndroidView(factory = {
                 WebView(it).apply {
@@ -261,9 +261,9 @@ fun PaymentWebViewScreen(url: String, bookingId: Int) {
         }
     }
     if (confirmExit) AlertDialog(onDismissRequest = { confirmExit = false },
-        title = { Text(stringResource(R.string.cancel_payment)) }, text = { Text(stringResource(R.string.cancel_payment_body)) },
-        confirmButton = { Button({ confirmExit = false; finish(true) }) { Text(stringResource(R.string.leave)) } },
-        dismissButton = { TextButton({ confirmExit = false }) { Text(stringResource(R.string.stay)) } })
+        title = { Text(t(R.string.cancel_payment)) }, text = { Text(t(R.string.cancel_payment_body)) },
+        confirmButton = { Button({ confirmExit = false; finish(true) }) { Text(t(R.string.leave)) } },
+        dismissButton = { TextButton({ confirmExit = false }) { Text(t(R.string.stay)) } })
 }
 
 /** booking_result_page.dart equivalent; always verifies with the backend. */
@@ -287,23 +287,23 @@ fun PaymentResultScreen(bookingId: Int, cancelled: Boolean) {
                         Icon(if (ok) Icons.Default.CheckCircle else Icons.Default.Cancel, null, Modifier.size(72.dp), tint = if (ok) Brand.Success else Brand.Error)
                     }
                     Spacer(Modifier.height(16.dp))
-                    Text(stringResource(if (ok) R.string.payment_success else R.string.payment_failed), style = MaterialTheme.typography.headlineSmall)
-                    Text(r?.message ?: if (cancelled) "Payment cancelled" else "Could not verify payment. Please check your bookings.", color = Brand.Muted)
+                    Text(t(if (ok) R.string.payment_success else R.string.payment_failed), style = MaterialTheme.typography.headlineSmall)
+                    Text(r?.message ?: if (cancelled) t(R.string.payment_cancelled) else t(R.string.could_not_verify_payment), color = Brand.Muted)
                     if (data != null) {
                         Spacer(Modifier.height(12.dp))
                         SoftCard(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp)) {
-                                Row { Text("Booking", Modifier.weight(1f), color = Brand.Muted); Text("#$bookingId") }
-                                Row { Text("Gateway", Modifier.weight(1f), color = Brand.Muted); Text(data.o("gateway").str("name", default = "—")) }
-                                Row { Text("Paid", Modifier.weight(1f), color = Brand.Muted); Text("${data.str("paid_amount", default = "—")} ${data.str("currency")}") }
-                                Row { Text("Status", Modifier.weight(1f), color = Brand.Muted); Text(data.str("nice_status", default = if (ok) "Success" else "Failed")) }
+                                Row { Text(t(R.string.label_booking), Modifier.weight(1f), color = Brand.Muted); Text("#$bookingId") }
+                                Row { Text(t(R.string.label_gateway), Modifier.weight(1f), color = Brand.Muted); Text(data.o("gateway").str("name", default = t(R.string.em_dash))) }
+                                Row { Text(t(R.string.label_paid), Modifier.weight(1f), color = Brand.Muted); Text("${data.str("paid_amount", default = t(R.string.em_dash))} ${data.str("currency")}") }
+                                Row { Text(t(R.string.label_status), Modifier.weight(1f), color = Brand.Muted); Text(data.str("nice_status", default = if (ok) t(R.string.status_success) else t(R.string.status_failed))) }
                             }
                         }
                     }
                     Spacer(Modifier.height(20.dp))
-                    if (ok) GradientButton(stringResource(R.string.view_ticket), Modifier.fillMaxWidth()) { nav.nav.navigate(Routes.ticket(bookingId)) { popUpTo(Routes.HOME) } }
-                    else GradientButton(stringResource(R.string.retry), Modifier.fillMaxWidth()) { nav.back() }
-                    TextButton({ nav.nav.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } }) { Text(stringResource(R.string.back_home)) }
+                    if (ok) GradientButton(t(R.string.view_ticket), Modifier.fillMaxWidth()) { nav.nav.navigate(Routes.ticket(bookingId)) { popUpTo(Routes.HOME) } }
+                    else GradientButton(t(R.string.retry), Modifier.fillMaxWidth()) { nav.back() }
+                    TextButton({ nav.nav.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } }) { Text(t(R.string.back_home)) }
                 }
             }
         }

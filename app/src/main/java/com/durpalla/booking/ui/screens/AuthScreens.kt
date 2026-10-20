@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -46,6 +45,7 @@ import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import com.durpalla.booking.l10n.t
 
 @Composable
 private fun AuthScaffold(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
@@ -109,16 +109,16 @@ fun LoginScreen(redirect: String) {
     val emailOk = AuthValidators.isEmail(email)
     val mobileOk = mobileApi != null
     val canContinue = if (authTab == AuthTab.Email) emailOk else mobileOk
-    val unableContinue = stringResource(R.string.unable_to_continue)
+    val unableContinue = t(R.string.unable_to_continue)
 
-    AuthScaffold(stringResource(R.string.sign_in), stringResource(R.string.enter_identifier_hint)) {
+    AuthScaffold(t(R.string.sign_in), t(R.string.enter_identifier_hint)) {
         IdentifierTabs(authTab, ::selectTab)
         Spacer(Modifier.height(12.dp))
         when (authTab) {
             AuthTab.Mobile -> {
                 PhoneInputField(national, { national = it }, region, { region = it })
                 Text(
-                    stringResource(R.string.auth_mobile_helper),
+                    t(R.string.auth_mobile_helper),
                     style = MaterialTheme.typography.bodySmall,
                     color = Brand.Muted,
                     modifier = Modifier.padding(top = 6.dp),
@@ -129,14 +129,14 @@ fun LoginScreen(redirect: String) {
                     email,
                     { email = it },
                     Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.email)) },
-                    placeholder = { Text("you@example.com") },
+                    label = { Text(t(R.string.email)) },
+                    placeholder = { Text(t(R.string.email_placeholder_example)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                 )
                 Text(
-                    stringResource(R.string.auth_email_helper),
+                    t(R.string.auth_email_helper),
                     style = MaterialTheme.typography.bodySmall,
                     color = Brand.Muted,
                     modifier = Modifier.padding(top = 6.dp),
@@ -151,7 +151,7 @@ fun LoginScreen(redirect: String) {
         }
         Spacer(Modifier.height(16.dp))
         GradientButton(
-            stringResource(R.string.continue_),
+            t(R.string.continue_),
             Modifier.fillMaxWidth(),
             enabled = canContinue,
             loading = loading,
@@ -184,7 +184,7 @@ fun LoginScreen(redirect: String) {
         }
         Spacer(Modifier.height(10.dp))
         Text(
-            stringResource(R.string.auth_terms_note),
+            t(R.string.auth_terms_note),
             style = MaterialTheme.typography.bodySmall,
             color = Brand.Muted,
             textAlign = TextAlign.Center,
@@ -196,8 +196,8 @@ fun LoginScreen(redirect: String) {
 @Composable
 private fun IdentifierTabs(selected: AuthTab, onSelect: (AuthTab) -> Unit) {
     TabRow(selectedTabIndex = if (selected == AuthTab.Mobile) 0 else 1, containerColor = Color.Transparent) {
-        Tab(selected = selected == AuthTab.Mobile, onClick = { onSelect(AuthTab.Mobile) }, text = { Text(stringResource(R.string.tab_mobile)) })
-        Tab(selected = selected == AuthTab.Email, onClick = { onSelect(AuthTab.Email) }, text = { Text(stringResource(R.string.tab_email)) })
+        Tab(selected = selected == AuthTab.Mobile, onClick = { onSelect(AuthTab.Mobile) }, text = { Text(t(R.string.tab_mobile)) })
+        Tab(selected = selected == AuthTab.Email, onClick = { onSelect(AuthTab.Email) }, text = { Text(t(R.string.tab_email)) })
     }
 }
 
@@ -214,18 +214,18 @@ fun PasswordScreen(idRaw: String, redirect: String) {
     var warn by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val canSubmit = id.display.isNotBlank() && pw.isNotBlank()
-    val useEmailMsg = stringResource(R.string.use_email_intl_sms)
-    val emailRequired = stringResource(R.string.email_required)
-    val mobileMissing = stringResource(R.string.mobile_missing)
+    val useEmailMsg = t(R.string.use_email_intl_sms)
+    val emailRequired = t(R.string.email_required)
+    val mobileMissing = t(R.string.mobile_missing)
 
-    AuthScaffold(stringResource(R.string.sign_in), id.display) {
+    AuthScaffold(t(R.string.sign_in), id.display) {
         OutlinedTextField(
             id.display,
             {},
             Modifier.fillMaxWidth(),
             enabled = false,
             label = {
-                Text(if (id.isEmail) stringResource(R.string.email) else stringResource(R.string.mobile_number))
+                Text(if (id.isEmail) t(R.string.email) else t(R.string.mobile_number))
             },
             shape = RoundedCornerShape(14.dp),
         )
@@ -233,7 +233,7 @@ fun PasswordScreen(idRaw: String, redirect: String) {
             pw,
             { pw = it },
             Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.password)) },
+            label = { Text(t(R.string.password)) },
             singleLine = true,
             visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
@@ -246,7 +246,7 @@ fun PasswordScreen(idRaw: String, redirect: String) {
         warn?.let { Text(it, color = Brand.Amber, style = MaterialTheme.typography.bodySmall) }
         err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
         Spacer(Modifier.height(16.dp))
-        GradientButton(stringResource(R.string.sign_in), Modifier.fillMaxWidth(), enabled = canSubmit, loading = loading) {
+        GradientButton(t(R.string.sign_in), Modifier.fillMaxWidth(), enabled = canSubmit, loading = loading) {
             if (id.isEmail && id.email.isNullOrBlank()) {
                 err = emailRequired
                 return@GradientButton
@@ -271,12 +271,12 @@ fun PasswordScreen(idRaw: String, redirect: String) {
             }
         }
         TextButton({ nav.nav.navigate(Routes.otp(id, redirect)) }, Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.use_otp_instead))
+            Text(t(R.string.use_otp_instead))
         }
         // E5: forgot is BD-mobile only — never pass an email into it
         if (id.isMobile && AuthValidators.isBdMobile(id.mobile.orEmpty())) {
             TextButton({ nav.nav.navigate(Routes.forgot(id.mobile!!)) }, Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.forgot_password))
+                Text(t(R.string.forgot_password))
             }
         }
     }
@@ -295,12 +295,12 @@ fun OtpScreen(idRaw: String, redirect: String) {
     var err by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val otpSentDefault = stringResource(R.string.otp_sent)
-    val verificationComplete = stringResource(R.string.verification_complete)
+    val otpSentDefault = t(R.string.otp_sent)
+    val verificationComplete = t(R.string.verification_complete)
     val subtitle = if (id.isMobile) {
-        stringResource(R.string.otp_subtitle_mobile)
+        t(R.string.otp_subtitle_mobile)
     } else {
-        stringResource(R.string.otp_subtitle_email, id.display)
+        t(R.string.otp_subtitle_email, id.display)
     }
 
     LaunchedEffect(seconds) {
@@ -325,7 +325,7 @@ fun OtpScreen(idRaw: String, redirect: String) {
         }
     }
 
-    AuthScaffold(stringResource(R.string.otp_title), subtitle) {
+    AuthScaffold(t(R.string.otp_title), subtitle) {
         BasicTextField(
             code,
             { v -> code = v.filter(Char::isDigit).take(6) },
@@ -353,14 +353,14 @@ fun OtpScreen(idRaw: String, redirect: String) {
         err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
         Spacer(Modifier.height(16.dp))
         GradientButton(
-            stringResource(R.string.send_otp),
+            t(R.string.send_otp),
             Modifier.fillMaxWidth(),
             enabled = seconds == 0 && !sending && id.display.isNotBlank(),
             loading = sending,
         ) { sendOtp() }
         Spacer(Modifier.height(8.dp))
         GradientButton(
-            stringResource(R.string.verify),
+            t(R.string.verify),
             Modifier.fillMaxWidth(),
             enabled = AuthValidators.isOtpComplete(code),
             loading = loading,
@@ -388,7 +388,7 @@ fun OtpScreen(idRaw: String, redirect: String) {
             }
         }
         TextButton(onClick = { sendOtp() }, Modifier.fillMaxWidth(), enabled = seconds == 0 && !sending && id.display.isNotBlank()) {
-            Text(if (seconds > 0) stringResource(R.string.resend_in, seconds) else stringResource(R.string.resend))
+            Text(if (seconds > 0) t(R.string.resend_in, seconds) else t(R.string.resend))
         }
     }
 }
@@ -436,19 +436,19 @@ fun RegisterScreen(idRaw: String, otp: String, redirect: String) {
     val nameOk = name.trim().isNotEmpty()
     val pwOk = AuthValidators.passwordOk(pw) && pw == confirm && confirm.isNotEmpty()
     val canSubmit = nameOk && mobileOk && emailRequiredOk && emailValid && pwOk
-    val mobileMissing = stringResource(R.string.mobile_missing)
-    val emailRequired = stringResource(R.string.email_required)
-    val enterPwConfirm = stringResource(R.string.enter_password_confirm)
-    val pwMismatch = stringResource(R.string.passwords_do_not_match)
-    val pwMin8 = stringResource(R.string.password_min_8)
+    val mobileMissing = t(R.string.mobile_missing)
+    val emailRequired = t(R.string.email_required)
+    val enterPwConfirm = t(R.string.enter_password_confirm)
+    val pwMismatch = t(R.string.passwords_do_not_match)
+    val pwMin8 = t(R.string.password_min_8)
 
-    AuthScaffold(stringResource(R.string.register), stringResource(R.string.otp_verified_chip)) {
+    AuthScaffold(t(R.string.register), t(R.string.otp_verified_chip)) {
         OutlinedTextField(
             name,
             { name = it },
             Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.full_name)) },
-            placeholder = { Text(stringResource(R.string.name_hint_id)) },
+            label = { Text(t(R.string.full_name)) },
+            placeholder = { Text(t(R.string.name_hint_id)) },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
         )
@@ -469,8 +469,8 @@ fun RegisterScreen(idRaw: String, otp: String, redirect: String) {
             enabled = !lockedEmail,
             label = {
                 Text(
-                    if (lockedEmail) stringResource(R.string.email)
-                    else stringResource(R.string.email_optional),
+                    if (lockedEmail) t(R.string.email)
+                    else t(R.string.email_optional),
                 )
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -482,8 +482,8 @@ fun RegisterScreen(idRaw: String, otp: String, redirect: String) {
             pw,
             { pw = it },
             Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.password)) },
-            supportingText = { Text(stringResource(R.string.password_min_8)) },
+            label = { Text(t(R.string.password)) },
+            supportingText = { Text(t(R.string.password_min_8)) },
             singleLine = true,
             visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
@@ -497,14 +497,14 @@ fun RegisterScreen(idRaw: String, otp: String, redirect: String) {
             confirm,
             { confirm = it },
             Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.confirm_password)) },
+            label = { Text(t(R.string.confirm_password)) },
             singleLine = true,
             visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
             shape = RoundedCornerShape(14.dp),
         )
         err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
         Spacer(Modifier.height(16.dp))
-        GradientButton(stringResource(R.string.register), Modifier.fillMaxWidth(), enabled = canSubmit, loading = loading) {
+        GradientButton(t(R.string.register), Modifier.fillMaxWidth(), enabled = canSubmit, loading = loading) {
             if (mobileApi.isNullOrBlank()) {
                 err = mobileMissing
                 return@GradientButton
@@ -566,7 +566,7 @@ fun ForgotStartScreen(mobilePrefill: String) {
     val mobile = AuthValidators.composeMobileForApi("BD", national)
     val canSend = mobile != null && AuthValidators.isBdMobile(mobile)
 
-    AuthScaffold(stringResource(R.string.forgot_password), stringResource(R.string.forgot_password_hint)) {
+    AuthScaffold(t(R.string.forgot_password), t(R.string.forgot_password_hint)) {
         // Force BD for forgot (E5)
         PhoneInputField(
             national,
@@ -577,7 +577,7 @@ fun ForgotStartScreen(mobilePrefill: String) {
         )
         err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
         Spacer(Modifier.height(16.dp))
-        GradientButton(stringResource(R.string.send_otp), Modifier.fillMaxWidth(), enabled = canSend, loading = loading) {
+        GradientButton(t(R.string.send_otp), Modifier.fillMaxWidth(), enabled = canSend, loading = loading) {
             val m = AuthValidators.normalizeBdMobile(mobile!!)
             scope.launch {
                 loading = true
@@ -599,9 +599,9 @@ fun ForgotOtpScreen(mobile: String) {
     var loading by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val otpVerifiedMsg = stringResource(R.string.otp_verified_chip)
+    val otpVerifiedMsg = t(R.string.otp_verified_chip)
 
-    AuthScaffold(stringResource(R.string.otp_title), stringResource(R.string.otp_forgot_subtitle, mobile)) {
+    AuthScaffold(t(R.string.otp_title), t(R.string.otp_forgot_subtitle, mobile)) {
         BasicTextField(
             code,
             { v -> code = v.filter(Char::isDigit).take(6) },
@@ -628,7 +628,7 @@ fun ForgotOtpScreen(mobile: String) {
         err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
         Spacer(Modifier.height(16.dp))
         GradientButton(
-            stringResource(R.string.verify),
+            t(R.string.verify),
             Modifier.fillMaxWidth(),
             enabled = AuthValidators.isOtpComplete(code),
             loading = loading,
@@ -659,16 +659,16 @@ fun ForgotResetScreen(mobile: String) {
     var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val canSubmit = AuthValidators.passwordOk(pw) && pw == confirm
-    val enterNew = stringResource(R.string.enter_new_password)
-    val pwMismatch = stringResource(R.string.passwords_do_not_match)
+    val enterNew = t(R.string.enter_new_password)
+    val pwMismatch = t(R.string.passwords_do_not_match)
 
-    AuthScaffold(stringResource(R.string.reset_password), mobile) {
+    AuthScaffold(t(R.string.reset_password), mobile) {
         OutlinedTextField(
             pw,
             { pw = it },
             Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.new_password)) },
-            supportingText = { Text(stringResource(R.string.password_min_8)) },
+            label = { Text(t(R.string.new_password)) },
+            supportingText = { Text(t(R.string.password_min_8)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             shape = RoundedCornerShape(14.dp),
@@ -677,14 +677,14 @@ fun ForgotResetScreen(mobile: String) {
             confirm,
             { confirm = it },
             Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.confirm_password)) },
+            label = { Text(t(R.string.confirm_password)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             shape = RoundedCornerShape(14.dp),
         )
         err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
         Spacer(Modifier.height(16.dp))
-        GradientButton(stringResource(R.string.reset_password), Modifier.fillMaxWidth(), enabled = canSubmit, loading = loading) {
+        GradientButton(t(R.string.reset_password), Modifier.fillMaxWidth(), enabled = canSubmit, loading = loading) {
             if (pw.isEmpty() || confirm.isEmpty()) {
                 err = enterNew
                 return@GradientButton

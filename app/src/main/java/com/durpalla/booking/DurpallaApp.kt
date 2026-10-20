@@ -2,6 +2,7 @@ package com.durpalla.booking
 
 import android.app.Application
 import com.durpalla.booking.calling.CallNotifications
+import com.durpalla.booking.core.AppCtx
 import com.durpalla.booking.push.Notifications
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
@@ -14,6 +15,7 @@ class DurpallaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppCtx.init(this)
         container = AppContainer(this)
         Notifications.init(this)
         CallNotifications.ensureChannels(this)

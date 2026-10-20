@@ -1,5 +1,8 @@
 package com.durpalla.booking.calling
 
+import com.durpalla.booking.R
+import com.durpalla.booking.core.AppCtx
+
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -39,6 +42,7 @@ class MockCallRepository(
         bidAccepted || tripActive
 
     override suspend fun startOutgoing(tripId: Int, driverName: String, callerName: String): CallSession {
+        val callerName = callerName.ifBlank { AppCtx.str(R.string.you) }
         endInternal(CallStatus.ENDED, appendLog = false)
         val callId = "mock_${UUID.randomUUID().toString().take(8)}"
         // TODO(calling): POST /calls {tripId} → {callId}

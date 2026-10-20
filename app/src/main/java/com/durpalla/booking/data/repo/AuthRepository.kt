@@ -1,6 +1,7 @@
 package com.durpalla.booking.data.repo
 
 import com.durpalla.booking.core.*
+import com.durpalla.booking.R
 import com.durpalla.booking.data.net.ApiClient
 import com.durpalla.booking.data.net.requireSuccess
 import com.durpalla.booking.data.session.SessionStore
@@ -48,7 +49,7 @@ class AuthRepository(
         if (isUseEmail(r)) {
             return AuthCheckResult.UseEmail(
                 r.message?.takeIf { it.isNotBlank() }
-                    ?: "We can’t send SMS to international numbers yet. Please use Email to continue.",
+                    ?: AppCtx.str(R.string.use_email_intl_sms),
             )
         }
         val step = inferStep(r)
@@ -57,7 +58,7 @@ class AuthRepository(
                     ?: r.o("errors").s("mobile")
                     ?: r.o("errors").s("email")
                     ?: r.s("error")
-                    ?: "Unable to continue",
+                    ?: AppCtx.str(R.string.unable_to_continue),
             )
         return AuthCheckResult.Step(step)
     }
@@ -120,9 +121,9 @@ class AuthRepository(
         }
         var msg = r.message ?: r.s("error") ?: r.s("msg") ?: r.s("detail")
             ?: r.o("data").s("message") ?: r.o("data").s("error")
-            ?: "Login failed. Please try again."
+            ?: AppCtx.str(R.string.login_failed)
         if (msg.lowercase().contains("invalid credential")) {
-            msg += " This app may be using the new customer login; try \"Sign up\" or use the number you registered here."
+            msg += AppCtx.str(R.string.err_invalid_credential_hint)
         }
         throw ApiException(msg, r.i("http_status") ?: 0, r.b("unauthorized"))
     }
@@ -155,7 +156,7 @@ class AuthRepository(
             nid?.takeIf { it.isNotBlank() }?.let { put("nid", it) }
         }.withRecaptcha()
         val r = api.postForm("auth/register", fields)
-        r.requireSuccess("Registration failed")
+        r.requireSuccess(AppCtx.str(R.string.registration_failed))
         val t = tokenOf(r)
         if (!t.isNullOrEmpty()) session.saveLogin(t, userOf(r))
         else login(id, password)

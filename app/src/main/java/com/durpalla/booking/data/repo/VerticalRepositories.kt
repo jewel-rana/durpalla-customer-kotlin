@@ -23,7 +23,7 @@ class TourRepository(private val api: ApiClient) {
     suspend fun details(id: Int): JsonObject =
         api.getJson("tour/$id").o("data") ?: JsonObject(emptyMap())
 
-    suspend fun quote(body: JsonObject) = api.postJson("tour/quote", body).requireSuccess("Quote failed")
+    suspend fun quote(body: JsonObject) = api.postJson("tour/quote", body).requireSuccess(AppCtx.str(R.string.err_quote_failed))
 
     suspend fun hold(departureId: Int, places: Int, guestName: String, guestMobile: String): JsonObject =
         api.postJson(
@@ -34,7 +34,7 @@ class TourRepository(private val api: ApiClient) {
                 "guest" to mapOf("name" to guestName, "mobile" to guestMobile),
             ),
             mapOf("Idempotency-Key" to UUID.randomUUID().toString()),
-        ).requireSuccess("Hold failed")
+        ).requireSuccess(AppCtx.str(R.string.err_hold_failed))
 
     suspend fun confirm(holdId: Int, customerName: String, customerMobile: String): JsonObject =
         api.postJson(
@@ -45,7 +45,7 @@ class TourRepository(private val api: ApiClient) {
                 "customer_name" to customerName,
                 "customer_mobile" to customerMobile,
             ),
-        ).requireSuccess("Confirm failed")
+        ).requireSuccess(AppCtx.str(R.string.err_confirm_failed))
 }
 
 /** Master `entertainment/*` APIs. */
@@ -70,7 +70,7 @@ class EntertainmentRepository(private val api: ApiClient) {
     suspend fun postReview(id: Int, rating: Double, text: String) =
         api.postJson("entertainment/$id/reviews", jsonOf("rating" to rating, "text" to text))
 
-    suspend fun quote(body: JsonObject) = api.postJson("entertainment/quote", body).requireSuccess("Quote failed")
+    suspend fun quote(body: JsonObject) = api.postJson("entertainment/quote", body).requireSuccess(AppCtx.str(R.string.err_quote_failed))
 
     suspend fun hold(
         venueId: Int,
@@ -89,7 +89,7 @@ class EntertainmentRepository(private val api: ApiClient) {
             "guest" to mapOf("name" to guestName, "mobile" to guestMobile),
         ),
         mapOf("Idempotency-Key" to UUID.randomUUID().toString()),
-    ).requireSuccess("Hold failed")
+    ).requireSuccess(AppCtx.str(R.string.err_hold_failed))
 
     suspend fun confirm(holdId: Int, guestName: String, guestMobile: String): JsonObject =
         api.postJson(
@@ -100,7 +100,7 @@ class EntertainmentRepository(private val api: ApiClient) {
                 "guest" to mapOf("name" to guestName, "mobile" to guestMobile),
                 "payment" to mapOf("mode" to "none"),
             ),
-        ).requireSuccess("Confirm failed")
+        ).requireSuccess(AppCtx.str(R.string.err_confirm_failed))
 }
 
 /** Master `boat-rental/*` APIs including custom trip + bids. */
@@ -120,7 +120,7 @@ class BoatRentalRepository(private val api: ApiClient) {
     suspend fun details(id: Int): JsonObject =
         api.getJson("boat-rental/$id").o("data") ?: JsonObject(emptyMap())
 
-    suspend fun quote(body: JsonObject) = api.postJson("boat-rental/quote", body).requireSuccess("Quote failed")
+    suspend fun quote(body: JsonObject) = api.postJson("boat-rental/quote", body).requireSuccess(AppCtx.str(R.string.err_quote_failed))
 
     suspend fun hold(
         boatId: Int,
@@ -143,7 +143,7 @@ class BoatRentalRepository(private val api: ApiClient) {
             "guest" to mapOf("name" to guestName, "mobile" to guestMobile),
         ),
         mapOf("Idempotency-Key" to UUID.randomUUID().toString()),
-    ).requireSuccess("Hold failed")
+    ).requireSuccess(AppCtx.str(R.string.err_hold_failed))
 
     suspend fun confirm(holdId: Int, customerName: String, customerMobile: String): JsonObject =
         api.postJson(
@@ -154,7 +154,7 @@ class BoatRentalRepository(private val api: ApiClient) {
                 "customer_name" to customerName,
                 "customer_mobile" to customerMobile,
             ),
-        ).requireSuccess("Confirm failed")
+        ).requireSuccess(AppCtx.str(R.string.err_confirm_failed))
 
     suspend fun stoppages(): List<JsonObject> =
         api.getJson("boat-rental/stoppages").a("data").objects()
@@ -177,7 +177,7 @@ class BoatRentalRepository(private val api: ApiClient) {
             "guests" to guests,
             "notes" to notes,
         ),
-    ).requireSuccess("Trip request failed")
+    ).requireSuccess(AppCtx.str(R.string.err_trip_request_failed))
 
     suspend fun tripRequest(id: Int): JsonObject =
         api.getJson("boat-rental/trip-requests/$id").o("data") ?: JsonObject(emptyMap())
@@ -193,7 +193,7 @@ class BoatRentalRepository(private val api: ApiClient) {
             "boat-rental/bids/$bidId/accept",
             JsonObject(emptyMap()),
             mapOf("Idempotency-Key" to UUID.randomUUID().toString()),
-        ).requireSuccess("Accept bid failed")
+        ).requireSuccess(AppCtx.str(R.string.err_accept_bid_failed))
 }
 
 /** Unified list/details for tour + entertainment (replaces MockExperienceRepository). */

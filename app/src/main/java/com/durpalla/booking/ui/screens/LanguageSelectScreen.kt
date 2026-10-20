@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
@@ -89,8 +88,8 @@ fun LanguageSelectScreen(
                         Text(
                             buildString {
                                 append(loc.englishName)
-                                if (loc.bundled) append(" · ").append(stringResource(R.string.lang_bundled))
-                                else append(" · ").append(stringResource(R.string.lang_remote))
+                                if (loc.bundled) append(" · ").append(t(R.string.lang_bundled))
+                                else append(" · ").append(t(R.string.lang_remote))
                                 if (loc.rtl) append(" · RTL")
                             },
                             style = MaterialTheme.typography.bodySmall,

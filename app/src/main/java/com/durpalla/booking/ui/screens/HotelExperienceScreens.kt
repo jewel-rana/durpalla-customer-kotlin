@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -32,6 +31,7 @@ import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
 import java.time.LocalDate
+import com.durpalla.booking.l10n.t
 
 @Composable
 fun HotelResultsScreen(city: String, ci: String, co: String) {
@@ -43,7 +43,7 @@ fun HotelResultsScreen(city: String, ci: String, co: String) {
             when (val s = state) {
                 Load.Loading -> LoadingList()
                 is Load.Err -> ErrorState(s.message) { vm.reload() }
-                is Load.Ok -> if (s.value.isEmpty()) EmptyState(Icons.Default.Hotel, "No hotels found", "Try another city or dates.")
+                is Load.Ok -> if (s.value.isEmpty()) EmptyState(Icons.Default.Hotel, t(R.string.no_hotels_found), t(R.string.no_hotels_body))
                 else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(s.value, key = { it.id }) { h -> HotelCard(h, Modifier.fillMaxWidth()) { nav.go(Routes.hotel(h.id, ci, co)) } }
                 }
@@ -80,7 +80,7 @@ fun HotelDetailsScreen(id: Int, ci: String, co: String) {
                                 }
                             }
                             Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                                Text(h.str("name", default = "Hotel"), style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                                Text(h.str("name", default = t(R.string.svc_hotel)), style = MaterialTheme.typography.headlineSmall, color = Color.White)
                                 Text(h.str("address", "location", "city"), color = Color.White.copy(.85f))
                             }
                         }
@@ -89,19 +89,19 @@ fun HotelDetailsScreen(id: Int, ci: String, co: String) {
                         val amen = h.a("amenities")?.mapNotNull { (it as? JsonPrimitive)?.content } ?: emptyList()
                         if (amen.isNotEmpty()) LazyRow(contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(amen) { Pill(it) } }
                         h.s("description")?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = Brand.Muted, maxLines = 5) }
-                        SectionHeader("Rooms • ${prettyDate(ci)} – ${prettyDate(co)}")
+                        SectionHeader(t(R.string.rooms_for_dates, prettyDate(ci), prettyDate(co)))
                         err?.let { Text(it, color = Brand.Error, modifier = Modifier.padding(horizontal = 16.dp)) }
                     }
-                    if (rooms.isEmpty()) item { EmptyState(Icons.Default.Bed, "No rooms available for these dates") }
+                    if (rooms.isEmpty()) item { EmptyState(Icons.Default.Bed, t(R.string.no_rooms_available)) }
                     items(rooms) { r ->
                         val rtId = r.i("room_type_id", "id") ?: 0
                         SoftCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth()) {
                             Column(Modifier.padding(16.dp)) {
-                                Text(r.str("title", "name", "room_type_title", default = "Room"), style = MaterialTheme.typography.titleMedium)
-                                Text("Up to ${r.i("max_adults", "capacity") ?: 2} guests", color = Brand.Muted, style = MaterialTheme.typography.bodySmall)
+                                Text(r.str("title", "name", "room_type_title", default = t(R.string.room)), style = MaterialTheme.typography.titleMedium)
+                                Text(t(R.string.up_to_guests, r.i("max_adults", "capacity") ?: 2), color = Brand.Muted, style = MaterialTheme.typography.bodySmall)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(money(r.d("total", "price_total", "price", "price_per_night")), Modifier.weight(1f), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge)
-                                    GradientButton(stringResource(R.string.book_now), Modifier.width(140.dp), loading = busy == "$rtId") {
+                                    GradientButton(t(R.string.book_now), Modifier.width(140.dp), loading = busy == "$rtId") {
                                         if (!nav.ensureAuth(self)) return@GradientButton
                                         scope.launch {
                                             busy = "$rtId"; err = null
@@ -115,11 +115,11 @@ fun HotelDetailsScreen(id: Int, ci: String, co: String) {
                                                 c.hotels.quote(quoteBody)
                                                 val hold = c.hotels.hold(id, listOf(rtId to 1), ci, co, adults = 2, children = 0)
                                                 holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
-                                                    ?: throw ApiException("Hold failed")
+                                                    ?: throw ApiException(AppCtx.str(R.string.err_hold_failed))
                                                 val conf = c.hotels.confirm(holdId!!)
                                                 val booking = conf.o("data").o("booking") ?: conf.o("booking") ?: conf.o("data")
                                                 val bid = booking.i("id") ?: conf.o("data").i("booking_id", "order_id", "id")
-                                                    ?: conf.i("booking_id") ?: throw ApiException("Booking ID missing")
+                                                    ?: conf.i("booking_id") ?: throw ApiException(AppCtx.str(R.string.err_booking_id_short))
                                                 val amt = booking.d("total_payable")
                                                     ?: conf.o("data").d("total_payable", "amount", "total")
                                                     ?: r.d("total", "price") ?: 0.0
@@ -153,9 +153,9 @@ fun ExperienceListScreen(service: String) {
     var q by remember { mutableStateOf("") }
     val vm = rememberLoad("exp-$service-$q") { c.experiences.list(svc, q) }
     val state by vm.state.collectAsState()
-    Scaffold(topBar = { DTopBar(stringResource(if (svc == Service.TOUR) R.string.svc_tour else R.string.svc_entertainment), onBack = nav::back) }) { pad ->
+    Scaffold(topBar = { DTopBar(t(if (svc == Service.TOUR) R.string.svc_tour else R.string.svc_entertainment), onBack = nav::back) }) { pad ->
         Column(Modifier.padding(pad)) {
-            OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().padding(16.dp, 8.dp), leadingIcon = { Icon(Icons.Default.Search, null) }, placeholder = { Text("Search destinations or events") }, shape = RoundedCornerShape(14.dp), singleLine = true)
+            OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().padding(16.dp, 8.dp), leadingIcon = { Icon(Icons.Default.Search, null) }, placeholder = { Text(t(R.string.search_destinations_events)) }, shape = RoundedCornerShape(14.dp), singleLine = true)
             when (val s = state) {
                 Load.Loading -> LoadingList()
                 is Load.Err -> ErrorState(s.message) { vm.reload() }
@@ -187,7 +187,7 @@ fun ExperienceListScreen(service: String) {
 fun ExperienceDetailScreen(id: Int, service: String = "tour") {
     val c = LocalContainer.current; val nav = LocalNav.current
     val vm = rememberLoad("expd-$service-$id") {
-        c.experiences.details(id) ?: throw ApiException("Not found")
+        c.experiences.details(id) ?: throw ApiException(AppCtx.str(R.string.err_not_found))
     }
     val state by vm.state.collectAsState()
     (state as? Load.Ok)?.value?.let { e ->
@@ -195,7 +195,7 @@ fun ExperienceDetailScreen(id: Int, service: String = "tour") {
             Surface(shadowElevation = 16.dp) {
                 Row(Modifier.navigationBarsPadding().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(money(e.price), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
-                    GradientButton(stringResource(R.string.book_now), Modifier.width(170.dp)) { nav.go(Routes.bookExperience(e.id, service)) }
+                    GradientButton(t(R.string.book_now), Modifier.width(170.dp)) { nav.go(Routes.bookExperience(e.id, service)) }
                 }
             }
         }) { pad ->
@@ -211,9 +211,9 @@ fun ExperienceDetailScreen(id: Int, service: String = "tour") {
                     }
                 }
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Highlights", style = MaterialTheme.typography.titleMedium)
+                    Text(t(R.string.highlights), style = MaterialTheme.typography.titleMedium)
                     e.highlights.forEach { Row { Icon(Icons.Default.CheckCircle, null, tint = Brand.Success, modifier = Modifier.size(18.dp)); Text("  $it") } }
-                    if (e.date.isNotBlank()) Text("Schedule: ${e.date}", color = Brand.Muted)
+                    if (e.date.isNotBlank()) Text(t(R.string.schedule_label, e.date), color = Brand.Muted)
                 }
             }
         }
@@ -238,7 +238,7 @@ fun ExperienceBookScreen(id: Int, service: String = "tour") {
     val scope = rememberCoroutineScope()
     val self = Routes.bookExperience(id, service)
 
-    Scaffold(topBar = { DTopBar(stringResource(R.string.checkout), onBack = nav::back) }) { pad ->
+    Scaffold(topBar = { DTopBar(t(R.string.checkout), onBack = nav::back) }) { pad ->
         when (val s = state) {
             Load.Loading -> Box(Modifier.padding(pad)) { LoadingList(1) }
             is Load.Err -> Box(Modifier.padding(pad)) { ErrorState(s.message) { vm.reload() } }
@@ -252,28 +252,28 @@ fun ExperienceBookScreen(id: Int, service: String = "tour") {
                         Column(Modifier.padding(16.dp)) {
                             Text(title, style = MaterialTheme.typography.titleMedium)
                             if (!isTour) {
-                                OutlinedTextField(visitDate, { visitDate = it }, Modifier.fillMaxWidth(), label = { Text("Visit date (YYYY-MM-DD)") })
+                                OutlinedTextField(visitDate, { visitDate = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.visit_date_hint)) })
                             }
-                            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.full_name)) })
-                            OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.mobile_number)) })
+                            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.full_name)) })
+                            OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.mobile_number)) })
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (isTour) "Places" else "Tickets", Modifier.weight(1f))
+                                Text(if (isTour) t(R.string.places) else t(R.string.tickets_qty), Modifier.weight(1f))
                                 IconButton({ if (qty > 1) qty-- }) { Icon(Icons.Default.RemoveCircleOutline, null) }
                                 Text("$qty", style = MaterialTheme.typography.titleMedium)
                                 IconButton({ qty++ }) { Icon(Icons.Default.AddCircleOutline, null, tint = Brand.Primary) }
                             }
                             HorizontalDivider()
                             Row(Modifier.padding(top = 8.dp)) {
-                                Text(stringResource(R.string.total), Modifier.weight(1f))
+                                Text(t(R.string.total), Modifier.weight(1f))
                                 Text(money(price * qty), fontWeight = FontWeight.ExtraBold, color = Brand.AmberDark)
                             }
                         }
                     }
                     err?.let { Text(it, color = Brand.Error) }
-                    GradientButton(stringResource(R.string.confirm_booking), Modifier.fillMaxWidth(), loading = loading) {
+                    GradientButton(t(R.string.confirm_booking), Modifier.fillMaxWidth(), loading = loading) {
                         if (!nav.ensureAuth(self)) return@GradientButton
                         if (name.isBlank() || mobile.isBlank()) {
-                            err = "Guest name and mobile are required"
+                            err = t(R.string.guest_name_mobile_required)
                             return@GradientButton
                         }
                         scope.launch {
@@ -284,10 +284,10 @@ fun ExperienceBookScreen(id: Int, service: String = "tour") {
                                     c.tours.quote(jsonOf("departure_id" to departureId, "places" to qty))
                                     val hold = c.tours.hold(departureId, qty, name.trim(), mobile.trim())
                                     val holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
-                                        ?: throw ApiException("Hold failed")
+                                        ?: throw ApiException(AppCtx.str(R.string.err_hold_failed))
                                     val conf = c.tours.confirm(holdId, name.trim(), mobile.trim())
                                     val bid = conf.o("data").i("booking_id", "order_id", "id") ?: conf.i("booking_id")
-                                        ?: throw ApiException("Booking ID missing")
+                                        ?: throw ApiException(AppCtx.str(R.string.err_booking_id_short))
                                     bid to (conf.o("data").d("total_payable", "amount", "total") ?: price * qty)
                                 } else {
                                     val ticketTypeId = d.a("ticket_types").objects().firstOrNull().i("id")
@@ -296,10 +296,10 @@ fun ExperienceBookScreen(id: Int, service: String = "tour") {
                                     c.entertainment.quote(jsonOf("venue_id" to id, "visit_date" to visitDate, "lines" to lines))
                                     val hold = c.entertainment.hold(id, visitDate, lines, name.trim(), mobile.trim())
                                     val holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
-                                        ?: throw ApiException("Hold failed")
+                                        ?: throw ApiException(AppCtx.str(R.string.err_hold_failed))
                                     val conf = c.entertainment.confirm(holdId, name.trim(), mobile.trim())
                                     val bid = conf.o("data").i("booking_id", "order_id", "id") ?: conf.i("booking_id")
-                                        ?: throw ApiException("Booking ID missing")
+                                        ?: throw ApiException(AppCtx.str(R.string.err_booking_id_short))
                                     bid to (conf.o("data").d("total_payable", "amount", "total") ?: price * qty)
                                 }
                             }.onSuccess { (bid, amt) -> nav.go(Routes.payment(bid, amt)) }

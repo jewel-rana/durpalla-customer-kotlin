@@ -13,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -22,6 +21,7 @@ import com.durpalla.booking.core.CountryInfo
 import com.durpalla.booking.core.PhoneNumbers
 import com.durpalla.booking.ui.nav.LocalContainer
 import java.util.Locale
+import com.durpalla.booking.l10n.t
 
 /**
  * Country picker (default BD +880) + national field.
@@ -37,12 +37,12 @@ fun PhoneInputField(
     onRegionChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    label: String = stringResource(R.string.mobile_number),
+    label: String = t(R.string.mobile_number),
     hint: String? = null,
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val country = remember(regionIso) { PhoneNumbers.country(regionIso) }
-    val placeholder = hint ?: if (regionIso.equals("BD", true)) "01XXXXXXXXX" else stringResource(R.string.phone_hint_intl)
+    val placeholder = hint ?: if (regionIso.equals("BD", true)) t(R.string.phone_hint_bd) else t(R.string.phone_hint_intl)
 
     OutlinedTextField(
         value = nationalNumber,
@@ -79,7 +79,7 @@ fun PhoneInputField(
                 Text(country.flag, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.width(4.dp))
                 Text("+${country.dialCode}", fontWeight = FontWeight.SemiBold)
-                Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.pick_country))
+                Icon(Icons.Default.ArrowDropDown, contentDescription = t(R.string.pick_country))
             }
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -117,7 +117,7 @@ fun CountryPickerSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding()) {
-            Text(stringResource(R.string.pick_country), style = MaterialTheme.typography.titleLarge)
+            Text(t(R.string.pick_country), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = query,
@@ -125,7 +125,7 @@ fun CountryPickerSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, null) },
-                placeholder = { Text(stringResource(R.string.search_country)) },
+                placeholder = { Text(t(R.string.search_country)) },
                 shape = RoundedCornerShape(14.dp),
             )
             Spacer(Modifier.height(8.dp))

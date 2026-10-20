@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
@@ -36,6 +35,7 @@ import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.durpalla.booking.l10n.t
 
 @Composable
 fun OffersScreen() {
@@ -45,19 +45,19 @@ fun OffersScreen() {
     val clip = androidx.compose.ui.platform.LocalClipboardManager.current
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(Modifier.fillMaxWidth().background(Brand.HeroGradient).statusBarsPadding().padding(20.dp)) {
-            Text(stringResource(R.string.offers), style = MaterialTheme.typography.headlineSmall, color = Color.White)
+            Text(t(R.string.offers), style = MaterialTheme.typography.headlineSmall, color = Color.White)
         }
         when (val s = state) {
             Load.Loading -> LoadingList()
             is Load.Err -> ErrorState(s.message) { vm.reload() }
-            is Load.Ok -> if (s.value.isEmpty()) EmptyState(Icons.Default.LocalOffer, stringResource(R.string.no_offers), "Check back soon for deals on launches, buses and hotels.")
+            is Load.Ok -> if (s.value.isEmpty()) EmptyState(Icons.Default.LocalOffer, t(R.string.no_offers), t(R.string.offers_check_back))
             else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(s.value) { o ->
                     SoftCard {
                         PhotoBox(o.image, R.drawable.photo_river, Modifier.fillMaxWidth().height(140.dp))
                         Column(Modifier.padding(16.dp)) {
                             Text(o.title, style = MaterialTheme.typography.titleMedium); Text(o.subtitle, color = Brand.Muted)
-                            o.code?.let { code -> Spacer(Modifier.height(8.dp)); AssistChip({ clip.setText(androidx.compose.ui.text.AnnotatedString(code)) }, { Text("Copy $code") }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) }) }
+                            o.code?.let { code -> Spacer(Modifier.height(8.dp)); AssistChip({ clip.setText(androidx.compose.ui.text.AnnotatedString(code)) }, { Text(t(R.string.copy_code, code)) }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) }) }
                         }
                     }
                 }
@@ -83,31 +83,31 @@ fun AccountScreen() {
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (loggedIn) user.str("name", default = "Traveller") else "Guest", style = MaterialTheme.typography.titleLarge, color = Color.White)
-                    Text(if (loggedIn) user.str("mobile", "phone", "email") else stringResource(R.string.guest_banner), color = Color.White.copy(.8f), style = MaterialTheme.typography.bodySmall)
+                    Text(if (loggedIn) user.str("name", default = t(R.string.traveller_cap)) else t(R.string.guest), style = MaterialTheme.typography.titleLarge, color = Color.White)
+                    Text(if (loggedIn) user.str("mobile", "phone", "email") else t(R.string.guest_banner), color = Color.White.copy(.8f), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
-        if (!loggedIn) GradientButton(stringResource(R.string.sign_in), Modifier.padding(16.dp).fillMaxWidth()) { nav.go(Routes.login(Routes.ACCOUNT)) }
+        if (!loggedIn) GradientButton(t(R.string.sign_in), Modifier.padding(16.dp).fillMaxWidth()) { nav.go(Routes.login(Routes.ACCOUNT)) }
         SoftCard(Modifier.padding(16.dp)) {
-            MenuRow(Icons.Default.Edit, stringResource(R.string.edit_profile)) { nav.go(Routes.PROFILE) }
-            MenuRow(Icons.Default.ConfirmationNumber, stringResource(R.string.my_tickets)) { nav.tab(Routes.TICKETS) }
-            MenuRow(Icons.Default.Favorite, stringResource(R.string.saved)) { nav.go(Routes.SAVED) }
-            MenuRow(Icons.Default.Notifications, "Notifications") { nav.go(Routes.NOTIFICATIONS) }
+            MenuRow(Icons.Default.Edit, t(R.string.edit_profile)) { nav.go(Routes.PROFILE) }
+            MenuRow(Icons.Default.ConfirmationNumber, t(R.string.my_tickets)) { nav.tab(Routes.TICKETS) }
+            MenuRow(Icons.Default.Favorite, t(R.string.saved)) { nav.go(Routes.SAVED) }
+            MenuRow(Icons.Default.Notifications, t(R.string.notifications)) { nav.go(Routes.NOTIFICATIONS) }
         }
         SoftCard(Modifier.padding(horizontal = 16.dp)) {
-            MenuRow(Icons.Default.Settings, stringResource(R.string.settings)) { nav.go(Routes.SETTINGS) }
-            MenuRow(Icons.Default.SupportAgent, stringResource(R.string.support)) { nav.go(Routes.SUPPORT) }
-            MenuRow(Icons.Default.HelpOutline, stringResource(R.string.faq)) { nav.go(Routes.FAQ) }
-            MenuRow(Icons.Default.Info, stringResource(R.string.about)) { nav.go(Routes.ABOUT) }
-            MenuRow(Icons.Default.Policy, stringResource(R.string.terms)) { nav.go(Routes.TERMS) }
+            MenuRow(Icons.Default.Settings, t(R.string.settings)) { nav.go(Routes.SETTINGS) }
+            MenuRow(Icons.Default.SupportAgent, t(R.string.support)) { nav.go(Routes.SUPPORT) }
+            MenuRow(Icons.Default.HelpOutline, t(R.string.faq)) { nav.go(Routes.FAQ) }
+            MenuRow(Icons.Default.Info, t(R.string.about)) { nav.go(Routes.ABOUT) }
+            MenuRow(Icons.Default.Policy, t(R.string.terms)) { nav.go(Routes.TERMS) }
         }
-        if (loggedIn) SoftCard(Modifier.padding(16.dp)) { MenuRow(Icons.AutoMirrored.Filled.Logout, stringResource(R.string.sign_out), Brand.Error) { confirmLogout = true } }
+        if (loggedIn) SoftCard(Modifier.padding(16.dp)) { MenuRow(Icons.AutoMirrored.Filled.Logout, t(R.string.sign_out), Brand.Error) { confirmLogout = true } }
         Spacer(Modifier.height(24.dp))
     }
-    if (confirmLogout) AlertDialog({ confirmLogout = false }, title = { Text(stringResource(R.string.sign_out) + "?") },
-        confirmButton = { Button({ confirmLogout = false; scope.launch { c.auth.logout() } }) { Text(stringResource(R.string.sign_out)) } },
-        dismissButton = { TextButton({ confirmLogout = false }) { Text(stringResource(R.string.not_now)) } })
+    if (confirmLogout) AlertDialog({ confirmLogout = false }, title = { Text(t(R.string.sign_out) + "?") },
+        confirmButton = { Button({ confirmLogout = false; scope.launch { c.auth.logout() } }) { Text(t(R.string.sign_out)) } },
+        dismissButton = { TextButton({ confirmLogout = false }) { Text(t(R.string.not_now)) } })
 }
 
 @Composable
@@ -126,14 +126,14 @@ fun ProfileScreen() {
     var name by remember { mutableStateOf(user.str("name")) }; var email by remember { mutableStateOf(user.str("email")) }
     var msg by remember { mutableStateOf<String?>(null) }; var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    Scaffold(topBar = { DTopBar(stringResource(R.string.edit_profile), onBack = nav::back) }) { pad ->
+    Scaffold(topBar = { DTopBar(t(R.string.edit_profile), onBack = nav::back) }) { pad ->
         Column(Modifier.padding(pad).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.full_name)) })
-            OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.email)) })
-            OutlinedTextField(user.str("mobile", "phone"), {}, Modifier.fillMaxWidth(), enabled = false, label = { Text(stringResource(R.string.mobile_number)) })
+            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.full_name)) })
+            OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.email)) })
+            OutlinedTextField(user.str("mobile", "phone"), {}, Modifier.fillMaxWidth(), enabled = false, label = { Text(t(R.string.mobile_number)) })
             msg?.let { Text(it, color = Brand.Primary) }
-            GradientButton(stringResource(R.string.save), Modifier.fillMaxWidth(), loading = loading) {
-                scope.launch { loading = true; msg = runCatching { c.profile.update(name, email, null).message ?: "Saved" }.getOrElse { it.message }; loading = false }
+            GradientButton(t(R.string.save), Modifier.fillMaxWidth(), loading = loading) {
+                scope.launch { loading = true; msg = runCatching { c.profile.update(name, email, null).message ?: AppCtx.str(R.string.saved) }.getOrElse { it.message }; loading = false }
             }
         }
     }
@@ -144,12 +144,12 @@ fun SavedScreen() {
     val c = LocalContainer.current; val nav = LocalNav.current
     val vm = rememberLoad("saved") { c.hotels.favourites() }
     val state by vm.state.collectAsState()
-    Scaffold(topBar = { DTopBar(stringResource(R.string.saved), onBack = nav::back) }) { pad ->
+    Scaffold(topBar = { DTopBar(t(R.string.saved), onBack = nav::back) }) { pad ->
         Box(Modifier.padding(pad)) {
             when (val s = state) {
                 Load.Loading -> LoadingList()
                 is Load.Err -> ErrorState(s.message) { vm.reload() }
-                is Load.Ok -> if (s.value.isEmpty()) EmptyState(Icons.Default.FavoriteBorder, "Nothing saved yet", "Tap the heart on a hotel to save it.")
+                is Load.Ok -> if (s.value.isEmpty()) EmptyState(Icons.Default.FavoriteBorder, t(R.string.nothing_saved), t(R.string.nothing_saved_body))
                 else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(s.value) { h -> HotelCard(h, Modifier.fillMaxWidth()) { nav.go(Routes.hotel(h.id, todayIso(1), todayIso(2))) } }
                 }
@@ -163,22 +163,22 @@ enum class InfoKind { SUPPORT, FAQ, ABOUT, TERMS, NOTIFICATIONS }
 @Composable
 fun InfoScreen(kind: InfoKind) {
     val nav = LocalNav.current; val ctx = LocalContext.current
-    val title = when (kind) { InfoKind.SUPPORT -> stringResource(R.string.support); InfoKind.FAQ -> stringResource(R.string.faq); InfoKind.ABOUT -> stringResource(R.string.about); InfoKind.TERMS -> stringResource(R.string.terms); InfoKind.NOTIFICATIONS -> "Notifications" }
+    val title = when (kind) { InfoKind.SUPPORT -> t(R.string.support); InfoKind.FAQ -> t(R.string.faq); InfoKind.ABOUT -> t(R.string.about); InfoKind.TERMS -> t(R.string.terms); InfoKind.NOTIFICATIONS -> t(R.string.notifications) }
     Scaffold(topBar = { DTopBar(title, onBack = nav::back) }) { pad ->
         Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (kind) {
                 InfoKind.SUPPORT -> {
                     SoftCard {
-                        MenuRow(Icons.Default.Call, "Call 16xxx (9am–10pm)") { ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:16000"))) }
+                        MenuRow(Icons.Default.Call, t(R.string.call_support_hours)) { ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:16000"))) }
                         MenuRow(Icons.Default.Email, "support@durpalla.com") { ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@durpalla.com"))) }
-                        MenuRow(Icons.Default.HelpOutline, "Browse FAQ") { nav.go(Routes.FAQ) }
+                        MenuRow(Icons.Default.HelpOutline, t(R.string.browse_faq)) { nav.go(Routes.FAQ) }
                     }
                 }
                 InfoKind.FAQ -> listOf(
-                    "How do I get my ticket?" to "After payment, your ticket with a QR code appears under Tickets. Show it at the ghat or counter.",
-                    "Can I cancel a booking?" to "Open the ticket and tap Cancel ticket. Refunds follow the operator's cancellation rules.",
-                    "Which payment methods are supported?" to "bKash, Nagad, cards and other gateways enabled by Durpalla for your booking.",
-                    "How long is my seat held?" to "Selected cabins/seats are held for a short time while you check out.",
+                    t(R.string.faq_q_ticket) to t(R.string.faq_a_ticket),
+                    t(R.string.faq_q_cancel) to t(R.string.faq_a_cancel),
+                    t(R.string.faq_q_payment) to t(R.string.faq_a_payment),
+                    t(R.string.faq_q_hold) to t(R.string.faq_a_hold),
                 ).forEach { (q, a) ->
                     var open by remember { mutableStateOf(false) }
                     SoftCard(onClick = { open = !open }) {
@@ -189,11 +189,11 @@ fun InfoScreen(kind: InfoKind) {
                 }
                 InfoKind.ABOUT -> {
                     Image(painterResource(R.drawable.logo_stacked), null, Modifier.fillMaxWidth().height(140.dp))
-                    Text("Durpalla is Bangladesh's travel booking app for launches, buses, boats, tours, events and hotels.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    Text("Version ${com.durpalla.booking.BuildConfig.VERSION_NAME}", color = Brand.Muted)
+                    Text(t(R.string.about_body), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text(t(R.string.version_label, com.durpalla.booking.BuildConfig.VERSION_NAME), color = Brand.Muted)
                 }
-                InfoKind.TERMS -> Text("Terms & privacy are served from durpalla.com. TODO: load CMS page (Flutter common_page_screen.dart) once the CMS endpoint is confirmed.")
-                InfoKind.NOTIFICATIONS -> EmptyState(Icons.Default.NotificationsNone, "You're all caught up", "Trip reminders and offers will appear here.")
+                InfoKind.TERMS -> Text(t(R.string.terms_placeholder))
+                InfoKind.NOTIFICATIONS -> EmptyState(Icons.Default.NotificationsNone, t(R.string.notifications_caught_up), t(R.string.notifications_empty_body))
             }
         }
     }
@@ -210,13 +210,13 @@ fun SettingsScreen() {
     val scope = rememberCoroutineScope()
     var showLangSheet by remember { mutableStateOf(false) }
     val localeLabel = com.durpalla.booking.l10n.SupportedLocales.find(lang).nativeName
-    Scaffold(topBar = { DTopBar(stringResource(R.string.settings), onBack = nav::back) }) { pad ->
+    Scaffold(topBar = { DTopBar(t(R.string.settings), onBack = nav::back) }) { pad ->
         Column(Modifier.padding(pad).padding(16.dp)) {
             SoftCard {
-                MenuRow(Icons.Default.DarkMode, stringResource(R.string.dark_mode), trailing = { Switch(dark, { v -> scope.launch { c.session.setDark(v) } }) }) { scope.launch { c.session.setDark(!dark) } }
+                MenuRow(Icons.Default.DarkMode, t(R.string.dark_mode), trailing = { Switch(dark, { v -> scope.launch { c.session.setDark(v) } }) }) { scope.launch { c.session.setDark(!dark) } }
                 MenuRow(
                     Icons.Default.Translate,
-                    stringResource(R.string.language),
+                    t(R.string.language),
                     trailing = { Text(localeLabel, color = Brand.Primary) },
                 ) { showLangSheet = true }
             }

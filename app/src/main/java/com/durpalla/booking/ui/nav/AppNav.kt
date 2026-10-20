@@ -13,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.*
@@ -22,6 +21,7 @@ import androidx.navigation.compose.*
 import com.durpalla.booking.AppContainer
 import com.durpalla.booking.R
 import com.durpalla.booking.l10n.ProvideAppLocale
+import com.durpalla.booking.l10n.t
 import com.durpalla.booking.ui.components.GradientButton
 import com.durpalla.booking.ui.screens.*
 import kotlinx.coroutines.flow.collectLatest
@@ -128,11 +128,11 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                     enter = slideInVertically { it }, exit = slideOutVertically { it },
                 ) {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {
-                        tabs.forEach { t ->
-                            val sel = back?.destination?.hierarchy?.any { it.route?.substringBefore("?") == t.route } == true
-                            NavigationBarItem(selected = sel, onClick = { navigator.tab(t.route) },
-                                icon = { Icon(if (sel) t.selIcon else t.icon, null) },
-                                label = { Text(stringResource(t.label)) })
+                        tabs.forEach { tab ->
+                            val sel = back?.destination?.hierarchy?.any { it.route?.substringBefore("?") == tab.route } == true
+                            NavigationBarItem(selected = sel, onClick = { navigator.tab(tab.route) },
+                                icon = { Icon(if (sel) tab.selIcon else tab.icon, null) },
+                                label = { Text(t(tab.label)) })
                         }
                     }
                 }
@@ -261,14 +261,14 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                 Column(Modifier.fillMaxWidth().padding(24.dp).navigationBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(painterResource(R.drawable.logo_mark), null, Modifier.size(64.dp), tint = androidx.compose.ui.graphics.Color.Unspecified)
                     Spacer(Modifier.height(12.dp))
-                    Text(stringResource(R.string.sign_in_required), style = MaterialTheme.typography.titleLarge)
+                    Text(t(R.string.sign_in_required), style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.sign_in_required_body), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(t(R.string.sign_in_required_body), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(20.dp))
-                    GradientButton(stringResource(R.string.sign_in), Modifier.fillMaxWidth()) {
+                    GradientButton(t(R.string.sign_in), Modifier.fillMaxWidth()) {
                         pendingRoute = null; nav.navigate(Routes.login(target))
                     }
-                    TextButton(onClick = { pendingRoute = null }) { Text(stringResource(R.string.not_now)) }
+                    TextButton(onClick = { pendingRoute = null }) { Text(t(R.string.not_now)) }
                 }
             }
         }

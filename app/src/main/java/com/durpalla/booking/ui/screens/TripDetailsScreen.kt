@@ -12,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,6 +32,7 @@ import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
+import com.durpalla.booking.l10n.t
 
 /** Port of trip_details_screen.dart: layout parsing, cart/add lock, cart/unlock release, Pusher live updates. */
 class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceType: String) : ViewModel() {
@@ -58,13 +58,13 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
                     "cart.item.locked", "cart.item.booked" -> {
                         liveLocked.value += id; liveReleased.value -= id
                         if (cartStore.items.value.none { it.itemId.toString() == id }) {
-                            snack.tryEmit("Cabin $label (Fare: ৳${e.data.o("data").str("fare")}) has been locked by another user.")
+                            snack.tryEmit(AppCtx.str(R.string.cabin_locked, label, e.data.o("data").str("fare")))
                         }
                     }
                     "cart.item.released" -> {
                         liveLocked.value -= id
                         liveReleased.value += id
-                        snack.tryEmit("Cabin $label is now available.")
+                        snack.tryEmit(AppCtx.str(R.string.cabin_available, label))
                     }
                 }
             }
@@ -77,7 +77,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
             val tabs = availableTabs(d); if (tab.value !in tabs) tab.value = tabs.firstOrNull() ?: ""
             val fl = floors(d); if (fl.none { it.first == floor.value }) floor.value = fl.firstOrNull()?.first ?: 1
             Load.Ok(d)
-        }, { Load.Err(it.message ?: "Error") })
+        }, { Load.Err(it.message ?: AppCtx.str(R.string.generic_error)) })
     }
 
     private fun floorKey(f: Int) = when (f) { 1 -> "first_floor"; 2 -> "second_floor"; 3 -> "third_floor"; else -> "fourth_floor" }
@@ -104,10 +104,10 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
     fun availableTabs(d: JsonObject) = listOf("cabin", "seat", "sofa").filter { k -> (1..4).any { f -> columns(d, k, f).any { it.isNotEmpty() } } }
 
     fun floors(d: JsonObject): List<Pair<Int, String>> {
-        val api = d.a("floors").objects().mapNotNull { m -> m.i("value")?.let { it to m.str("label", default = "Floor $it") } }
+        val api = d.a("floors").objects().mapNotNull { m -> m.i("value")?.let { it to m.str("label", default = AppCtx.str(R.string.floor_numbered, it)) } }
             .filter { (v, _) -> listOf("cabin", "seat", "sofa").any { k -> columns(d, k, v).any { it.isNotEmpty() } } }
         if (api.isNotEmpty()) return api
-        return (1..4).filter { f -> listOf("cabin", "seat", "sofa").any { k -> columns(d, k, f).any { it.isNotEmpty() } } }.map { it to "Floor $it" }
+        return (1..4).filter { f -> listOf("cabin", "seat", "sofa").any { k -> columns(d, k, f).any { it.isNotEmpty() } } }.map { it to AppCtx.str(R.string.floor_numbered, it) }
     }
 
     fun isLocked(s: SeatItem): Boolean {
@@ -126,7 +126,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
             try {
                 if (existing != null) {
                     if (c.trips.releaseLock(existing.lockId, id)) cartStore.remove(existing)
-                    else snack.emit("Could not release, try again")
+                    else snack.emit(AppCtx.str(R.string.could_not_release))
                 } else {
                     val r = c.trips.lockItem(tripId, s.kind, id, c.pusher.socketId)
                     val data = r.o("data")
@@ -150,7 +150,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
                     )
                 }
             } catch (e: Exception) {
-                snack.emit(e.message ?: "Failed")
+                snack.emit(e.message ?: AppCtx.str(R.string.status_failed))
             } finally {
                 busy.value = null
             }
@@ -173,17 +173,17 @@ fun TripDetailsScreen(tripId: Int, type: String) {
     val mine = cart.filter { it.tripId == tripId }
 
     Scaffold(
-        topBar = { DTopBar(stringResource(R.string.trip_details), onBack = nav::back) },
+        topBar = { DTopBar(t(R.string.trip_details), onBack = nav::back) },
         snackbarHost = { SnackbarHost(snackHost) },
         bottomBar = {
             AnimatedVisibility(mine.isNotEmpty(), enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
                 Surface(shadowElevation = 16.dp) {
                     Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("${mine.size} selected • ${mine.joinToString { it.label }}", style = MaterialTheme.typography.bodySmall, color = Brand.Muted, maxLines = 1)
+                            Text(t(R.string.selected_count, mine.size, mine.joinToString { it.label }), style = MaterialTheme.typography.bodySmall, color = Brand.Muted, maxLines = 1)
                             Text(money(mine.sumOf { it.lineTotal }), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
                         }
-                        GradientButton(stringResource(R.string.continue_checkout), Modifier.width(190.dp)) { nav.go(Routes.CHECKOUT) }
+                        GradientButton(t(R.string.continue_checkout), Modifier.width(190.dp)) { nav.go(Routes.CHECKOUT) }
                     }
                 }
             }
@@ -199,7 +199,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                         PhotoBox(d.s("vehicle_photo"), if (type == "bus") R.drawable.photo_river else R.drawable.photo_launch, Modifier.matchParentSize())
                         Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Brand.Navy.copy(.85f)))))
                         Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                            Text(d.str("vehicle_name", default = "Trip #$tripId"), color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            Text(d.str("vehicle_name", default = t(R.string.trip_numbered, tripId)), color = Color.White, style = MaterialTheme.typography.titleLarge)
                             Text(d.str("route_name"), color = Color.White.copy(.85f))
                             val stops = d.a("stoppages").objects().map { it.str("name") }.filter { it.isNotBlank() }
                             if (stops.isNotEmpty()) Text(stops.joinToString(" • "), color = Brand.Amber, style = MaterialTheme.typography.bodySmall, maxLines = 1)
@@ -214,11 +214,11 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                         fl.forEach { (v, l) -> FilterChip(v == floor, { vm.floor.value = v }, { Text(l) }) }
                     }
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Legend(Brand.P50, Brand.P300, stringResource(R.string.available)); Legend(Brand.Amber, Brand.Amber, stringResource(R.string.selected))
-                        Legend(Brand.Line, Brand.Line, stringResource(R.string.booked)); Legend(Color(0xFFFEE2E2), Color(0xFFFCA5A5), stringResource(R.string.held))
+                        Legend(Brand.P50, Brand.P300, t(R.string.available)); Legend(Brand.Amber, Brand.Amber, t(R.string.selected))
+                        Legend(Brand.Line, Brand.Line, t(R.string.booked)); Legend(Color(0xFFFEE2E2), Color(0xFFFCA5A5), t(R.string.held))
                     }
                     val cols = vm.columns(d, tab.ifEmpty { "cabin" }, floor)
-                    if (cols.all { it.isEmpty() }) EmptyState(Icons.Default.EventSeat, "No layout available for this floor")
+                    if (cols.all { it.isEmpty() }) EmptyState(Icons.Default.EventSeat, t(R.string.no_layout_floor))
                     SoftCard(Modifier.padding(16.dp).fillMaxWidth()) {
                         Column(Modifier.padding(12.dp).horizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             cols.forEach { row ->
@@ -235,7 +235,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                     val tripActive = type.equals("boat", true) ||
                         d.str("status", "trip_status").lowercase() in listOf("active", "ongoing", "started", "boarding")
                     if (tripActive) {
-                        val driver = d.str("driver_name", "captain_name", "vehicle_name", default = stringResource(R.string.call_driver))
+                        val driver = d.str("driver_name", "captain_name", "vehicle_name", default = t(R.string.call_driver))
                         Column(Modifier.padding(horizontal = 16.dp)) {
                             CallDriverButton(tripId = tripId, driverName = driver, tripActive = true)
                             CallLogSection(tripId)

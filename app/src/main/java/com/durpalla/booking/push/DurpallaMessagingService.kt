@@ -36,7 +36,7 @@ class DurpallaMessagingService : FirebaseMessagingService() {
                 val title = message.notification?.title ?: data["title"]
                     ?: getString(com.durpalla.booking.R.string.notif_default_title)
                 val body = message.notification?.body ?: data["body"]
-                    ?: data["hotel_name"]?.let { "How was your stay at $it?" }
+                    ?: data["hotel_name"]?.let { getString(com.durpalla.booking.R.string.hotel_review_prompt, it) }
                     ?: getString(com.durpalla.booking.R.string.notif_default_body)
                 Notifications.show(this, title, body, false, route)
                 return

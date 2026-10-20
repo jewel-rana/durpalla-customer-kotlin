@@ -1,5 +1,8 @@
 package com.durpalla.booking.ui.screens
 
+import com.durpalla.booking.R
+import com.durpalla.booking.core.AppCtx
+import com.durpalla.booking.core.ApiUserMessage
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,7 +25,7 @@ class LoadVm<T>(private val loader: suspend () -> T) : ViewModel() {
     fun reload() {
         _state.value = Load.Loading
         viewModelScope.launch {
-            _state.value = runCatching { Load.Ok(loader()) }.getOrElse { Load.Err(it.message ?: "Something went wrong") }
+            _state.value = runCatching { Load.Ok(loader()) }.getOrElse { Load.Err(it.message ?: AppCtx.str(R.string.generic_error)) }
         }
     }
 }

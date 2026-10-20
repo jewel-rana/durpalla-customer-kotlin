@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
+import com.durpalla.booking.l10n.t
 import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.delay
 
@@ -28,7 +29,7 @@ fun SplashScreen(onDone: () -> Unit) {
             Spacer(Modifier.height(18.dp))
             Image(painterResource(R.drawable.logo_horizontal_white), null, Modifier.width(180.dp).alpha(a.value))
             Spacer(Modifier.height(10.dp))
-            Text("Launch • Bus • Boat • Tour • Hotels", color = Color.White.copy(.75f), style = MaterialTheme.typography.bodySmall, modifier = Modifier.alpha(a.value))
+            Text(t(R.string.splash_tagline), color = Color.White.copy(.75f), style = MaterialTheme.typography.bodySmall, modifier = Modifier.alpha(a.value))
         }
     }
 }
