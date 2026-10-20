@@ -20,7 +20,12 @@ interface CallRepository {
     fun canCallDriver(tripId: Int, bidAccepted: Boolean = false, tripActive: Boolean = false): Boolean
 
     suspend fun startOutgoing(tripId: Int, driverName: String, callerName: String = ""): CallSession
-    suspend fun handleIncoming(callId: String, tripId: Int, callerName: String)
+    suspend fun handleIncoming(
+        callId: String,
+        tripId: Int,
+        callerName: String,
+        provider: CallProvider = CallProvider.WEBRTC,
+    )
     /** FCM / Pusher `call.ended|declined|missed` when Firestore listener is not yet attached. */
     suspend fun onRemoteEnded(callId: String, status: CallStatus)
     suspend fun accept()

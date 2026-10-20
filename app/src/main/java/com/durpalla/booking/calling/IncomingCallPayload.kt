@@ -9,14 +9,14 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * FCM / Pusher `call.incoming` payload (contract §2).
- * Wire `tripId` is a string; local UI still uses Int trip ids where the customer API does.
+ * Optional `provider`: `"agora"` | `"webrtc"` (default webrtc).
  */
 data class IncomingCallPayload(
     val callId: String,
     val tripId: String,
     val callerName: String,
+    val provider: CallProvider = CallProvider.WEBRTC,
 ) {
-    /** Best-effort Int for local CallSession / navigation (numeric suffix or full digits). */
     val tripIdInt: Int
         get() = tripId.toIntOrNull()
             ?: tripId.filter { it.isDigit() }.toIntOrNull()
@@ -38,7 +38,8 @@ data class IncomingCallPayload(
             val callId = f("callId") ?: return null
             val tripId = f("tripId") ?: "0"
             val name = f("callerName").orEmpty().ifBlank { AppCtx.str(R.string.call_driver) }
-            return IncomingCallPayload(callId, tripId, name)
+            val provider = CallProvider.fromWire(f("provider"))
+            return IncomingCallPayload(callId, tripId, name, provider)
         }
 
         fun fromPusher(data: JsonObject?): IncomingCallPayload? {
@@ -46,7 +47,7 @@ data class IncomingCallPayload(
             val callId = data.s("callId") ?: return null
             val tripId = data.s("tripId") ?: "0"
             val name = data.s("callerName").orEmpty().ifBlank { AppCtx.str(R.string.call_driver) }
-            return IncomingCallPayload(callId, tripId, name)
+            return IncomingCallPayload(callId, tripId, name, CallProvider.fromWire(data.s("provider")))
         }
     }
 }

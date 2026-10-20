@@ -36,6 +36,7 @@ class FirestoreSignalingRepository(
                     callerRole = d["callerRole"] as? String ?: CallRole.CUSTOMER.wire,
                     calleeId = d["calleeId"] as? String ?: "",
                     calleeRole = d["calleeRole"] as? String ?: CallRole.DRIVER.wire,
+                    provider = CallProvider.fromWire(d["provider"] as? String),
                     offer = readSdp(d["offer"]),
                     answer = readSdp(d["answer"]),
                     endedBy = d["endedBy"] as? String,

@@ -12,7 +12,7 @@ service cloud.firestore {
       // The backend (Admin SDK, bypasses rules) creates the doc on POST /calls.
       allow read: if isParty(resource.data);
       allow create, delete: if false;
-      // Parties may write offer/answer and end-state fields only; ids, roles, trip and createdAt are immutable.
+      // Parties may write offer/answer and end-state fields only; ids, roles, trip, provider and createdAt are immutable.
       allow update: if isParty(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['offer', 'answer', 'status', 'answeredAt', 'endedAt', 'endedBy', 'reason'])

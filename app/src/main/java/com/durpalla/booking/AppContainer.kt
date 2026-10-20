@@ -101,7 +101,9 @@ class AppContainer(context: Context) {
                 when (e.name) {
                     "call.incoming" -> {
                         val call = IncomingCallPayload.fromPusher(e.data) ?: return@collect
-                        calls.handleIncoming(call.callId, call.tripIdInt, call.callerName)
+                        calls.handleIncoming(
+                            call.callId, call.tripIdInt, call.callerName, call.provider,
+                        )
                         CallNotifications.showIncoming(appContext, call.callId, call.tripIdInt, call.callerName)
                     }
                     "call.ended", "call.declined", "call.missed" -> {

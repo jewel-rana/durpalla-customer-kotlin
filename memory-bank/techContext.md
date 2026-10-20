@@ -13,6 +13,7 @@
 | Realtime | pusher-java-client |
 | Firebase | Messaging, Analytics, Remote Config, Firestore, Auth (BOM) |
 | WebRTC | `io.getstream:stream-webrtc-android` |
+| Agora Voice | `io.agora.rtc:voice-sdk` (4.5.2) — App ID from API only |
 | Versions catalog | `gradle/libs.versions.toml` |
 
 ## BuildConfig flags (`app/build.gradle.kts`)
@@ -26,6 +27,7 @@
 | `GHAT_SUGGEST_API_PATH` | `trip/ghat-suggestions` |
 | **`USE_MOCK_CALLS`** | debug **true**, release **false** — mock calling until backend live |
 | `WEBRTC_*` | STUN defaults; TURN from `/calls/ice-servers` in prod path |
+| Agora | No BuildConfig App ID — always `GET /calls/{id}/agora-token` |
 
 ## Config files
 - `app/google-services.json` — optional; google-services plugin applied only if present.

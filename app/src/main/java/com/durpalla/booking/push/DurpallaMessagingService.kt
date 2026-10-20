@@ -24,7 +24,9 @@ class DurpallaMessagingService : FirebaseMessagingService() {
         IncomingCallPayload.fromPush(data)?.let { call ->
             val app = application as DurpallaApp
             app.container.appScope.launch {
-                app.container.calls.handleIncoming(call.callId, call.tripIdInt, call.callerName)
+                app.container.calls.handleIncoming(
+                    call.callId, call.tripIdInt, call.callerName, call.provider,
+                )
             }
             CallNotifications.showIncoming(this, call.callId, call.tripIdInt, call.callerName)
             return

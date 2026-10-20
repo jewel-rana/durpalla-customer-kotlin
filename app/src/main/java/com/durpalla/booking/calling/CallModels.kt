@@ -37,12 +37,37 @@ enum class CallRole(val wire: String) {
     DRIVER("driver"),
 }
 
+/** Server-selected audio transport: `webrtc` (default) or `agora`. */
+enum class CallProvider(val wire: String) {
+    WEBRTC("webrtc"),
+    AGORA("agora"),
+    ;
+
+    companion object {
+        fun fromWire(raw: String?): CallProvider = when (raw?.lowercase()?.trim()) {
+            "agora" -> AGORA
+            else -> WEBRTC
+        }
+    }
+}
+
+/** GET /calls/{id}/agora-token — appId is never hard-coded; always from the server. */
+data class AgoraCredentials(
+    val appId: String,
+    val channel: String,
+    val token: String,
+    val uid: Int,
+    /** Epoch millis when the token expires, if the server sent `expiresAt`. */
+    val expiresAtMs: Long? = null,
+)
+
 data class CallSession(
     val callId: String,
     val tripId: Int,
     val peerName: String,
     val isOutgoing: Boolean,
     val status: CallStatus = CallStatus.RINGING,
+    val provider: CallProvider = CallProvider.WEBRTC,
     val callerId: String? = null,
     val calleeId: String? = null,
     val answeredAtMs: Long? = null,
@@ -51,7 +76,7 @@ data class CallSession(
     val reason: String? = null,
     val muted: Boolean = false,
     val speakerOn: Boolean = false,
-    /** True when adaptive bitrate stepped below 24 kbps (weak network). */
+    /** True when adaptive bitrate / Agora network quality reports a weak link. */
     val weakConnection: Boolean = false,
 )
 

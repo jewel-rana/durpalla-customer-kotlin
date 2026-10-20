@@ -38,5 +38,7 @@ calling / realtime / push / l10n / security / core
 
 ## Calling
 - `CallRepository` → `MockCallRepository` or `ApiCallRepository` (`USE_MOCK_CALLS`).
-- Firebase custom token before Firestore; ICE ttl/2 cache; caller-only ICE restart.
+- **Transport:** `CallTransport` — `WebRtcTransport` | `AgoraTransport` | `MockCallTransport`; server `provider` (`webrtc` default).
+- Shared: FCM/CallStyle ringing, UI, call log, Firestore status doc. WebRTC-only: SDP/ICE. Agora-only: `agora-token` join/leave.
+- Firebase custom token before Firestore; ICE ttl/2 cache; caller-only ICE restart (WebRTC).
 - Contract + rules: `docs/calling-contract.md`, `docs/firestore.rules`.

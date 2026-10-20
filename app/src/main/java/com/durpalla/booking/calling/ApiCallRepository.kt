@@ -22,8 +22,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
 /**
- * Production calling: Firebase custom token → POST /calls → Firestore signaling → WebRTC.
- * Matches Durpalla/durpalla-driver docs/calling-contract.md.
+ * Production calling: Firebase custom token → POST /calls → Firestore status +
+ * [CallTransport] (WebRTC or Agora per server `provider`).
  */
 class ApiCallRepository(
     private val context: Context,
@@ -39,7 +39,7 @@ class ApiCallRepository(
     private val _log = MutableStateFlow<List<CallLogEntry>>(emptyList())
     override val callLog: StateFlow<List<CallLogEntry>> = _log.asStateFlow()
 
-    private var engine: WebRtcEngine? = null
+    private var transport: CallTransport? = null
     private var iceJob: Job? = null
     private var watchJob: Job? = null
     private var missJob: Job? = null
@@ -59,7 +59,6 @@ class ApiCallRepository(
         val parsed = entries.mapNotNull { CallLogEntry.fromTripJson(it, tripId) }
         if (parsed.isEmpty()) return
         val others = _log.value.filter { it.tripId != tripId }
-        // Server list is oldest-first; keep newest local appends for same callId
         val byId = linkedMapOf<String, CallLogEntry>()
         parsed.forEach { byId[it.callId] = it }
         _log.value.filter { it.tripId == tripId }.forEach { byId[it.callId] = it }
@@ -73,11 +72,11 @@ class ApiCallRepository(
         val callerName = callerName.ifBlank { AppCtx.str(R.string.you) }
         disposeMedia()
         FirebaseCallAuth.ensureSignedIn(api, userId())
-        // POST /calls { tripId: string } → { callId } — backend creates Firestore doc.
         val res = api.postJson("calls", jsonOf("tripId" to tripId.toString()))
         CallApiErrors.requireCallSuccess(res)
         val callId = res.o("data").s("callId") ?: res.s("callId")
             ?: throw CallApiErrors.toException(res)
+        val provider = CallProvider.fromWire(res.o("data").s("provider") ?: res.s("provider"))
         val callerId = userId()
         startedAt = System.currentTimeMillis()
         val s = CallSession(
@@ -86,22 +85,33 @@ class ApiCallRepository(
             peerName = driverName,
             isOutgoing = true,
             status = CallStatus.RINGING,
+            provider = provider,
             callerId = callerId,
         )
         _session.value = s
         CallForegroundService.start(context, driverName, outgoing = true)
-        awaitEngine(asCaller = true)
-        val offer = engine!!.createOffer()
-        lastLocalOfferSdp = offer.sdp
-        lastSeenOfferSdp = offer.sdp
-        signaling.setOffer(callId, offer)
-        watchRemote(callId, asCaller = true)
+        awaitTransport(provider, asCaller = true)
+        when (provider) {
+            CallProvider.WEBRTC -> {
+                val offer = transport!!.startOutgoing(callId)
+                    ?: throw IllegalStateException("missing offer")
+                lastLocalOfferSdp = offer.sdp
+                lastSeenOfferSdp = offer.sdp
+                signaling.setOffer(callId, offer)
+            }
+            CallProvider.AGORA -> transport!!.startOutgoing(callId)
+        }
+        watchRemote(callId, asCaller = true, provider = provider)
         armMissTimer(callId, driverName, tripId, asCaller = true)
         return s
     }
 
-    override suspend fun handleIncoming(callId: String, tripId: Int, callerName: String) {
-        // Busy: already in a call → auto-decline (contract §3.7).
+    override suspend fun handleIncoming(
+        callId: String,
+        tripId: Int,
+        callerName: String,
+        provider: CallProvider,
+    ) {
         val cur = _session.value
         if (cur != null && cur.status.isActive && cur.callId != callId) {
             runCatching { api.postJson("calls/$callId/decline", jsonOf()) }
@@ -116,12 +126,13 @@ class ApiCallRepository(
             peerName = callerName,
             isOutgoing = false,
             status = CallStatus.RINGING,
+            provider = provider,
             calleeId = userId(),
         )
         CallNotifications.showIncoming(context, callId, tripId, callerName)
         CallForegroundService.start(context, callerName, outgoing = false)
         armMissTimer(callId, callerName, tripId, asCaller = false)
-        watchRemote(callId, asCaller = false)
+        watchRemote(callId, asCaller = false, provider = provider)
     }
 
     override suspend fun onRemoteEnded(callId: String, status: CallStatus) {
@@ -137,24 +148,30 @@ class ApiCallRepository(
         val res = api.postJson("calls/${s.callId}/accept", jsonOf())
         runCatching { CallApiErrors.requireCallSuccess(res) }
         CallNotifications.cancelIncoming(context)
-        awaitEngine(asCaller = false)
-        val snap = signaling.observeCall(s.callId).first { it.offer != null }
-        snap.offer?.let {
-            lastSeenOfferSdp = it.sdp
-            engine!!.setRemote(it)
+        val provider = s.provider
+        awaitTransport(provider, asCaller = false)
+        when (provider) {
+            CallProvider.WEBRTC -> {
+                val snap = signaling.observeCall(s.callId).first { it.offer != null }
+                snap.offer?.let {
+                    lastSeenOfferSdp = it.sdp
+                    transport!!.setRemote(it)
+                }
+                val answer = transport!!.createAnswer()
+                if (answer != null) signaling.setAnswer(s.callId, answer)
+                iceJob = scope.launch {
+                    signaling.observeRemoteCandidates(s.callId, asCaller = false)
+                        .collect { transport?.addIce(it) }
+                }
+            }
+            CallProvider.AGORA -> transport!!.startIncoming(s.callId)
         }
-        val answer = engine!!.createAnswer()
-        signaling.setAnswer(s.callId, answer)
         update(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
-        iceJob = scope.launch {
-            signaling.observeRemoteCandidates(s.callId, asCaller = false).collect { engine?.addIce(it) }
-        }
     }
 
     override suspend fun decline(reason: String) {
         val s = _session.value ?: return
         runCatching { api.postJson("calls/${s.callId}/decline", jsonOf()) }
-        // Server sets declined + reason; client may also patch ended fields.
         runCatching {
             signaling.setStatus(s.callId, CallStatus.DECLINED, endedBy = userId(), reason = "declined")
         }
@@ -179,67 +196,72 @@ class ApiCallRepository(
     }
 
     override suspend fun setMuted(muted: Boolean) {
-        engine?.setMuted(muted)
+        transport?.setMuted(muted)
         _session.value = _session.value?.copy(muted = muted)
     }
 
     override suspend fun setSpeaker(on: Boolean) {
-        engine?.setSpeaker(on)
+        transport?.setSpeaker(on)
         _session.value = _session.value?.copy(speakerOn = on)
     }
 
     override suspend fun fetchIceServers(): IceServersResponse = IceServersClient.fetch(api)
 
-    private suspend fun awaitEngine(asCaller: Boolean) {
+    private suspend fun awaitTransport(provider: CallProvider, asCaller: Boolean) {
         asCallerFlag = asCaller
         FirebaseCallAuth.ensureSignedIn(api, userId())
-        val e = WebRtcEngine(
-            appContext = context.applicationContext,
-            iceProvider = { IceServersClient.fetch(api) },
-            isCaller = asCaller,
-        )
-        engine = e
-        e.init(
-            onIceCandidate = { cand ->
-                scope.launch {
-                    val id = _session.value?.callId ?: return@launch
-                    if (asCaller) signaling.addCallerCandidate(id, cand)
-                    else signaling.addCalleeCandidate(id, cand)
-                }
-            },
-            onConnected = {
-                scope.launch {
-                    if (_session.value?.status != CallStatus.ACCEPTED) {
-                        update(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
+        val t = CallTransportFactory.create(provider, context, api, scope, asCaller)
+        transport = t
+        t.prepare(
+            asCaller = asCaller,
+            callbacks = CallTransportCallbacks(
+                onIceCandidate = { cand ->
+                    scope.launch {
+                        val id = _session.value?.callId ?: return@launch
+                        if (asCaller) signaling.addCallerCandidate(id, cand)
+                        else signaling.addCalleeCandidate(id, cand)
                     }
-                }
-            },
-            onWeakConnection = { weak ->
-                _session.value = _session.value?.copy(weakConnection = weak)
-            },
-            onRenegotiateOffer = { offer ->
-                // Caller-only ICE restart publishes a new offer.
-                if (!asCaller) return@init
-                scope.launch {
-                    val id = _session.value?.callId ?: return@launch
-                    lastLocalOfferSdp = offer.sdp
-                    lastSeenOfferSdp = offer.sdp
-                    runCatching { signaling.setOffer(id, offer) }
-                }
-            },
+                },
+                onConnected = {
+                    scope.launch {
+                        if (_session.value?.status != CallStatus.ACCEPTED) {
+                            // Agora: do not mark accepted until Firestore/accept; only fill if already accepted path.
+                            if (provider == CallProvider.WEBRTC) {
+                                update(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
+                            }
+                        }
+                    }
+                },
+                onWeakConnection = { weak ->
+                    _session.value = _session.value?.copy(weakConnection = weak)
+                },
+                onRenegotiateOffer = { offer ->
+                    if (!asCaller || provider != CallProvider.WEBRTC) return@CallTransportCallbacks
+                    scope.launch {
+                        val id = _session.value?.callId ?: return@launch
+                        lastLocalOfferSdp = offer.sdp
+                        lastSeenOfferSdp = offer.sdp
+                        runCatching { signaling.setOffer(id, offer) }
+                    }
+                },
+            ),
         )
-        if (asCaller) {
+        if (asCaller && provider == CallProvider.WEBRTC) {
             iceJob = scope.launch {
                 val id = _session.value?.callId ?: return@launch
-                signaling.observeRemoteCandidates(id, asCaller = true).collect { e.addIce(it) }
+                signaling.observeRemoteCandidates(id, asCaller = true).collect { t.addIce(it) }
             }
         }
     }
 
-    private fun watchRemote(callId: String, asCaller: Boolean) {
+    private fun watchRemote(callId: String, asCaller: Boolean, provider: CallProvider) {
         watchJob?.cancel()
         watchJob = scope.launch {
             signaling.observeCall(callId).collect { snap ->
+                val resolvedProvider = snap.provider
+                if (_session.value?.provider != resolvedProvider && resolvedProvider != CallProvider.WEBRTC) {
+                    _session.value = _session.value?.copy(provider = resolvedProvider)
+                }
                 when (snap.status) {
                     CallStatus.DECLINED, CallStatus.ENDED, CallStatus.MISSED ->
                         finish(snap.status, endedBy = snap.endedBy, reason = snap.reason)
@@ -248,24 +270,33 @@ class ApiCallRepository(
                     }
                     else -> {}
                 }
+                if (provider != CallProvider.WEBRTC &&
+                    resolvedProvider != CallProvider.WEBRTC &&
+                    _session.value?.provider != CallProvider.WEBRTC
+                ) {
+                    // Agora: status-only; no SDP/ICE.
+                    return@collect
+                }
+                val useWebrtc = (_session.value?.provider ?: provider) == CallProvider.WEBRTC
+                if (!useWebrtc) return@collect
+
                 val answer = snap.answer
                 if (asCaller && answer != null && answer.sdp != lastSeenAnswerSdp) {
                     lastSeenAnswerSdp = answer.sdp
-                    runCatching { engine?.setRemote(answer) }
+                    runCatching { transport?.setRemote(answer) }
                     if (_session.value?.status != CallStatus.ACCEPTED) {
                         update(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
                     }
                 }
                 val offer = snap.offer
-                // Callee answers every new offer (initial + ICE restart). Caller never answers.
                 if (!asCaller && offer != null && offer.sdp != lastSeenOfferSdp) {
                     val hadOffer = lastSeenOfferSdp != null
                     lastSeenOfferSdp = offer.sdp
                     if (hadOffer || _session.value?.status == CallStatus.ACCEPTED) {
                         runCatching {
-                            if (engine == null) awaitEngine(asCaller = false)
-                            engine?.setRemote(offer)
-                            val ans = engine?.createAnswer()
+                            if (transport == null) awaitTransport(CallProvider.WEBRTC, asCaller = false)
+                            transport?.setRemote(offer)
+                            val ans = transport?.createAnswer()
                             if (ans != null) signaling.setAnswer(callId, ans)
                         }
                     }
@@ -282,7 +313,6 @@ class ApiCallRepository(
             delay(CallTimeouts.RING_MISS_MS)
             val cur = _session.value
             if (cur?.callId == callId && cur.status == CallStatus.RINGING) {
-                // Caller sends end {reason:missed}; server timeout is authoritative.
                 if (asCaller) {
                     runCatching {
                         api.postJson("calls/$callId/end", jsonOf("reason" to CallEndReason.MISSED.wire))
@@ -341,8 +371,8 @@ class ApiCallRepository(
     }
 
     private fun disposeMedia() {
-        engine?.dispose()
-        engine = null
+        transport?.dispose()
+        transport = null
         lastSeenOfferSdp = null
         lastLocalOfferSdp = null
         lastSeenAnswerSdp = null

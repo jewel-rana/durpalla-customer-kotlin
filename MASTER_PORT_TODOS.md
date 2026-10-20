@@ -25,6 +25,8 @@ Remote languages hi/ar/zh/ur/fa/tr/es/it + first-launch language select + settin
 
 See [docs/calling-contract.md](docs/calling-contract.md). Mock on by default (`USE_MOCK_CALLS=true`). Wire HTTP + Firestore when backend is ready; iOS-only `POST /devices/voip` is N/A here.
 
+**Agora transport:** customer app supports server `provider: agora|webrtc` + `GET /calls/{id}/agora-token`. Confirm shape with driver team before backend ships.
+
 ## l10n note
 
 Bundled resources remain `values` (en) and `values-bn`. Remote codes use English resources as the base with a key→string overlay (`t(R.string…)`). Prefer `t()` for user-visible chrome that remote packs may translate; `stringResource` still works for bundled en/bn via AppCompat locales.

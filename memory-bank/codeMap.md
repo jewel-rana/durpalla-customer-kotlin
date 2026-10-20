@@ -55,13 +55,15 @@ Package root: `app/src/main/java/com/durpalla/booking/`
 |---|---|
 | Interface | `CallRepository.kt` |
 | Prod / mock | `ApiCallRepository.kt`, `MockCallRepository.kt` |
-| Models / timeouts | `CallModels.kt` |
+| Models / timeouts / `CallProvider` | `CallModels.kt` |
+| **Media transports** | `CallTransport.kt`, `WebRtcTransport.kt`, `AgoraTransport.kt`, `MockCallTransport.kt` |
+| Agora token REST | `AgoraTokenClient.kt` (`GET calls/{id}/agora-token`) |
 | Firestore signaling | `FirestoreSignalingRepository.kt`, `SignalingRepository.kt` |
-| WebRTC + bitrate / ICE restart | `WebRtcEngine.kt`, `OpusSdpMunger.kt` |
+| WebRTC engine + Opus / ICE restart | `WebRtcEngine.kt`, `OpusSdpMunger.kt` |
 | ICE REST + cache | `IceServersClient.kt` |
 | Firebase custom token | `FirebaseCallAuth.kt` |
 | API error → l10n | `CallApiErrors.kt` |
-| FCM/Pusher payload parse | `IncomingCallPayload.kt` |
+| FCM/Pusher payload parse | `IncomingCallPayload.kt` (includes `provider`) |
 | Notifications / FGS / incoming UI | `CallNotifications.kt`, `CallForegroundService.kt`, `IncomingCallActivity.kt`, `CallActionReceiver.kt` |
 
 ## Cross-cutting

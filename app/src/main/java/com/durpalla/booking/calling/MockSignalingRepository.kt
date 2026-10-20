@@ -17,6 +17,7 @@ class MockSignalingRepository : SignalingRepository {
         var calleeId: String,
         var calleeRole: String,
         var status: CallStatus = CallStatus.RINGING,
+        var provider: CallProvider = CallProvider.WEBRTC,
         var offer: SdpPayload? = null,
         var answer: SdpPayload? = null,
         var endedBy: String? = null,
@@ -34,7 +35,7 @@ class MockSignalingRepository : SignalingRepository {
         val cur = f.value ?: return
         f.value = Doc(
             cur.callId, cur.tripId, cur.callerId, cur.callerRole, cur.calleeId, cur.calleeRole,
-            cur.status, cur.offer, cur.answer, cur.endedBy, cur.reason,
+            cur.status, cur.provider, cur.offer, cur.answer, cur.endedBy, cur.reason,
         )
     }
 
@@ -48,6 +49,7 @@ class MockSignalingRepository : SignalingRepository {
                 callerRole = it.callerRole,
                 calleeId = it.calleeId,
                 calleeRole = it.calleeRole,
+                provider = it.provider,
                 offer = it.offer,
                 answer = it.answer,
                 endedBy = it.endedBy,

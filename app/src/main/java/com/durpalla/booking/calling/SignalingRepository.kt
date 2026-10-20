@@ -5,13 +5,9 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Firestore `calls/{callId}` signaling.
  *
- * Doc fields (exact): callId, tripId, callerId, callerRole, calleeId, calleeRole,
- * offer{type,sdp}, answer{type,sdp}, status (ringing|accepted|declined|ended|missed),
- * createdAt, answeredAt, endedAt, endedBy, reason.
- * Subcollections: callerCandidates / calleeCandidates → {candidate, sdpMid, sdpMLineIndex}.
- * Only caller/callee may read/write the doc.
- *
- * TODO(calling): Durpalla/durpalla-driver docs/calling-contract.md
+ * Doc fields: callId, tripId, callerId, callerRole, calleeId, calleeRole,
+ * provider ("webrtc"|"agora"), offer/answer (WebRTC), status, timestamps, endedBy, reason.
+ * Subcollections (WebRTC): callerCandidates / calleeCandidates.
  */
 interface SignalingRepository {
     fun observeCall(callId: String): Flow<SignalingSnapshot>
@@ -48,6 +44,7 @@ data class SignalingSnapshot(
     val callerRole: String,
     val calleeId: String,
     val calleeRole: String,
+    val provider: CallProvider = CallProvider.WEBRTC,
     val offer: SdpPayload? = null,
     val answer: SdpPayload? = null,
     val endedBy: String? = null,

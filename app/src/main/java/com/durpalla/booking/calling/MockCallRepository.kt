@@ -32,6 +32,7 @@ class MockCallRepository(
     override val callLog: StateFlow<List<CallLogEntry>> = _log.asStateFlow()
 
     private var ringJob: Job? = null
+    private var transport: CallTransport? = null
     private var startedAt = 0L
     private val mockCallerId = "mock_customer"
     private val mockCalleeId = "mock_driver"
@@ -67,14 +68,23 @@ class MockCallRepository(
         )
         _session.value = s
         CallForegroundService.start(context, driverName, outgoing = true)
+        val media = MockCallTransport(scope)
+        transport = media
+        media.prepare(
+            asCaller = true,
+            callbacks = CallTransportCallbacks(
+                onConnected = {
+                    scope.launch {
+                        if (_session.value?.callId == callId && _session.value?.status == CallStatus.RINGING) {
+                            updateStatus(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
+                            signaling.setStatus(callId, CallStatus.ACCEPTED)
+                        }
+                    }
+                },
+            ),
+        )
+        media.startOutgoing(callId)
         ringJob?.cancel()
-        ringJob = scope.launch {
-            delay(2_200)
-            if (_session.value?.callId == callId && _session.value?.status == CallStatus.RINGING) {
-                updateStatus(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
-                signaling.setStatus(callId, CallStatus.ACCEPTED)
-            }
-        }
         scope.launch {
             delay(CallTimeouts.RING_MISS_MS)
             val cur = _session.value
@@ -86,7 +96,12 @@ class MockCallRepository(
         return s
     }
 
-    override suspend fun handleIncoming(callId: String, tripId: Int, callerName: String) {
+    override suspend fun handleIncoming(
+        callId: String,
+        tripId: Int,
+        callerName: String,
+        provider: CallProvider,
+    ) {
         endInternal(CallStatus.ENDED, appendLog = false)
         signaling.createCallDoc(callId, tripId, "driver_or_peer", CallRole.DRIVER, mockCallerId, CallRole.CUSTOMER)
         startedAt = System.currentTimeMillis()
@@ -96,6 +111,7 @@ class MockCallRepository(
             peerName = callerName,
             isOutgoing = false,
             status = CallStatus.RINGING,
+            provider = provider,
             callerId = "driver_or_peer",
             calleeId = mockCallerId,
         )
@@ -119,8 +135,10 @@ class MockCallRepository(
 
     override suspend fun accept() {
         val s = _session.value ?: return
-        // TODO(calling): POST /calls/{id}/accept
         ringJob?.cancel()
+        val media = transport ?: MockCallTransport(scope).also { transport = it }
+        media.prepare(asCaller = false, callbacks = CallTransportCallbacks())
+        media.startIncoming(s.callId)
         updateStatus(CallStatus.ACCEPTED, answeredAt = System.currentTimeMillis())
         signaling.setStatus(s.callId, CallStatus.ACCEPTED)
         CallNotifications.cancelIncoming(context)
@@ -139,10 +157,12 @@ class MockCallRepository(
     }
 
     override suspend fun setMuted(muted: Boolean) {
+        transport?.setMuted(muted)
         _session.value = _session.value?.copy(muted = muted)
     }
 
     override suspend fun setSpeaker(on: Boolean) {
+        transport?.setSpeaker(on)
         _session.value = _session.value?.copy(speakerOn = on)
         val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
         am.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
@@ -165,6 +185,8 @@ class MockCallRepository(
         reason: String? = null,
     ) {
         ringJob?.cancel()
+        transport?.dispose()
+        transport = null
         val cur = _session.value ?: return
         signaling.setStatus(cur.callId, status, endedBy = endedBy, reason = reason)
         val answered = cur.answeredAtMs

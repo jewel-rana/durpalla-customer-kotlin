@@ -22,6 +22,7 @@ webkit = "1.12.1"
 splash = "1.0.1"
 libphonenumber = "8.13.50"
 streamWebrtc = "1.3.8"
+agoraVoice = "4.5.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -58,6 +59,7 @@ firebase-config = { group = "com.google.firebase", name = "firebase-config" }
 junit = { group = "junit", name = "junit", version = "4.13.2" }
 libphonenumber = { group = "com.googlecode.libphonenumber", name = "libphonenumber", version.ref = "libphonenumber" }
 stream-webrtc = { group = "io.getstream", name = "stream-webrtc-android", version.ref = "streamWebrtc" }
+agora-voice = { group = "io.agora.rtc", name = "voice-sdk", version.ref = "agoraVoice" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 

@@ -3,12 +3,13 @@
 **Branch / PR:** `cursor/initial-kotlin-durpalla-d9f4` → [PR #1](https://github.com/jewel-rana/durpalla-customer-kotlin/pull/1) (base `main`).
 
 **Just done**
-- Merged `origin/main` (added `.cursor/rules/token-saving.mdc`).
-- Added `memory-bank/` + `.cursor/rules/memory-bank.mdc`.
-- Calling aligned with driver PR #6 / main contract (firebase-token, ICE ttl/2, caller-only ICE restart, end reasons, error l10n, callLog UI, Pusher `private-user-{userId}`).
+- Agora as second audio transport beside WebRTC (`CallTransport`: `WebRtcTransport` / `AgoraTransport` / `MockCallTransport`).
+- Server `provider` on POST /calls, FCM `call.incoming`, and Firestore doc (default `webrtc`).
+- `GET /calls/{id}/agora-token` → appId/channel/token/uid (no hard-coded App ID).
+- Contract + memory bank updated (Agora section marked pending driver confirmation).
 
 **Current focus for next agents**
-- Close remaining `MASTER_PORT_TODOS.md` items (certs, fonts, ARB completeness, brand assets, secrets out of BuildConfig, App Check/Crashlytics, home re-skin, reminder mp3).
-- Flip `USE_MOCK_CALLS` when backend + `google-services.json` are ready; verify live calling against contract.
+- Confirm Agora contract with driver team; keep ringing/UI/callLog/status shared.
+- Remaining `MASTER_PORT_TODOS.md` assets/ops; live calling when backend ready (`USE_MOCK_CALLS=false`).
 
-**Do not reinvent:** screens/components in `codeMap.md`; calling stack under `calling/`; JSON via `core/Json.kt`; strings via `t()` / `AppCtx.str`.
+**Do not reinvent:** `calling/CallTransport*` + existing WebRTC engine; screens/components in `codeMap.md`.

@@ -93,6 +93,7 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.auth)
     implementation(libs.stream.webrtc)
+    implementation(libs.agora.voice)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
 }
