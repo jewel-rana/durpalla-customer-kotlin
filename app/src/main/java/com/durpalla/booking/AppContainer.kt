@@ -1,0 +1,32 @@
+package com.durpalla.booking
+
+import android.content.Context
+import com.durpalla.booking.data.net.ApiClient
+import com.durpalla.booking.data.repo.*
+import com.durpalla.booking.data.session.SessionStore
+import com.durpalla.booking.realtime.PusherManager
+import com.durpalla.booking.security.WebViewRecaptchaProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+
+/** Manual DI container. */
+class AppContainer(context: Context) {
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val session = SessionStore(context, appScope)
+    val apiClient = ApiClient(session)
+    val recaptcha = WebViewRecaptchaProvider(context)
+    val auth = AuthRepository(apiClient, session, recaptcha)
+    val home = HomeRepository(apiClient)
+    val trips = TripRepository(apiClient)
+    val bookings = BookingRepository(apiClient)
+    val payments = PaymentRepository(apiClient)
+    val hotels = HotelRepository(apiClient)
+    val profile = ProfileRepository(apiClient, session)
+    val experiences: ExperienceRepository = MockExperienceRepository()
+    val pusher = PusherManager()
+
+    /** In-memory cart (Flutter CartProvider). */
+    val cart = MutableStateFlow<List<CartItem>>(emptyList())
+}
