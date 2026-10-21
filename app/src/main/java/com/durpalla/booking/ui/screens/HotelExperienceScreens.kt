@@ -270,10 +270,11 @@ fun ExperienceBookScreen(id: Int, service: String = "tour") {
                         }
                     }
                     err?.let { Text(it, color = Brand.Error) }
+                    val guestErr = t(R.string.guest_name_mobile_required)
                     GradientButton(t(R.string.confirm_booking), Modifier.fillMaxWidth(), loading = loading) {
                         if (!nav.ensureAuth(self)) return@GradientButton
                         if (name.isBlank() || mobile.isBlank()) {
-                            err = t(R.string.guest_name_mobile_required)
+                            err = guestErr
                             return@GradientButton
                         }
                         scope.launch {

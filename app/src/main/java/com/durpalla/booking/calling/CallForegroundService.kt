@@ -16,7 +16,7 @@ import com.durpalla.booking.R
 class CallForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(intent: Intent?, startFlags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
@@ -24,7 +24,7 @@ class CallForegroundService : Service() {
         CallNotifications.ensureChannels(this)
         val peer = intent?.getStringExtra(CallNotifications.EXTRA_PEER_NAME) ?: getString(R.string.call_driver)
         val open = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("route", "call")
         }
         val pi = PendingIntent.getActivity(this, 5, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

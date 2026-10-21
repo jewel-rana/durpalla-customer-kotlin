@@ -39,6 +39,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Single ABI keeps debug APK under artifact size limits (Agora+WebRTC .so bloat).
+            ndk { abiFilters += listOf("arm64-v8a") }
+        }
         release {
             isMinifyEnabled = false
             buildConfigField("String", "BASE_URL", "\"https://apigw.durpalla.com/api/v1/\"")

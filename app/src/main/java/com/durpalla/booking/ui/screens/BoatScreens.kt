@@ -112,10 +112,11 @@ fun BoatDetailsScreen(id: Int, startsAt: String, endsAt: String) {
                         CallLogSection(id, tripCallLog = d.a("callLog").objects())
                     }
                     err?.let { Text(it, color = Brand.Error) }
+                    val guestErr = t(R.string.guest_name_mobile_required)
                     GradientButton(t(R.string.book_now), Modifier.fillMaxWidth(), loading = loading) {
                         if (!nav.ensureAuth(self)) return@GradientButton
                         if (name.isBlank() || mobile.isBlank()) {
-                            err = t(R.string.guest_name_mobile_required)
+                            err = guestErr
                             return@GradientButton
                         }
                         scope.launch {

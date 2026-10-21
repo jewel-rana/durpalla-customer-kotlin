@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.util.UUID
 
-/** Master `tour/*` APIs. */
+/** Master tour APIs. */
 class TourRepository(private val api: ApiClient) {
     suspend fun search(destination: String?, departDate: String): List<Experience> {
         val q = buildMap<String, Any?> {
@@ -48,7 +48,7 @@ class TourRepository(private val api: ApiClient) {
         ).requireSuccess(AppCtx.str(R.string.err_confirm_failed))
 }
 
-/** Master `entertainment/*` APIs. */
+/** Master entertainment APIs. */
 class EntertainmentRepository(private val api: ApiClient) {
     suspend fun homeTop(limit: Int = 10): List<Experience> =
         parseExperiences(api.getJson("entertainment/home/top", mapOf("limit" to limit)), Service.ENTERTAINMENT)
@@ -103,7 +103,7 @@ class EntertainmentRepository(private val api: ApiClient) {
         ).requireSuccess(AppCtx.str(R.string.err_confirm_failed))
 }
 
-/** Master `boat-rental/*` APIs including custom trip + bids. */
+/** Master boat-rental APIs including custom trip + bids. */
 class BoatRentalRepository(private val api: ApiClient) {
     suspend fun homeTop(limit: Int = 10): List<Experience> =
         parseExperiences(api.getJson("boat-rental/home/top", mapOf("limit" to limit)), Service.BOAT)

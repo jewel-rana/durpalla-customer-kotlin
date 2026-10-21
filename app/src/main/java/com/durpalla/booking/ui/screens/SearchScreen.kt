@@ -93,10 +93,12 @@ fun SearchScreen(initialService: String) {
                 }
                 error?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
                 Spacer(Modifier.height(16.dp))
+                val errCity = t(R.string.enter_a_city)
+                val errFromTo = t(R.string.enter_from_and_to)
                 GradientButton(t(if (service == "hotel") R.string.search_hotels else R.string.search_trips), Modifier.fillMaxWidth()) {
                     error = null
                     when (service) {
-                        "hotel" -> if (from.isBlank()) error = t(R.string.enter_a_city)
+                        "hotel" -> if (from.isBlank()) error = errCity
                         else nav.go(Routes.hotelResults(from.trim(), date, checkOut))
                         // Master: boat → boat-rental/search (not search?type=boat)
                         "boat" -> {
@@ -104,7 +106,7 @@ fun SearchScreen(initialService: String) {
                             val ends = "${checkOut.ifBlank { date }}T18:00:00"
                             nav.go(Routes.boatList(from.trim().ifBlank { to.trim() }, starts, ends))
                         }
-                        else -> if (from.isBlank() || to.isBlank()) error = t(R.string.enter_from_and_to)
+                        else -> if (from.isBlank() || to.isBlank()) error = errFromTo
                         else nav.go(Routes.results(service, from.trim(), to.trim(), date))
                     }
                 }

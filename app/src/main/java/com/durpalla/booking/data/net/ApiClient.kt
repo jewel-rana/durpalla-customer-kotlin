@@ -68,9 +68,9 @@ class ApiClient(private val session: SessionStore) {
         var raw = (resp.body() ?: resp.errorBody())?.string().orEmpty().ifEmpty { "{}" }
         raw = MediaUrl.rewriteJsonText(raw)
         val parsed = runCatching { LooseJson.parseToJsonElement(raw) }.getOrNull()
-        val map = when (parsed) {
+        val map: MutableMap<String, JsonElement> = when (parsed) {
             is JsonObject -> parsed.toMutableMap()
-            is JsonArray -> mutableMapOf<String, JsonElement>("success" to JsonPrimitive(resp.isSuccessful), "data" to parsed)
+            is JsonArray -> mutableMapOf("success" to JsonPrimitive(resp.isSuccessful), "data" to parsed)
             else -> mutableMapOf(
                 "success" to JsonPrimitive(false),
                 "message" to JsonPrimitive(ApiUserMessage.BAD_RESPONSE),

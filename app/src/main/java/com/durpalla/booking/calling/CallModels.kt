@@ -1,5 +1,11 @@
 package com.durpalla.booking.calling
 
+import com.durpalla.booking.core.d
+import com.durpalla.booking.core.i
+import com.durpalla.booking.core.s
+import com.durpalla.booking.core.str
+import kotlinx.serialization.json.JsonObject
+
 /**
  * Wire statuses match driver contract exactly:
  * `ringing | accepted | declined | ended | missed`
@@ -69,14 +75,12 @@ data class AgoraCredentials(
     val expiresAtMs: Long? = null,
 ) {
     companion object {
-        fun parse(o: kotlinx.serialization.json.JsonObject): AgoraCredentials? {
-            val appId = with(com.durpalla.booking.core) { o.s("appId") } ?: return null
-            val token = with(com.durpalla.booking.core) { o.s("token") } ?: return null
-            val channel = with(com.durpalla.booking.core) { o.s("channel") }.orEmpty()
-            val uid = with(com.durpalla.booking.core) { o.i("uid") } ?: 0
-            val expiresAtSec = with(com.durpalla.booking.core) {
-                o.i("expiresAt")?.toLong() ?: o.s("expiresAt")?.toLongOrNull()
-            }
+        fun parse(o: JsonObject): AgoraCredentials? {
+            val appId = o.s("appId") ?: return null
+            val token = o.s("token") ?: return null
+            val channel = o.s("channel").orEmpty()
+            val uid = o.i("uid") ?: 0
+            val expiresAtSec = o.i("expiresAt")?.toLong() ?: o.s("expiresAt")?.toLongOrNull()
             return AgoraCredentials(appId, channel, token, uid, expiresAtSec?.times(1000L))
         }
 
@@ -129,27 +133,21 @@ data class CallLogEntry(
     val startedAtMs get() = createdAtMs
 
     companion object {
-        fun fromTripJson(m: kotlinx.serialization.json.JsonObject, tripId: Int): CallLogEntry? {
-            val callId = with(com.durpalla.booking.core) { m.s("callId") } ?: return null
-            val role = with(com.durpalla.booking.core) { m.str("callerRole") }
+        fun fromTripJson(m: JsonObject, tripId: Int): CallLogEntry? {
+            val callId = m.s("callId") ?: return null
+            val role = m.str("callerRole")
             return CallLogEntry(
                 callId = callId,
                 tripId = tripId,
                 callerRole = role,
-                status = CallStatus.fromWire(with(com.durpalla.booking.core) { m.s("status") }),
-                provider = CallProvider.fromWire(with(com.durpalla.booking.core) { m.s("provider") }),
-                createdAtMs = with(com.durpalla.booking.core) {
-                    m.d("createdAt")?.toLong() ?: m.i("createdAt")?.toLong() ?: 0L
-                },
-                answeredAtMs = with(com.durpalla.booking.core) {
-                    m.d("answeredAt")?.toLong() ?: m.i("answeredAt")?.toLong()
-                },
-                endedAtMs = with(com.durpalla.booking.core) {
-                    m.d("endedAt")?.toLong() ?: m.i("endedAt")?.toLong()
-                },
-                durationSec = with(com.durpalla.booking.core) { m.i("durationSec")?.toLong() ?: 0L },
-                endedBy = with(com.durpalla.booking.core) { m.s("endedBy") },
-                reason = with(com.durpalla.booking.core) { m.s("reason") },
+                status = CallStatus.fromWire(m.s("status")),
+                provider = CallProvider.fromWire(m.s("provider")),
+                createdAtMs = m.d("createdAt")?.toLong() ?: m.i("createdAt")?.toLong() ?: 0L,
+                answeredAtMs = m.d("answeredAt")?.toLong() ?: m.i("answeredAt")?.toLong(),
+                endedAtMs = m.d("endedAt")?.toLong() ?: m.i("endedAt")?.toLong(),
+                durationSec = m.i("durationSec")?.toLong() ?: 0L,
+                endedBy = m.s("endedBy"),
+                reason = m.s("reason"),
                 isOutgoing = role == CallRole.CUSTOMER.wire,
             )
         }

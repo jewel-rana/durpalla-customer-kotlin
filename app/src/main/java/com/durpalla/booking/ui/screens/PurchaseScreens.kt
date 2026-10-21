@@ -53,9 +53,10 @@ fun CheckoutScreen() {
         Surface(shadowElevation = 16.dp) {
             Column(Modifier.navigationBarsPadding().padding(16.dp)) {
                 err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
+                val passengerErr = t(R.string.enter_passenger_name_mobile)
                 GradientButton(t(R.string.confirm_booking) + " • " + money(total), Modifier.fillMaxWidth(), enabled = cart.isNotEmpty(), loading = loading) {
                     if (!forSelf && (name.isBlank() || mobile.isBlank())) {
-                        err = t(R.string.enter_passenger_name_mobile)
+                        err = passengerErr
                         return@GradientButton
                     }
                     scope.launch {

@@ -32,7 +32,7 @@ class AuthRepository(
         if (isEmail) put("email", email.orEmpty()) else put("mobile", mobile.orEmpty())
     }
 
-    private fun Map<String, String>.withRecaptcha(): Map<String, String> =
+    private suspend fun Map<String, String>.withRecaptcha(): Map<String, String> =
         this + ("recaptchaToken" to recaptcha.token("login"))
 
     fun isUseEmail(r: JsonObject): Boolean {

@@ -29,6 +29,7 @@ import androidx.core.content.ContextCompat
 import com.durpalla.booking.R
 import com.durpalla.booking.calling.CallStatus
 import com.durpalla.booking.core.BanglaDigits
+import com.durpalla.booking.core.str
 import com.durpalla.booking.ui.nav.LocalContainer
 import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.theme.Brand
@@ -167,9 +168,10 @@ fun CallDriverButton(
     if (!c.calls.canCallDriver(tripId, bidAccepted, tripActive)) return
 
     fun startCall() = scope.launch {
-        val display = with(com.durpalla.booking.core) {
-            c.session.user.value.str("name", default = com.durpalla.booking.core.AppCtx.str(R.string.you))
-        }
+        val display = c.session.user.value.str(
+            "name",
+            default = com.durpalla.booking.core.AppCtx.str(R.string.you),
+        )
         c.calls.startOutgoing(tripId, driverName, display)
         nav.go("call")
     }

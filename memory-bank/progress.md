@@ -3,6 +3,7 @@
 Target: Flutter master `@8ee2bed`. Tracker detail: `MASTER_PORT_TODOS.md`.
 
 ## Done
+- **Debug APK builds** (`./gradlew assembleDebug`): compile fixes landed; debug NDK `abiFilters` = `arm64-v8a` (artifact size). APK: `/opt/cursor/artifacts/durpalla-customer-debug.apk`.
 - P0 HTTP: `X-Guest-Id`, language headers, assets rewrite, `my/bookings/android`, cart sync (charge/VAT/expiry), hotel multi-room, tour/entertainment/boat APIs, cancel rules, email+mobile auth.
 - P1 partial: ApiUserMessage, secure token, payment WebView hints, RC gateway filter, invoice link, `hotel_review_prompt`, `app-config?platform=android`.
 - L10n §10.2/§10.3: remote packs, language onboarding, settings picker, RTL for ar/ur/fa, bundled en/bn.

@@ -26,7 +26,7 @@ import kotlinx.serialization.json.JsonObject
 class ApiCallRepository(
     private val context: Context,
     private val api: ApiClient,
-    private val session: SessionStore,
+    private val sessionStore: SessionStore,
     private val signaling: SignalingRepository,
     private val scope: CoroutineScope,
 ) : CallRepository {
@@ -48,7 +48,7 @@ class ApiCallRepository(
     private var asCallerFlag = false
 
     private fun userId(): String =
-        session.user.value.str("id", "_id", default = session.token?.take(12) ?: "customer")
+        sessionStore.user.value.str("id", "_id", default = sessionStore.token?.take(12) ?: "customer")
 
     override fun logForTrip(tripId: Int): Flow<List<CallLogEntry>> =
         callLog.map { it.filter { e -> e.tripId == tripId } }
