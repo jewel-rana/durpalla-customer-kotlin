@@ -12,26 +12,41 @@ import androidx.compose.ui.unit.sp
 import com.durpalla.booking.R
 
 object Brand {
-    val Primary = Color(0xFF106E9D)
-    val P50 = Color(0xFFF1F7FB)
-    val P100 = Color(0xFFE4F0F7)
-    val P300 = Color(0xFF7FB3CF)
-    val P600 = Color(0xFF0B5A82)
-    val P700 = Color(0xFF084766)
-    val Navy = Color(0xFF0A3550)
+    val Primary = Color(0xFF006D9C)
+    val P50 = Color(0xFFF6F9FB)
+    val P100 = Color(0xFFE6F4F9)
+    val P200 = Color(0xFFB8DDEB)
+    val P300 = Color(0xFF3393BA)
+    val P600 = Color(0xFF005A82)
+    val P700 = Color(0xFF054C70)
+    val Navy = Color(0xFF06263A)
+    val NavyMid = Color(0xFF063A55)
+    val NavyDeep = Color(0xFF04202F)
+    val HeroMid = Color(0xFF054C70)
+    val Sun = Color(0xFFFBBF24)
     val Amber = Color(0xFFF59E0B)
-    val AmberDark = Color(0xFFD97706)
+    val AmberDark = Color(0xFFB45309)
+    val SoftYellow = Color(0xFFFFF7E6)
     val Success = Color(0xFF16A34A)
-    val Error = Color(0xFFDC2626)
+    val Error = Color(0xFFC62828)
+    val ErrorBg = Color(0xFFFEF2F2)
+    val Info = Color(0xFF0284C7)
     val Ink = Color(0xFF0F172A)
+    val TextStrong = Color(0xFF334155)
+    val TextBody = Color(0xFF475569)
     val Muted = Color(0xFF64748B)
+    val MutedSoft = Color(0xFF94A3B8)
+    val Border = Color(0xFFE5E7EB)
     val Line = Color(0xFFE2E8F0)
-    val Canvas = Color(0xFFF6F9FC)
+    val BorderStrong = Color(0xFFCBD5E1)
+    val Canvas = Color(0xFFF4F7FA)
+    val CanvasAlt = Color(0xFFF1F5F9)
+    val CanvasDeep = Color(0xFFEEF2F6)
 
-    val HeroGradient = Brush.linearGradient(listOf(Navy, P700, Primary))
-    val CtaGradient = Brush.horizontalGradient(listOf(Color(0xFFFBBF24), Amber, AmberDark))
+    val HeroGradient = Brush.linearGradient(listOf(Navy, HeroMid, Primary))
+    val CtaGradient = Brush.horizontalGradient(listOf(Sun, Amber, AmberDark))
     val PrimaryGradient = Brush.horizontalGradient(listOf(Primary, P600))
-    val ShadowTint = Color(0x33106E9D)
+    val ShadowTint = Primary.copy(alpha = 0.2f)
 }
 
 @OptIn(ExperimentalTextApi::class)
@@ -58,14 +73,14 @@ val AppTypography = Typography(
 
 private val Light = lightColorScheme(
     primary = Brand.Primary, onPrimary = Color.White, primaryContainer = Brand.P100, onPrimaryContainer = Brand.P700,
-    secondary = Brand.Navy, onSecondary = Color.White, tertiary = Brand.Amber, onTertiary = Color(0xFF1F1300),
+    secondary = Brand.Navy, onSecondary = Color.White, tertiary = Brand.Amber, onTertiary = Brand.AmberDark,
     background = Brand.Canvas, surface = Color.White, onSurface = Brand.Ink, onBackground = Brand.Ink,
     surfaceVariant = Brand.P50, onSurfaceVariant = Brand.Muted, outline = Brand.Line, error = Brand.Error,
 )
 private val Dark = darkColorScheme(
     primary = Brand.P300, onPrimary = Brand.Navy, primaryContainer = Brand.P700, onPrimaryContainer = Brand.P100,
-    secondary = Brand.P100, tertiary = Brand.Amber, background = Color(0xFF07131D), surface = Color(0xFF0E1E2B),
-    surfaceVariant = Color(0xFF15293A), onSurfaceVariant = Color(0xFF9FB3C3), outline = Color(0xFF24394B),
+    secondary = Brand.P100, tertiary = Brand.Amber, background = Brand.NavyDeep, surface = Brand.Navy,
+    surfaceVariant = Brand.NavyMid, onSurfaceVariant = Brand.MutedSoft, outline = Brand.NavyMid,
 )
 
 @Composable

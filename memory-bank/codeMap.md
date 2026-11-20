@@ -29,7 +29,8 @@ Package root: `app/src/main/java/com/durpalla/booking/`
 
 ## Components (`ui/components/`)
 `SoftCard`, `GradientButton`, `PrimaryButton`, `DTopBar`, `FrostedIcon`, `Pill`, `SectionHeader`, `PhotoBox`, `Skeleton`, `LoadingList`, `EmptyState`, `ErrorState`, `money()`, `LogoHorizontal` — `Components.kt`  
-`PhoneInput` — `PhoneInput.kt`
+`PhoneInput` — `PhoneInput.kt`  
+`HeroBackgroundSlideshow` / `HeroSlides` / `HeroOverlay` — `HeroBackgroundSlideshow.kt`
 
 ## Nav / theme
 | What | Where |

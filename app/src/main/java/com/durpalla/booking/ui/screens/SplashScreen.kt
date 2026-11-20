@@ -15,7 +15,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
 import com.durpalla.booking.l10n.t
-import com.durpalla.booking.ui.theme.Brand
+import com.durpalla.booking.ui.components.HeroBackgroundSlideshow
+import com.durpalla.booking.ui.components.HeroOverlay
 import kotlinx.coroutines.delay
 
 /** Splash intro: logo fades & grows over the brand gradient, then lands on (guest) Home. */
@@ -23,7 +24,7 @@ import kotlinx.coroutines.delay
 fun SplashScreen(onDone: () -> Unit) {
     val a = remember { Animatable(0f) }
     LaunchedEffect(Unit) { a.animateTo(1f, tween(900, easing = FastOutSlowInEasing)); delay(500); onDone() }
-    Box(Modifier.fillMaxSize().background(Brand.HeroGradient), contentAlignment = Alignment.Center) {
+    HeroBackgroundSlideshow(Modifier.fillMaxSize(), HeroOverlay.Splash, Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(painterResource(R.drawable.logo_mark_white), null, Modifier.size(110.dp).scale(.7f + .3f * a.value).alpha(a.value))
             Spacer(Modifier.height(18.dp))

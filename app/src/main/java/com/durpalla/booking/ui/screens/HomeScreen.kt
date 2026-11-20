@@ -27,6 +27,7 @@ import com.durpalla.booking.R
 import com.durpalla.booking.core.str
 import com.durpalla.booking.data.repo.*
 import com.durpalla.booking.ui.components.*
+import com.durpalla.booking.ui.components.HeroOverlay
 import com.durpalla.booking.ui.nav.LocalContainer
 import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.nav.Routes
@@ -36,6 +37,7 @@ import com.durpalla.booking.l10n.t
 data class HomeData(val popular: List<TripSummary>, val hotels: List<Hotel>, val offers: List<Offer>, val upcoming: List<Booking>)
 
 data class ServiceTile(val key: String, val label: Int, val icon: ImageVector, val tint: Color)
+/** Category tile colors stay fixed (not theme tokens). */
 val serviceTiles = listOf(
     ServiceTile("launch", R.string.svc_launch, Icons.Filled.DirectionsBoat, Color(0xFF106E9D)),
     ServiceTile("bus", R.string.svc_bus, Icons.Filled.DirectionsBus, Color(0xFF0A3550)),
@@ -67,9 +69,7 @@ fun HomeScreen() {
 
     LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         item {
-            Box(Modifier.fillMaxWidth().height(250.dp)) {
-                Image(painterResource(R.drawable.photo_launch), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Brand.Navy.copy(.55f), Brand.Navy.copy(.92f)))))
+            HeroBackgroundSlideshow(Modifier.fillMaxWidth().height(250.dp), HeroOverlay.Home) {
                 Column(Modifier.statusBarsPadding().padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         LogoHorizontal(Modifier.height(30.dp), white = true)
@@ -220,7 +220,7 @@ fun OffersCarousel(offers: List<Offer>) {
                     Text(o.title, color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 2)
                     Text(o.subtitle, color = Color.White.copy(.8f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     Spacer(Modifier.weight(1f))
-                    if (o.code != null) Pill(o.code, Brand.Amber, Color(0xFF1F1300))
+                    if (o.code != null) Pill(o.code, Brand.Amber, Brand.AmberDark)
                 }
             }
         }

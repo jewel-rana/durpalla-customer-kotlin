@@ -182,6 +182,6 @@ fun TicketScreen(id: Int) {
 fun qr(text: String, size: Int = 512): Bitmap {
     val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
-    for (x in 0 until size) for (y in 0 until size) bmp.setPixel(x, y, if (m[x, y]) 0xFF0A3550.toInt() else 0xFFFFFFFF.toInt())
+    for (x in 0 until size) for (y in 0 until size) bmp.setPixel(x, y, if (m[x, y]) 0xFF06263A.toInt() else 0xFFFFFFFF.toInt())
     return bmp
 }

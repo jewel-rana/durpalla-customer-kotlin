@@ -46,7 +46,7 @@ object Notifications {
         val pi = PendingIntent.getActivity(ctx, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = NotificationCompat.Builder(ctx, if (isReminder) REMINDER else DEFAULT)
             .setSmallIcon(R.drawable.ic_stat_notify)
-            .setColor(0xFF106E9D.toInt())
+            .setColor(ctx.getColor(R.color.brand_primary))
             .setContentTitle(title ?: ctx.getString(if (isReminder) R.string.notif_reminder_title else R.string.notif_default_title))
             .setContentText(body ?: ctx.getString(if (isReminder) R.string.notif_reminder_body else R.string.notif_default_body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)

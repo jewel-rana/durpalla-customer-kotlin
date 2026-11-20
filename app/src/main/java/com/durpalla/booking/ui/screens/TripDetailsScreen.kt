@@ -215,7 +215,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                     }
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         Legend(Brand.P50, Brand.P300, t(R.string.available)); Legend(Brand.Amber, Brand.Amber, t(R.string.selected))
-                        Legend(Brand.Line, Brand.Line, t(R.string.booked)); Legend(Color(0xFFFEE2E2), Color(0xFFFCA5A5), t(R.string.held))
+                        Legend(Brand.Line, Brand.Line, t(R.string.booked)); Legend(Brand.ErrorBg, Brand.Error.copy(alpha = 0.45f), t(R.string.held))
                     }
                     val cols = vm.columns(d, tab.ifEmpty { "cabin" }, floor)
                     if (cols.all { it.isEmpty() }) EmptyState(Icons.Default.EventSeat, t(R.string.no_layout_floor))
@@ -256,7 +256,7 @@ private fun Legend(bg: Color, border: Color, label: String) = Row(verticalAlignm
 
 @Composable
 private fun SeatCell(s: SeatItem, selected: Boolean, locked: Boolean, busy: Boolean, onClick: () -> Unit) {
-    val bg by androidx.compose.animation.animateColorAsState(when { selected -> Brand.Amber; s.isBooked -> Brand.Line; locked -> Color(0xFFFEE2E2); else -> Brand.P50 }, label = "seat")
+    val bg by androidx.compose.animation.animateColorAsState(when { selected -> Brand.Amber; s.isBooked -> Brand.Line; locked -> Brand.ErrorBg; else -> Brand.P50 }, label = "seat")
     Box(Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)).background(bg).border(1.dp, if (selected) Brand.AmberDark else Brand.P300.copy(.5f), RoundedCornerShape(12.dp))
         .clickable(enabled = !locked && !busy, onClick = onClick), contentAlignment = Alignment.Center) {
         if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
