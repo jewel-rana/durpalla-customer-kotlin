@@ -4,6 +4,7 @@
 
 **Just done**
 - Live apigw deltas: parse create/accept `tripId`+`status` (unused OK); `iceServers` null → GET ice-servers then STUN; token renew 409 `CALL_PROVIDER_MISMATCH` / `CALL_ALREADY_ENDED` → stop renew + local end with localized message.
+- Debug-on-device scripts: `./dev.sh` (assembleDebug → adb install → launch → logcat), `./reload.sh` (installDebug), shared `scripts/dev_common.sh`. Options: `-s SERIAL`, `--no-log`.
 
 **Current focus for next agents**
 - Remaining `MASTER_PORT_TODOS.md` assets/ops; live calling when backend ready (`USE_MOCK_CALLS=false`).

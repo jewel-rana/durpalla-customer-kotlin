@@ -12,6 +12,16 @@ export JAVA_HOME=/path/to/jdk17
 echo "sdk.dir=/path/to/Android/sdk" > local.properties
 ./gradlew assembleDebug        # → app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### Debug on a connected device
+```
+./dev.sh              # assembleDebug → adb install -r -d → launch → logcat
+./reload.sh           # faster: :app:installDebug → launch → logcat
+./dev.sh -s SERIAL    # pick device when several are attached
+./dev.sh --no-log     # skip logcat after launch
+```
+Creates `local.properties` from `ANDROID_HOME` / `ANDROID_SDK_ROOT` if missing. Package: `com.durpalla.booking` / `.MainActivity`.
+
 Debug talks to `https://dev-apigw.durpalla.com/api/v1/`, release to `https://apigw.durpalla.com/api/v1/` (`BuildConfig.BASE_URL`, app/build.gradle.kts).
 
 Copy `google-services.json` and API/Pusher/reCAPTCHA keys from the Flutter app (see Config below). The google-services plugin is applied **only if** `app/google-services.json` exists, so the project still compiles without it.
