@@ -316,7 +316,7 @@ private fun Confetti() {
     val t = rememberInfiniteTransition(label = "c")
     val y by t.animateFloat(0f, 1f, infiniteRepeatable(tween(2200)), label = "y")
     Canvas(Modifier.fillMaxWidth().height(60.dp)) {
-        val colors = listOf(Brand.Amber, Brand.Primary, Brand.Success, Color(0xFFDB2777))
+        val colors = listOf(Brand.Amber, Brand.Primary, Brand.Success, Brand.Sun)
         repeat(28) { i ->
             val x = (i * 37 % 100) / 100f * size.width
             val yy = ((y + i * .13f) % 1f) * size.height

@@ -132,7 +132,7 @@ fun IncomingCallScreen(peerName: String, onAccept: () -> Unit, onDecline: () -> 
     Box(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Brand.Navy, Color(0xFF0F3D56)))),
+            .background(Brush.verticalGradient(listOf(Brand.Navy, Brand.NavyMid))),
     ) {
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp),

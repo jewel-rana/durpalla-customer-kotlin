@@ -47,7 +47,7 @@ fun SoftCard(modifier: Modifier = Modifier, radius: Dp = 18.dp, onClick: (() -> 
 /** Amber gradient CTA with a subtle glow. */
 @Composable
 fun GradientButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, loading: Boolean = false,
-                   brush: Brush = Brand.CtaGradient, textColor: Color = Color(0xFF1F1300), onClick: () -> Unit) {
+                   brush: Brush = Brand.CtaGradient, textColor: Color = Brand.AmberDark, onClick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     Box(
         modifier
