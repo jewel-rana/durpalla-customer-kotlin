@@ -34,7 +34,13 @@ class HomeRepository(private val api: ApiClient) {
     }.getOrDefault(emptyList())
 
     suspend fun cmsPage(slug: String): Pair<String, String>? = runCatching {
-        val r = api.getJson("page/$slug")
+        val normalized = when (slug) {
+            "return-and-refund-policy", "cancellation-policy", "refund-policy" -> "cancellation-and-refund-policy"
+            "terms" -> "terms-and-conditions"
+            "privacy" -> "privacy-policy"
+            else -> slug
+        }
+        val r = api.getJson("page/$normalized")
         val d = r.o("data") ?: r.o("page") ?: r
         val title = d.str("title", "name")
         val rawHtml = d.str("content", "body", "description", "html")
@@ -198,6 +204,7 @@ class BookingRepository(private val api: ApiClient) {
                 )
             },
             "amount" to amount,
+            "platform" to "android",
         )
         val r = api.postJson("booking/confirm", payload).requireSuccess(AppCtx.str(R.string.err_booking_failed))
         val bm = r.o("booking") ?: r.o("data")

@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.durpalla.booking.R
@@ -42,21 +43,49 @@ fun CheckoutScreen() {
     val user by c.session.user.collectAsState()
     var forSelf by remember { mutableStateOf(true) }
     var name by remember { mutableStateOf("") }; var mobile by remember { mutableStateOf("") }
+    var agreedPolicies by remember { mutableStateOf(false) }
+    var showPolicySheet by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val subtotal = c.cart.subtotal()
     val charge = c.cart.totalCharge()
     val vat = c.cart.totalVat()
     val total = c.cart.amountWithCharges()
+    val mustAgreeMsg = t(R.string.must_agree_policies)
 
     Scaffold(topBar = { DTopBar(t(R.string.checkout), onBack = nav::back) }, bottomBar = {
         Surface(shadowElevation = 16.dp, modifier = Modifier.fillMaxWidth().imePadding()) {
             Column(Modifier.navigationBarsPadding().padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+                    Checkbox(checked = agreedPolicies, onCheckedChange = { agreedPolicies = it; if (it) err = null })
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            t(R.string.agree_checkout_policies),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.clickable { agreedPolicies = !agreedPolicies },
+                        )
+                        Text(
+                            t(R.string.cancellation_refund_policy) + " • " + t(R.string.terms_conditions) + " • " + t(R.string.privacy_policy),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Brand.Primary,
+                            modifier = Modifier.clickable { showPolicySheet = true },
+                        )
+                    }
+                }
                 err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
                 val passengerErr = t(R.string.enter_passenger_name_mobile)
-                GradientButton(t(R.string.confirm_booking) + " • " + money(total), Modifier.fillMaxWidth(), enabled = cart.isNotEmpty(), loading = loading) {
+                GradientButton(
+                    t(R.string.confirm_booking) + " • " + money(total),
+                    Modifier.fillMaxWidth(),
+                    enabled = cart.isNotEmpty() && agreedPolicies,
+                    loading = loading,
+                ) {
                     if (!forSelf && (name.isBlank() || mobile.isBlank())) {
                         err = passengerErr
+                        return@GradientButton
+                    }
+                    if (!agreedPolicies) {
+                        err = mustAgreeMsg
                         return@GradientButton
                     }
                     scope.launch {
@@ -121,6 +150,9 @@ fun CheckoutScreen() {
             }
         }
     }
+    if (showPolicySheet) {
+        CancellationPolicySheet(onDismiss = { showPolicySheet = false })
+    }
 }
 
 @Composable
@@ -149,6 +181,7 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
     val state by vm.state.collectAsState()
     var selected by remember { mutableStateOf<Int?>(null) }
     var agreedPolicies by remember { mutableStateOf(false) }
+    var showPolicySheet by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val mustAgreeMsg = t(R.string.must_agree_policies)
@@ -167,7 +200,7 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
                             t(R.string.cancellation_refund_policy) + " • " + t(R.string.terms_conditions) + " • " + t(R.string.privacy_policy),
                             style = MaterialTheme.typography.labelSmall,
                             color = Brand.Primary,
-                            modifier = Modifier.clickable { nav.go(Routes.TERMS) },
+                            modifier = Modifier.clickable { showPolicySheet = true },
                         )
                     }
                 }
@@ -218,6 +251,9 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
                 Text(" " + t(R.string.secured_payment), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
             }
         }
+    }
+    if (showPolicySheet) {
+        CancellationPolicySheet(onDismiss = { showPolicySheet = false })
     }
 }
 
@@ -348,6 +384,69 @@ private fun Confetti() {
             val x = (i * 37 % 100) / 100f * size.width
             val yy = ((y + i * .13f) % 1f) * size.height
             drawRect(colors[i % 4], topLeft = androidx.compose.ui.geometry.Offset(x, yy), size = androidx.compose.ui.geometry.Size(8f, 14f))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CancellationPolicySheet(
+    onDismiss: () -> Unit,
+) {
+    val c = LocalContainer.current
+    val vm = rememberLoad("cancellation-policy-sheet") {
+        c.home.cmsPage("cancellation-and-refund-policy")
+    }
+    val state by vm.state.collectAsState()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    t(R.string.cancellation_refund_policy),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = null)
+                }
+            }
+            HorizontalDivider()
+            when (val s = state) {
+                Load.Loading -> LoadingList(3)
+                is Load.Err -> ErrorState(s.message) { vm.reload() }
+                is Load.Ok -> {
+                    val content = s.value?.second.orEmpty()
+                    if (content.isNotBlank()) {
+                        Text(
+                            content,
+                            style = MaterialTheme.typography.bodyMedium,
+                            lineHeight = 22.sp,
+                        )
+                    } else {
+                        Text(
+                            t(R.string.cancel_refund_policy),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Brand.Muted,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }

@@ -539,7 +539,7 @@ fun InfoScreen(kind: InfoKind) {
                     val slugs = listOf(
                         "terms-and-conditions" to R.string.terms_conditions,
                         "privacy-policy" to R.string.privacy_policy,
-                        "return-and-refund-policy" to R.string.cancellation_refund_policy,
+                        "cancellation-and-refund-policy" to R.string.cancellation_refund_policy,
                     )
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         slugs.forEach { (slug, labelRes) ->

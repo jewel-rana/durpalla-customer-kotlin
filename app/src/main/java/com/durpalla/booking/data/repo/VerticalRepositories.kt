@@ -96,7 +96,7 @@ class EntertainmentRepository(private val api: ApiClient) {
             "entertainment/booking/confirm",
             jsonOf(
                 "hold_id" to holdId,
-                "platform" to "mobile",
+                "platform" to "android",
                 "guest" to mapOf("name" to guestName, "mobile" to guestMobile),
                 "payment" to mapOf("mode" to "none"),
             ),

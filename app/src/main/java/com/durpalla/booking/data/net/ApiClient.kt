@@ -41,14 +41,44 @@ class ApiClient(private val session: SessionStore) {
         resp
     }
 
-    private val logging = HttpLoggingInterceptor().apply {
-        level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
-        redactHeader("Authorization")
+    private val debugLoggingInterceptor = Interceptor { chain ->
+        val req = chain.request()
+        if (BuildConfig.DEBUG) {
+            val url = req.url.toString()
+            val method = req.method
+            println("================================================================================")
+            println("[API REQUEST] $method $url")
+            android.util.Log.d("DurpallaApi", "[REQUEST] $method $url")
+            req.body?.let { b ->
+                val buffer = okio.Buffer()
+                b.writeTo(buffer)
+                val charset = b.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+                val bodyStr = buffer.readString(charset)
+                println("[API PAYLOAD] $bodyStr")
+                android.util.Log.d("DurpallaApi", "[PAYLOAD] $bodyStr")
+            }
+        }
+        val startNs = System.nanoTime()
+        val resp = chain.proceed(req)
+        val tookMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs)
+        if (BuildConfig.DEBUG) {
+            val code = resp.code
+            val url = resp.request.url.toString()
+            println("[API RESPONSE] $code $url (${tookMs}ms)")
+            android.util.Log.d("DurpallaApi", "[RESPONSE] $code $url (${tookMs}ms)")
+            val peekBody = runCatching { resp.peekBody(1024 * 1024).string() }.getOrNull()
+            if (peekBody != null) {
+                println("[API BODY] $peekBody")
+                android.util.Log.d("DurpallaApi", "[BODY] $peekBody")
+            }
+            println("================================================================================")
+        }
+        resp
     }
 
     val okHttp: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
-        .addInterceptor(logging)
+        .addInterceptor(debugLoggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS)
