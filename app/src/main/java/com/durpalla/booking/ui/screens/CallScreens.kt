@@ -110,17 +110,17 @@ fun OutgoingCallScreen() {
                     icon = if (s?.muted == true) Icons.Default.MicOff else Icons.Default.Mic,
                     label = t(R.string.call_mute),
                     selected = s?.muted == true,
-                ) { scope.launch { c.calls.setMuted(!(s?.muted ?: false)) } }
+                ) { scope.launch { runCatching { c.calls.setMuted(!(s?.muted ?: false)) } } }
                 CallRoundButton(
                     icon = Icons.Default.CallEnd,
                     label = t(R.string.call_end),
                     danger = true,
-                ) { scope.launch { c.calls.end(com.durpalla.booking.calling.CallEndReason.HANGUP) } }
+                ) { scope.launch { runCatching { c.calls.end(com.durpalla.booking.calling.CallEndReason.HANGUP) }; nav.back() } }
                 CallRoundButton(
                     icon = if (s?.speakerOn == true) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
                     label = t(R.string.call_speaker),
                     selected = s?.speakerOn == true,
-                ) { scope.launch { c.calls.setSpeaker(!(s?.speakerOn ?: false)) } }
+                ) { scope.launch { runCatching { c.calls.setSpeaker(!(s?.speakerOn ?: false)) } } }
             }
             Spacer(Modifier.height(32.dp))
         }
@@ -165,32 +165,71 @@ fun CallDriverButton(
     val nav = LocalNav.current
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    var calling by remember { mutableStateOf(false) }
+    var callError by remember { mutableStateOf<String?>(null) }
     if (!c.calls.canCallDriver(tripId, bidAccepted, tripActive)) return
 
-    fun startCall() = scope.launch {
-        val display = c.session.user.value.str(
-            "name",
-            default = com.durpalla.booking.core.AppCtx.str(R.string.you),
-        )
-        c.calls.startOutgoing(tripId, driverName, display)
-        nav.go("call")
+    fun startCall() {
+        if (calling) return
+        if (!c.session.isAuthenticated) {
+            nav.go(com.durpalla.booking.ui.nav.Routes.CALL)
+            return
+        }
+        scope.launch {
+            calling = true
+            callError = null
+            val display = c.session.user.value.str(
+                "name",
+                default = com.durpalla.booking.core.AppCtx.str(R.string.you),
+            )
+            runCatching {
+                c.calls.startOutgoing(tripId, driverName, display)
+            }.onSuccess {
+                nav.go(com.durpalla.booking.ui.nav.Routes.CALL)
+            }.onFailure { e ->
+                val msg = e.message?.takeIf { it.isNotBlank() }
+                    ?: com.durpalla.booking.core.AppCtx.str(R.string.err_could_not_start_call)
+                callError = msg
+                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
+            }
+            calling = false
+        }
     }
 
     val mic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        if (ok) startCall()
+        if (ok) startCall() else {
+            val msg = com.durpalla.booking.core.AppCtx.str(R.string.call_mic_permission)
+            callError = msg
+            android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
-    Button(
-        onClick = {
-            val granted = ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-            if (granted) startCall() else mic.launch(Manifest.permission.RECORD_AUDIO)
-        },
-        modifier = modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = Brand.Primary),
-    ) {
-        Icon(Icons.Default.Call, null)
-        Spacer(Modifier.width(8.dp))
-        Text(t(R.string.call_driver))
+    Column(modifier = modifier.fillMaxWidth()) {
+        Button(
+            onClick = {
+                val granted = ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                if (granted) startCall() else mic.launch(Manifest.permission.RECORD_AUDIO)
+            },
+            enabled = !calling,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Brand.Primary),
+        ) {
+            if (calling) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+            } else {
+                Icon(Icons.Default.Call, null)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(t(R.string.call_driver))
+        }
+        callError?.let {
+            Text(
+                it,
+                color = Brand.Error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
 }
 

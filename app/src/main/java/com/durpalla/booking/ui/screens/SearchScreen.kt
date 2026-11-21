@@ -62,17 +62,36 @@ fun SearchScreen(initialService: String) {
     var error by remember { mutableStateOf<String?>(null) }
     val selectStoppageHint = t(R.string.select_stoppage_from_list)
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .dismissKeyboardOnTap()
+            .verticalScroll(rememberScrollState())
+            .imePadding(),
+    ) {
         Box(Modifier.fillMaxWidth().background(Brand.HeroGradient).statusBarsPadding().padding(20.dp, 16.dp, 20.dp, 64.dp)) {
             Text(t(R.string.where_to), style = MaterialTheme.typography.headlineSmall, color = Color.White)
         }
         SoftCard(Modifier.padding(horizontal = 16.dp).offset(y = (-44).dp).animateContentSize()) {
             Column(Modifier.padding(16.dp)) {
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brand.P50).padding(4.dp)) {
-                    listOf("launch" to R.string.svc_launch, "bus" to R.string.svc_bus, "boat" to R.string.svc_boat, "hotel" to R.string.svc_hotel).forEach { (k, l) ->
+                val allServices = listOf(
+                    "launch" to R.string.svc_launch,
+                    "bus" to R.string.svc_bus,
+                    "boat" to R.string.svc_boat,
+                    "hotel" to R.string.svc_hotel,
+                    "tour" to R.string.svc_tour,
+                    "entertainment" to R.string.svc_entertainment,
+                )
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brand.P50)
+                        .horizontalScroll(rememberScrollState()).padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    allServices.forEach { (k, l) ->
                         val sel = service == k
                         Box(
-                            Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                            Modifier.clip(RoundedCornerShape(10.dp))
                                 .background(if (sel) Brand.Primary else Brand.P50)
                                 .clickable {
                                     if (service != k) {
@@ -80,105 +99,147 @@ fun SearchScreen(initialService: String) {
                                         from = ""; to = ""; fromId = 0; toId = 0; date = todayIso(); checkOut = todayIso(1); error = null
                                     }
                                 }
-                                .padding(vertical = 10.dp),
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(t(l), color = if (sel) Color.White else Brand.P700, style = MaterialTheme.typography.labelMedium)
+                            Text(t(l), color = if (sel) Color.White else Brand.P700, style = MaterialTheme.typography.labelMedium, maxLines = 1)
                         }
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                if (service == "hotel" || service == "boat") {
-                    if (service == "hotel") {
-                        SuggestField(t(R.string.city), from, Icons.Default.LocationCity, { from = it }) { q -> LocalSuggest.city(q) }
-                    } else {
-                        OutlinedTextField(from, { from = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.search_boats_optional)) }, singleLine = true, shape = RoundedCornerShape(14.dp))
-                        Spacer(Modifier.height(8.dp))
-                        val boatTypes = listOf(
-                            "" to R.string.boat_type_all,
-                            "House Boat" to R.string.boat_type_house,
-                            "Speed Boat" to R.string.boat_type_speed,
-                            "Steamer" to R.string.boat_type_steamer,
-                            "Fishing Boat" to R.string.boat_type_fishing,
-                        )
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            boatTypes.forEach { (key, labelRes) ->
-                                FilterChip(boatType == key, { boatType = key }, { Text(t(labelRes)) })
+                when (service) {
+                    "hotel", "boat" -> {
+                        if (service == "hotel") {
+                            SuggestField(t(R.string.city), from, Icons.Default.LocationCity, { from = it }) { q -> LocalSuggest.city(q) }
+                        } else {
+                            SuggestField(t(R.string.search_boats_optional), from, Icons.Default.Sailing, { from = it }) { q -> LocalSuggest.city(q) }
+                            Spacer(Modifier.height(8.dp))
+                            val boatTypes = listOf(
+                                "" to R.string.boat_type_all,
+                                "House Boat" to R.string.boat_type_house,
+                                "Speed Boat" to R.string.boat_type_speed,
+                                "Steamer" to R.string.boat_type_steamer,
+                                "Fishing Boat" to R.string.boat_type_fishing,
+                            )
+                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                boatTypes.forEach { (key, labelRes) ->
+                                    FilterChip(boatType == key, { boatType = key }, { Text(t(labelRes)) })
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DateField(if (service == "boat") t(R.string.starts) else t(R.string.check_in), date, Modifier.weight(1f)) {
+                                date = it
+                                if (checkOut <= it) checkOut = java.time.LocalDate.parse(it).plusDays(1).toString()
+                            }
+                            DateField(if (service == "boat") t(R.string.ends) else t(R.string.check_out), checkOut, Modifier.weight(1f), minDateIso = date) { checkOut = it }
+                        }
+                    }
+                    "tour", "entertainment" -> {
+                        SuggestField(
+                            label = t(R.string.city),
+                            value = from,
+                            icon = if (service == "tour") Icons.Default.Landscape else Icons.Default.Celebration,
+                            onChange = { from = it },
+                        ) { q -> LocalSuggest.city(q) }
+                        Spacer(Modifier.height(12.dp))
+                        Text(t(R.string.journey_date), style = MaterialTheme.typography.labelMedium, color = Brand.Muted)
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            DateField(
+                                label = t(R.string.pick_date),
+                                iso = date,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                compact = true,
+                            ) { date = it }
+                            val isTomorrow = date == todayIso(1)
+                            Surface(
+                                modifier = Modifier.height(44.dp).clip(RoundedCornerShape(12.dp)).clickable { date = if (isTomorrow) todayIso() else todayIso(1) },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isTomorrow) Brand.Primary else Brand.P50,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isTomorrow) Brand.Primary else Brand.Line),
+                            ) {
+                                Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        t(R.string.tomorrow),
+                                        color = if (isTomorrow) Color.White else Brand.P700,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1,
+                                    )
+                                }
                             }
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DateField(if (service == "boat") t(R.string.starts) else t(R.string.check_in), date, Modifier.weight(1f)) {
-                            date = it
-                            if (checkOut <= it) checkOut = java.time.LocalDate.parse(it).plusDays(1).toString()
-                        }
-                        DateField(if (service == "boat") t(R.string.ends) else t(R.string.check_out), checkOut, Modifier.weight(1f), minDateIso = date) { checkOut = it }
-                    }
-                } else {
-                    Box {
-                        Column {
-                            GhatPlaceField(
-                                label = t(R.string.from),
-                                value = from,
-                                selectedId = fromId,
-                                icon = Icons.Default.TripOrigin,
-                                exclude = to,
-                                serviceType = service,
-                                onPick = { place -> from = place.name; fromId = place.id; error = null },
-                                onClear = { from = ""; fromId = 0; error = selectStoppageHint },
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            GhatPlaceField(
-                                label = t(R.string.to),
-                                value = to,
-                                selectedId = toId,
-                                icon = Icons.Default.Place,
-                                exclude = from,
-                                serviceType = service,
-                                onPick = { place -> to = place.name; toId = place.id; error = null },
-                                onClear = { to = ""; toId = 0; error = selectStoppageHint },
-                            )
-                        }
-                        Box(
-                            Modifier.align(Alignment.Center).size(40.dp).clip(CircleShape).background(Brand.Primary)
-                                .clickable {
-                                    val tmpName = from; from = to; to = tmpName
-                                    val tmpId = fromId; fromId = toId; toId = tmpId
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(Icons.Default.SwapVert, null, tint = Color.White)
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text(t(R.string.journey_date), style = MaterialTheme.typography.labelMedium, color = Brand.Muted)
-                    Spacer(Modifier.height(6.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        DateField(
-                            label = t(R.string.pick_date),
-                            iso = date,
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            compact = true,
-                        ) { date = it }
-                        val isTomorrow = date == todayIso(1)
-                        Surface(
-                            modifier = Modifier.height(44.dp).clip(RoundedCornerShape(12.dp)).clickable { date = if (isTomorrow) todayIso() else todayIso(1) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isTomorrow) Brand.Primary else Brand.P50,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isTomorrow) Brand.Primary else Brand.Line),
-                        ) {
-                            Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-                                Text(
-                                    t(R.string.tomorrow),
-                                    color = if (isTomorrow) Color.White else Brand.P700,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    maxLines = 1,
+                    else -> {
+                        Box {
+                            Column {
+                                GhatPlaceField(
+                                    label = t(R.string.from),
+                                    value = from,
+                                    selectedId = fromId,
+                                    icon = Icons.Default.TripOrigin,
+                                    exclude = to,
+                                    serviceType = service,
+                                    onPick = { place -> from = place.name; fromId = place.id; error = null },
+                                    onClear = { from = ""; fromId = 0; error = selectStoppageHint },
                                 )
+                                Spacer(Modifier.height(10.dp))
+                                GhatPlaceField(
+                                    label = t(R.string.to),
+                                    value = to,
+                                    selectedId = toId,
+                                    icon = Icons.Default.Place,
+                                    exclude = from,
+                                    serviceType = service,
+                                    onPick = { place -> to = place.name; toId = place.id; error = null },
+                                    onClear = { to = ""; toId = 0; error = selectStoppageHint },
+                                )
+                            }
+                            Box(
+                                Modifier.align(Alignment.Center).size(40.dp).clip(CircleShape).background(Brand.Primary)
+                                    .clickable {
+                                        val tmpName = from; from = to; to = tmpName
+                                        val tmpId = fromId; fromId = toId; toId = tmpId
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Default.SwapVert, null, tint = Color.White)
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(t(R.string.journey_date), style = MaterialTheme.typography.labelMedium, color = Brand.Muted)
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            DateField(
+                                label = t(R.string.pick_date),
+                                iso = date,
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                compact = true,
+                            ) { date = it }
+                            val isTomorrow = date == todayIso(1)
+                            Surface(
+                                modifier = Modifier.height(44.dp).clip(RoundedCornerShape(12.dp)).clickable { date = if (isTomorrow) todayIso() else todayIso(1) },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isTomorrow) Brand.Primary else Brand.P50,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isTomorrow) Brand.Primary else Brand.Line),
+                            ) {
+                                Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        t(R.string.tomorrow),
+                                        color = if (isTomorrow) Color.White else Brand.P700,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1,
+                                    )
+                                }
                             }
                         }
                     }
@@ -186,7 +247,7 @@ fun SearchScreen(initialService: String) {
                 error?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
                 Spacer(Modifier.height(16.dp))
                 val errCity = t(R.string.enter_a_city)
-                val isTransport = service != "hotel" && service != "boat"
+                val isTransport = service == "launch" || service == "bus"
                 val searchEnabled = !isTransport || (fromId > 0 && toId > 0 && from.isNotBlank() && to.isNotBlank())
                 GradientButton(
                     t(if (service == "hotel") R.string.search_hotels else R.string.search_trips),
@@ -203,6 +264,9 @@ fun SearchScreen(initialService: String) {
                             val qCombined = listOf(from.trim(), boatType.trim()).filter { it.isNotEmpty() }.joinToString(" ")
                             nav.go(Routes.boatList(qCombined, starts, ends))
                         }
+                        "tour", "entertainment" -> {
+                            nav.go(Routes.experiences(service, from.trim(), date))
+                        }
                         else -> if (fromId <= 0 || toId <= 0 || from.isBlank() || to.isBlank()) {
                             error = selectStoppageHint
                         } else {
@@ -215,7 +279,13 @@ fun SearchScreen(initialService: String) {
         Text(t(R.string.more_services), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp))
         Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             serviceTiles.filter { it.key == "tour" || it.key == "entertainment" }.forEach { tile ->
-                SoftCard(Modifier.weight(1f), onClick = { nav.go(Routes.experiences(tile.key)) }) {
+                SoftCard(
+                    Modifier.weight(1f),
+                    onClick = {
+                        service = tile.key
+                        from = ""; to = ""; fromId = 0; toId = 0; error = null
+                    },
+                ) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(tile.icon, null, tint = tile.tint); Spacer(Modifier.width(10.dp)); Text(t(tile.label), style = MaterialTheme.typography.titleSmall)
                     }

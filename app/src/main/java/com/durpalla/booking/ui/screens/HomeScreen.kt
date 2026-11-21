@@ -32,6 +32,8 @@ import com.durpalla.booking.ui.nav.LocalContainer
 import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonObject
 
 data class HomeData(
@@ -55,10 +57,8 @@ val serviceTiles = listOf(
     ServiceTile("hotel", R.string.svc_hotel, Icons.Filled.Hotel, Color(0xFFD97706)),
 )
 
-fun openService(nav: com.durpalla.booking.ui.nav.AppNavigator, key: String) = when (key) {
-    "tour", "entertainment" -> nav.go(Routes.experiences(key))
-    else -> nav.tab(Routes.searchFor(key))
-}
+fun openService(nav: com.durpalla.booking.ui.nav.AppNavigator, key: String) =
+    nav.tab(Routes.searchFor(key))
 
 private fun parseActiveServices(siteInit: JsonObject, appConfig: JsonObject): Set<String> {
     val arr = siteInit.a("services") ?: appConfig.a("services") ?: return emptySet()
@@ -87,21 +87,33 @@ fun HomeScreen() {
     val loggedIn by c.session.loggedIn.collectAsState()
     val user by c.session.user.collectAsState()
     val vm = rememberLoad("home-$loggedIn") {
-        val appCfg = runCatching { c.home.appConfig() }.getOrDefault(JsonObject(emptyMap()))
-        val siteInit = runCatching { c.home.siteInit() }.getOrDefault(JsonObject(emptyMap()))
-        val maint = if (appCfg.b("maintenance_mode") || appCfg.b("maintenance")) {
-            appCfg.str("maintenance_message", default = "")
-        } else null
-        HomeData(
-            popular = runCatching { c.home.popularTrips() }.getOrDefault(emptyList()),
-            hotels = runCatching { c.home.topHotels() }.getOrDefault(emptyList()),
-            boats = runCatching { c.boats.homeTop(8) }.getOrDefault(emptyList()),
-            entertainment = runCatching { c.entertainment.homeTop(8) }.getOrDefault(emptyList()),
-            offers = runCatching { c.home.offers() }.getOrDefault(emptyList()),
-            upcoming = if (loggedIn) runCatching { c.bookings.myBookings(1).first.take(1) }.getOrDefault(emptyList()) else emptyList(),
-            activeServiceKeys = parseActiveServices(siteInit, appCfg),
-            maintenanceMessage = maint,
-        )
+        coroutineScope {
+            val appCfgDef = async { runCatching { c.home.appConfig() }.getOrDefault(JsonObject(emptyMap())) }
+            val siteInitDef = async { runCatching { c.home.siteInit() }.getOrDefault(JsonObject(emptyMap())) }
+            val popularDef = async { runCatching { c.home.popularTrips() }.getOrDefault(emptyList()) }
+            val hotelsDef = async { runCatching { c.home.topHotels() }.getOrDefault(emptyList()) }
+            val boatsDef = async { runCatching { c.boats.homeTop(8) }.getOrDefault(emptyList()) }
+            val entDef = async { runCatching { c.entertainment.homeTop(8) }.getOrDefault(emptyList()) }
+            val offersDef = async { runCatching { c.home.offers() }.getOrDefault(emptyList()) }
+            val upcomingDef = async {
+                if (loggedIn) runCatching { c.bookings.myBookings(1).first.take(1) }.getOrDefault(emptyList()) else emptyList()
+            }
+            val appCfg = appCfgDef.await()
+            val siteInit = siteInitDef.await()
+            val maint = if (appCfg.b("maintenance_mode") || appCfg.b("maintenance")) {
+                appCfg.str("maintenance_message", default = "")
+            } else null
+            HomeData(
+                popular = popularDef.await(),
+                hotels = hotelsDef.await(),
+                boats = boatsDef.await(),
+                entertainment = entDef.await(),
+                offers = offersDef.await(),
+                upcoming = upcomingDef.await(),
+                activeServiceKeys = parseActiveServices(siteInit, appCfg),
+                maintenanceMessage = maint,
+            )
+        }
     }
     val state by vm.state.collectAsState()
     val visibleTiles = remember(state) {
@@ -112,7 +124,7 @@ fun HomeScreen() {
     LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         item {
             Box(Modifier.fillMaxWidth().height(250.dp)) {
-                Image(painterResource(R.drawable.photo_launch), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                PhotoBox(null, R.drawable.photo_launch, Modifier.matchParentSize())
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Brand.Navy.copy(.55f), Brand.Navy.copy(.92f)))))
                 Column(Modifier.statusBarsPadding().padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -190,23 +202,23 @@ fun HomeScreen() {
                 item { OffersCarousel(d.offers) }
                 item { SectionHeader(t(R.string.popular_routes)) }
                 if (d.popular.isEmpty()) item { PopularFallback() } else item {
-                    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(d.popular) { trip -> TripMiniCard(trip) { nav.go(Routes.trip(trip.tripId, trip.serviceType)) } }
+                    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(d.popular, key = { it.tripId }, contentType = { "trip" }) { trip -> TripMiniCard(trip) { nav.go(Routes.trip(trip.tripId, trip.serviceType)) } }
                     }
                 }
                 if (d.hotels.isNotEmpty()) {
                     item { SectionHeader(t(R.string.top_hotels), t(R.string.tab_search)) { nav.tab(Routes.searchFor("hotel")) } }
                     item {
-                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(d.hotels) { h -> HotelCard(h, Modifier.width(230.dp)) { nav.go(Routes.hotel(h.id, todayIso(1), todayIso(2))) } }
+                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(d.hotels, key = { it.id }, contentType = { "hotel" }) { h -> HotelCard(h, Modifier.width(230.dp)) { nav.go(Routes.hotel(h.id, todayIso(1), todayIso(2))) } }
                         }
                     }
                 }
                 if (d.boats.isNotEmpty()) {
                     item { SectionHeader(t(R.string.top_boats), t(R.string.see_all)) { nav.go(Routes.boatList("", "${todayIso(1)}T09:00:00", "${todayIso(1)}T18:00:00")) } }
                     item {
-                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(d.boats) { b ->
+                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(d.boats, key = { it.id }, contentType = { "boat" }) { b ->
                                 ExperienceMiniCard(b) { nav.go(Routes.boatDetails(b.id, "${todayIso(1)}T09:00:00", "${todayIso(1)}T18:00:00")) }
                             }
                         }
@@ -215,8 +227,8 @@ fun HomeScreen() {
                 if (d.entertainment.isNotEmpty()) {
                     item { SectionHeader(t(R.string.top_entertainment), t(R.string.see_all)) { nav.go(Routes.experiences("entertainment")) } }
                     item {
-                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(d.entertainment) { ent ->
+                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(d.entertainment, key = { it.id }, contentType = { "ent" }) { ent ->
                                 ExperienceMiniCard(ent) { nav.go(Routes.experience(ent.id, "entertainment")) }
                             }
                         }
@@ -224,16 +236,16 @@ fun HomeScreen() {
                 }
                 item { SectionHeader(t(R.string.explore)) }
                 item {
-                    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         val ex = listOf(
                             Triple("Sajek", R.drawable.photo_sajek, "tour"),
                             Triple("Sundarbans", R.drawable.photo_sundarbans, "tour"),
                             Triple("St. Martin's", R.drawable.photo_stmartin, "tour"),
                             Triple("Concerts", R.drawable.photo_concert, "entertainment"),
                         )
-                        items(ex) { (title, img, svc) ->
-                            Box(Modifier.size(150.dp, 180.dp).clip(RoundedCornerShape(18.dp)).clickable { nav.go(Routes.experiences(svc)) }) {
-                                Image(painterResource(img), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                        items(ex, key = { it.first }, contentType = { "explore" }) { (title, img, svc) ->
+                            Box(Modifier.size(150.dp, 180.dp).clickable { nav.go(Routes.experiences(svc)) }) {
+                                PhotoBox(null, img, Modifier.matchParentSize())
                                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(.7f)))))
                                 Text(title, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.BottomStart).padding(12.dp))
                             }
@@ -266,10 +278,10 @@ private fun PopularFallback() {
         Triple("Dhaka (Sadar Ghat)", "Bhola", 1 to 3),
         Triple("Dhaka (Sadar Ghat)", "Patuakhali", 1 to 4),
     )
-    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(routes) { (f, dest, ids) ->
             SoftCard(Modifier.width(220.dp), onClick = { nav.go(Routes.results("launch", f, dest, todayIso(), ids.first, ids.second)) }) {
-                Image(painterResource(R.drawable.photo_barishal), null, Modifier.fillMaxWidth().height(100.dp), contentScale = ContentScale.Crop)
+                PhotoBox(null, R.drawable.photo_barishal, Modifier.fillMaxWidth().height(100.dp))
                 Column(Modifier.padding(12.dp)) {
                     Text("$f → $dest", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(t(R.string.launch_tonight), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
@@ -320,7 +332,7 @@ fun OffersCarousel(offers: List<Offer>) {
             Offer(0, t(R.string.sample_offer_2_title), t(R.string.sample_offer_2_body), null, null),
         )
     }
-    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(list) { o ->
             Box(Modifier.size(290.dp, 130.dp).clip(RoundedCornerShape(20.dp)).background(Brand.HeroGradient)) {
                 if (o.image != null) PhotoBox(o.image, R.drawable.photo_river, Modifier.matchParentSize())
@@ -339,7 +351,7 @@ fun OffersCarousel(offers: List<Offer>) {
 fun UpcomingTicketCard(b: Booking, onClick: () -> Unit) {
     val it0 = b.firstItem
     Row(
-        Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.HeroGradient).clickable(onClick = onClick).padding(16.dp),
+        Modifier.padding(horizontal = 16.dp).fillMaxWidth().background(Brand.HeroGradient).clickable(onClick = onClick).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

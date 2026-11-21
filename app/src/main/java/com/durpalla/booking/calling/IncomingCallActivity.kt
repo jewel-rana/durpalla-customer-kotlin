@@ -43,7 +43,7 @@ class IncomingCallActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             LaunchedEffect(callId) {
                 if (container.calls.session.value == null && callId.isNotBlank()) {
-                    container.calls.handleIncoming(callId, tripId, peer)
+                    runCatching { container.calls.handleIncoming(callId, tripId, peer) }.onFailure { finish() }
                 }
                 if (autoAccept) tryAccept(container)
             }
@@ -57,11 +57,11 @@ class IncomingCallActivity : ComponentActivity() {
                 IncomingCallScreen(
                     peerName = peer,
                     onAccept = {
-                        if (hasMic()) scope.launch { container.calls.accept(); finish() }
+                        if (hasMic()) scope.launch { tryAccept(container) }
                         else micPermission.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     onDecline = {
-                        scope.launch { container.calls.decline(reason = "declined"); finish() }
+                        scope.launch { runCatching { container.calls.decline(reason = "declined") }; finish() }
                     },
                 )
             }
@@ -76,7 +76,7 @@ class IncomingCallActivity : ComponentActivity() {
             micPermission.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
-        container.calls.accept()
+        runCatching { container.calls.accept() }.onFailure { finish(); return }
         // Hand off to MainActivity call UI
         startActivity(
             android.content.Intent(this, com.durpalla.booking.MainActivity::class.java).apply {

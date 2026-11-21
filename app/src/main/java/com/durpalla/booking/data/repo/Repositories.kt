@@ -122,9 +122,12 @@ class TripRepository(private val api: ApiClient) {
     suspend fun ghatSuggestions(q: String, exclude: String? = null, type: String? = null): List<String> =
         ghatPlaceSuggestions(q, exclude, type).map { it.name }
 
-    suspend fun citySuggestions(q: String): List<String> =
-        if (q.isBlank()) emptyList()
+    suspend fun citySuggestions(q: String): List<String> {
+        val list = if (q.isBlank()) emptyList()
         else runCatching { parseSuggestions(api.getJson("city/suggestion", mapOf("q" to q)).a("data")) }.getOrDefault(emptyList())
+        if (list.isNotEmpty()) return list
+        return GhatFallback.matches(q, null)
+    }
 
     private fun parseSuggestions(arr: JsonArray?): List<String> = arr?.mapNotNull { e ->
         when (e) {
@@ -332,16 +335,42 @@ class ProfileRepository(private val api: ApiClient, private val session: Session
         phone: String?,
         avatarPart: okhttp3.MultipartBody.Part? = null,
     ): JsonObject {
-        val r = api.putMultipart(
-            "my/profile",
-            buildMap {
-                put("name", name)
-                put("email", email)
-                phone?.let { put("phone", it) }
-            },
+        val fields = buildMap {
+            put("name", name)
+            put("email", email)
+            phone?.let {
+                put("mobile", it)
+                put("phone", it)
+            }
+        }
+        var r = api.putMultipart(
+            "my/update-profile",
+            fields,
             avatarPart,
-        ).requireSuccess(AppCtx.str(R.string.err_update_failed))
-        (r.o("data") ?: r.o("user"))?.let { session.saveUser(it) }
+            method = "POST",
+        )
+        if (!r.success && avatarPart != null) {
+            val up = api.putMultipart(
+                "my/profile/upload/procedural",
+                emptyMap(),
+                avatarPart,
+                method = "POST",
+            )
+            if (up.success) r = up
+        }
+        r.requireSuccess(AppCtx.str(R.string.err_update_failed))
+        val current = session.user.value?.toMutableMap() ?: mutableMapOf()
+        fields.forEach { (k, v) -> current[k] = JsonPrimitive(v) }
+        val updated = r.o("data") ?: r.o("user")
+        updated?.forEach { (k, v) -> current[k] = v }
+        val avatar = listOf("avatar", "photo", "avatar_url")
+            .firstNotNullOfOrNull { r.s(it) ?: updated.s(it) }
+        if (!avatar.isNullOrBlank()) {
+            current["avatar"] = JsonPrimitive(avatar)
+            current["photo"] = JsonPrimitive(avatar)
+            current["avatar_url"] = JsonPrimitive(avatar)
+        }
+        session.saveUser(JsonObject(current))
         return r
     }
 

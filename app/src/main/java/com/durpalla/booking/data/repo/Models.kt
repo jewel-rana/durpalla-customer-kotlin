@@ -110,21 +110,31 @@ data class Booking(
 ) {
     val firstItem get() = items.firstOrNull()
     companion object {
-        fun from(m: JsonObject) = Booking(
-            id = m.i("id") ?: 0,
-            pnr = m.str("pnr"),
-            bookingDate = m.str("booking_date_formated", "booking_date"),
-            paymentStatus = m.str("payment_status"),
-            status = m.str("status"),
-            totalPayable = m.d("total_payable", "total_amount") ?: 0.0,
-            cancellable = m.b("cancellable"),
-            downloadable = m.b("downloadable"),
-            items = m.a("items").objects(),
-            transactionId = m.s("transaction_id"),
-            invoiceUrl = MediaUrl.resolve(m.s("invoice_url")),
-            isHotelStay = m.b("is_hotel_stay") || m.b("isHotelStay"),
-            raw = m,
-        )
+        fun from(m: JsonObject): Booking {
+            val rawItems = (m.a("items") ?: m.a("booking_items") ?: m.a("tickets") ?: m.a("order_items")).objects()
+            val items = if (rawItems.isNotEmpty()) rawItems else if (
+                m.s("cabin_no") != null || m.s("seat_no") != null || m.s("hotel_name") != null ||
+                m.s("vehicle_name") != null || m.s("route_name") != null || m.s("room_type_title") != null
+            ) listOf(m) else emptyList()
+            val pnrCandidate = listOf("pnr", "booking_reference", "bookingReference")
+                .firstNotNullOfOrNull { m.s(it)?.trim()?.takeIf { s -> s.isNotEmpty() && !s.equals("null", true) && !s.matches(Regex("""^\d+(\.0+)?$""")) } }
+                ?: m.str("pnr", "booking_reference")
+            return Booking(
+                id = m.i("id", "order_id", "booking_id") ?: 0,
+                pnr = pnrCandidate,
+                bookingDate = m.str("booking_date_formated", "booking_date_formatted", "booking_date"),
+                paymentStatus = m.str("payment_status"),
+                status = m.str("status"),
+                totalPayable = m.d("total_payable", "total_amount") ?: 0.0,
+                cancellable = m.b("cancellable"),
+                downloadable = m.b("downloadable"),
+                items = items,
+                transactionId = m.s("transaction_id"),
+                invoiceUrl = MediaUrl.resolve(m.s("invoice") ?: m.s("invoice_url")),
+                isHotelStay = m.b("is_hotel_stay") || m.b("isHotelStay"),
+                raw = m,
+            )
+        }
     }
 }
 

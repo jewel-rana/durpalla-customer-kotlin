@@ -57,7 +57,8 @@ object Routes {
     fun ticket(id: Int) = "ticket/$id"
     fun hotelResults(city: String, ci: String, co: String) = "hotels/${Uri.encode(city)}/$ci/$co"
     fun hotel(id: Int, ci: String, co: String) = "hotel/$id/$ci/$co"
-    fun experiences(service: String) = "exp/$service"
+    fun experiences(service: String, q: String = "", date: String = "") =
+        "exp/$service?q=${Uri.encode(q)}&date=${Uri.encode(date)}"
     fun experience(id: Int, service: String = "tour") = "expd/$service/$id"
     fun bookExperience(id: Int, service: String = "tour") = "expbook/$service/$id"
     fun boatList(q: String = "", starts: String = "", ends: String = "") =
@@ -142,7 +143,8 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
             },
             contentWindowInsets = WindowInsets(0),
         ) { pad ->
-            NavHost(nav, startDestination = Routes.SPLASH, modifier = Modifier.padding(pad),
+            Box(Modifier.fillMaxSize().padding(pad).com.durpalla.booking.ui.components.dismissKeyboardOnTap()) {
+            NavHost(nav, startDestination = Routes.SPLASH,
                 enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(320)) + fadeIn(tween(320)) },
                 exitTransition = { fadeOut(tween(200)) },
                 popEnterTransition = { fadeIn(tween(250)) },
@@ -230,7 +232,19 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                 composable("hotel/{id}/{ci}/{co}", arguments = listOf(navArgument("id") { type = NavType.IntType })) { e ->
                     val a = e.arguments!!; HotelDetailsScreen(a.getInt("id"), a.getString("ci")!!, a.getString("co")!!)
                 }
-                composable("exp/{service}") { ExperienceListScreen(it.arguments!!.getString("service")!!) }
+                composable(
+                    "exp/{service}?q={q}&date={date}",
+                    arguments = listOf(
+                        navArgument("q") { defaultValue = "" },
+                        navArgument("date") { defaultValue = "" },
+                    ),
+                ) {
+                    ExperienceListScreen(
+                        service = it.arguments!!.getString("service")!!,
+                        initialQuery = it.arguments?.getString("q").orEmpty(),
+                        initialDate = it.arguments?.getString("date").orEmpty(),
+                    )
+                }
                 composable(
                     "expd/{service}/{id}",
                     arguments = listOf(navArgument("id") { type = NavType.IntType }),
@@ -288,6 +302,7 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                     }
                     TextButton(onClick = { pendingRoute = null }) { Text(t(R.string.not_now)) }
                 }
+            }
             }
         }
     }

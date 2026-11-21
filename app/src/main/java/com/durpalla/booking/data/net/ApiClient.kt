@@ -120,9 +120,10 @@ class ApiClient(private val session: SessionStore) {
 
     suspend fun delete(path: String): JsonObject = call { api.delete(normalizePath(path)) }
 
-    suspend fun putMultipart(path: String, fields: Map<String, String>, file: MultipartBody.Part?, method: String = "PUT") =
+    suspend fun putMultipart(path: String, fields: Map<String, String>, file: MultipartBody.Part?, method: String = "POST") =
         call {
-            val parts = (fields + ("_method" to method)).mapValues { it.value.toRequestBody("text/plain".toMediaType()) }
+            val allFields = if (method.uppercase() != "POST") fields + ("_method" to method) else fields
+            val parts = allFields.mapValues { it.value.toRequestBody("text/plain".toMediaType()) }
             api.multipart(normalizePath(path), parts, file)
         }
 

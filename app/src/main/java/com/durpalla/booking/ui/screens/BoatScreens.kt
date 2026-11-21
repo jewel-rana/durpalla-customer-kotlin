@@ -163,12 +163,13 @@ fun BoatDetailsScreen(id: Int, startsAt: String, endsAt: String) {
                         Text("$guests")
                         IconButton({ guests++ }) { Text("+") }
                     }
+                    val callTripId = d.i("driver_trip_id", "driverTripId", "trip_id") ?: id
                     CallDriverButton(
-                        tripId = id,
+                        tripId = callTripId,
                         driverName = d.str("driver_name", "name", "title", default = t(R.string.call_driver)),
                         tripActive = true,
                     )
-                    CallLogSection(id, tripCallLog = d.a("callLog").objects())
+                    CallLogSection(callTripId, tripCallLog = d.a("callLog").objects())
                     err?.let { Text(it, color = Brand.Error) }
                     val guestErr = t(R.string.guest_name_mobile_required)
                     GradientButton(t(R.string.book_now), Modifier.fillMaxWidth(), loading = loading) {
@@ -254,7 +255,16 @@ fun BoatCustomTripScreen() {
             )
         },
     ) { pad ->
-        Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .dismissKeyboardOnTap()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             DateField(t(R.string.journey_date), tripDate, Modifier.fillMaxWidth()) { tripDate = it }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SoftCard(Modifier.weight(1f)) {

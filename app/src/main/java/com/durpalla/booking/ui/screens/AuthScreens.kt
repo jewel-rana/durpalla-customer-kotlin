@@ -38,6 +38,7 @@ import com.durpalla.booking.core.success
 import com.durpalla.booking.ui.components.GradientButton
 import com.durpalla.booking.ui.components.PhoneInputField
 import com.durpalla.booking.ui.components.SoftCard
+import com.durpalla.booking.ui.components.dismissKeyboardOnTap
 import com.durpalla.booking.ui.nav.LocalContainer
 import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.nav.Routes
@@ -54,7 +55,9 @@ private fun AuthScaffold(title: String, subtitle: String, content: @Composable C
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState()),
+            .dismissKeyboardOnTap()
+            .verticalScroll(rememberScrollState())
+            .imePadding(),
     ) {
         Box(
             Modifier

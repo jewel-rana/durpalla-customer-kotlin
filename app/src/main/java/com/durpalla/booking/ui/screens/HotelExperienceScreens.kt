@@ -242,22 +242,81 @@ fun ReviewSubmissionDialog(onDismiss: () -> Unit, onSubmit: (Double, String) -> 
 }
 
 @Composable
-fun ExperienceListScreen(service: String) {
+fun ExperienceListScreen(
+    service: String,
+    initialQuery: String = "",
+    initialDate: String = "",
+) {
     val c = LocalContainer.current; val nav = LocalNav.current
     val svc = when (service) {
         "tour", "tours" -> Service.TOUR
         else -> Service.ENTERTAINMENT
     }
-    var q by remember { mutableStateOf("") }
-    val vm = rememberLoad("exp-$service-$q") { c.experiences.list(svc, q) }
+    var dest by remember { mutableStateOf(initialQuery) }
+    var date by remember { mutableStateOf(initialDate.ifBlank { todayIso() }) }
+    var submittedDest by remember { mutableStateOf(initialQuery) }
+    var submittedDate by remember { mutableStateOf(initialDate.ifBlank { todayIso() }) }
+    val vm = rememberLoad("exp-$service-$submittedDest-$submittedDate") {
+        c.experiences.list(svc, submittedDest, submittedDate)
+    }
     val state by vm.state.collectAsState()
     Scaffold(topBar = { DTopBar(t(if (svc == Service.TOUR) R.string.svc_tour else R.string.svc_entertainment), onBack = nav::back) }) { pad ->
         Column(Modifier.padding(pad)) {
-            OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().padding(16.dp, 8.dp), leadingIcon = { Icon(Icons.Default.Search, null) }, placeholder = { Text(t(R.string.search_destinations_events)) }, shape = RoundedCornerShape(14.dp), singleLine = true)
+            SoftCard(Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SuggestField(
+                        label = t(R.string.city),
+                        value = dest,
+                        icon = if (svc == Service.TOUR) Icons.Default.Landscape else Icons.Default.Celebration,
+                        onChange = { dest = it },
+                    ) { query -> c.trips.citySuggestions(query) }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DateField(
+                            label = t(R.string.pick_date),
+                            iso = date,
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            compact = true,
+                        ) { date = it }
+                        val isTomorrow = date == todayIso(1)
+                        Surface(
+                            modifier = Modifier.height(44.dp).clickable { date = if (isTomorrow) todayIso() else todayIso(1) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isTomorrow) Brand.Primary else Brand.P50,
+                            border = BorderStroke(1.dp, if (isTomorrow) Brand.Primary else Brand.Line),
+                        ) {
+                            Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    t(R.string.tomorrow),
+                                    color = if (isTomorrow) Color.White else Brand.P700,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                    GradientButton(
+                        t(R.string.search_trips),
+                        Modifier.fillMaxWidth(),
+                    ) {
+                        submittedDest = dest.trim()
+                        submittedDate = date
+                    }
+                }
+            }
             when (val s = state) {
                 Load.Loading -> LoadingList()
                 is Load.Err -> ErrorState(s.message) { vm.reload() }
-                is Load.Ok -> LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                is Load.Ok -> if (s.value.isEmpty()) {
+                    EmptyState(
+                        if (svc == Service.TOUR) Icons.Default.Landscape else Icons.Default.Celebration,
+                        t(R.string.no_trips),
+                        t(R.string.try_another_date_route),
+                    )
+                } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(s.value) { e ->
                         SoftCard(onClick = { nav.go(Routes.experience(e.id, service)) }) {
                             Box {

@@ -7,9 +7,11 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed interface Load<out T> {
     data object Loading : Load<Nothing>
@@ -25,7 +27,9 @@ class LoadVm<T>(private val loader: suspend () -> T) : ViewModel() {
     fun reload() {
         _state.value = Load.Loading
         viewModelScope.launch {
-            _state.value = runCatching { Load.Ok(loader()) }.getOrElse { Load.Err(it.message ?: AppCtx.str(R.string.generic_error)) }
+            _state.value = runCatching {
+                Load.Ok(withContext(Dispatchers.IO) { loader() })
+            }.getOrElse { Load.Err(it.message ?: AppCtx.str(R.string.generic_error)) }
         }
     }
 }

@@ -5,8 +5,10 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,20 +19,24 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
 import com.durpalla.booking.core.*
 import com.durpalla.booking.data.repo.Booking
+import com.durpalla.booking.l10n.t
 import com.durpalla.booking.ui.components.*
 import com.durpalla.booking.ui.nav.LocalContainer
 import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.launch
-import com.durpalla.booking.l10n.t
+import kotlinx.serialization.json.JsonObject
 
 @Composable
 fun TicketsScreen() {
@@ -107,7 +113,7 @@ private fun BookingRow(b: Booking, onClick: () -> Unit) {
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(i.str("vehicle_name", "hotel_name", default = t(R.string.booking_numbered, b.id)), style = MaterialTheme.typography.titleSmall)
                 Text(i.str("route_name", "room_type_title"), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
-                Text(i.str("leaving_time_formated", "schedule_date", default = b.bookingDate), style = MaterialTheme.typography.labelSmall, color = Brand.Primary)
+                Text(i.str("leaving_time_formated", "leaving_time_formatted", "schedule_date", default = b.bookingDate), style = MaterialTheme.typography.labelSmall, color = Brand.Primary)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(money(b.totalPayable), fontWeight = FontWeight.Bold)
@@ -118,6 +124,7 @@ private fun BookingRow(b: Booking, onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TicketScreen(id: Int) {
     val c = LocalContainer.current; val nav = LocalNav.current
@@ -127,72 +134,224 @@ fun TicketScreen(id: Int) {
     val scope = rememberCoroutineScope()
     var confirmCancel by remember { mutableStateOf<Int?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
-    Scaffold(topBar = { DTopBar(t(R.string.ticket), onBack = nav::back) }) { pad ->
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { LogoHorizontal(Modifier.height(26.dp)) },
+                navigationIcon = {
+                    IconButton(onClick = nav::back) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
+            )
+        },
+    ) { pad ->
         when (val s = state) {
             Load.Loading -> Box(Modifier.padding(pad)) { LoadingList(2) }
             is Load.Err -> Box(Modifier.padding(pad)) { ErrorState(s.message) { vm.reload() } }
             is Load.Ok -> {
-                val root = s.value.o("data") ?: s.value.o("booking") ?: s.value
-                val b = Booking.from(root.o("booking") ?: root)
-                Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp)) {
-                    Column(Modifier.fillMaxWidth().shadow(18.dp, RoundedCornerShape(24.dp), ambientColor = Brand.Primary, spotColor = Brand.Primary)
-                        .clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surface)) {
-                        Box(Modifier.fillMaxWidth().background(Brand.HeroGradient).padding(20.dp)) {
-                            Column {
-                                LogoHorizontal(Modifier.height(24.dp), white = true)
-                                Spacer(Modifier.height(10.dp))
-                                Text(b.firstItem.str("vehicle_name", "hotel_name", default = t(R.string.label_booking)), color = Color.White, style = MaterialTheme.typography.titleLarge)
-                                Text(b.firstItem.str("route_name", "room_type_title"), color = Color.White.copy(.85f))
-                            }
+                val res = s.value
+                val dataObj = res.o("booking") ?: res.o("data")?.let { d -> d.o("booking") ?: d } ?: res
+                val b = Booking.from(dataObj)
+                val qrText = listOf("qr_code", "qr", "qrCode")
+                    .firstNotNullOfOrNull { dataObj.s(it) ?: res.s(it) ?: res.o("data").s(it) }
+                    ?: "DURPALLA|PNR:${b.pnr.ifBlank { b.id.toString() }}|BID:${b.id}"
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(pad),
+                    contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 36.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    item {
+                        val fi = b.firstItem
+                        val isHotel = BookingCancelRules.isHotelStay(b)
+                        val isBus = fi.str("item_type", "type", "service_type", "vehicle_type").contains("bus", true) ||
+                            b.raw.str("service_type", "type").contains("bus", true)
+                        val title = fi.str("vehicle_name", "hotel_name", "boat_name").ifBlank {
+                            dataObj.str("vehicle_name", "hotel_name", "boat_name", default = t(R.string.label_booking))
                         }
-                        Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            val qrText = root.s("qr_code") ?: root.s("qr") ?: root.s("qrCode")
-                                ?: "DURPALLA|PNR:${b.pnr}|BID:${b.id}"
-                            val bmp = remember(qrText) { qr(qrText) }
-                            Image(bmp.asImageBitmap(), t(R.string.ticket), Modifier.size(200.dp))
-                            Text(t(R.string.label_pnr, b.pnr), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                            Info(t(R.string.label_date), b.firstItem.str("leaving_time_formated", "schedule_date", default = b.bookingDate))
-                            Info(t(R.string.label_boarding), b.firstItem.str("boarding_point", default = t(R.string.em_dash)))
-                            Info(t(R.string.label_payment), b.paymentStatus)
-                            Info(t(R.string.label_transaction), b.transactionId ?: t(R.string.em_dash))
-                            Info(t(R.string.total), money(b.totalPayable))
+                        val sub = fi.str("route_name", "room_type_title").ifBlank {
+                            dataObj.str("route_name", "room_type_title")
                         }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    Text(t(R.string.label_items), style = MaterialTheme.typography.titleMedium)
-                    b.items.forEach { it0 ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${it0.str("cabin_type", "item_type", "type")} ${it0.str("cabin_no")}", Modifier.weight(1f))
-                            Text(money(it0.d("fare", "price")))
-                            if (com.durpalla.booking.core.BookingCancelRules.canCancelItem(b, it0)) {
-                                TextButton({ confirmCancel = it0.i("id") }) {
-                                    Text(t(R.string.cancel_ticket), color = Brand.Error)
+                        val depDate = fi.str("schedule_date", "check_in").ifBlank { b.bookingDate }
+                        val depTime = fi.str("leaving_time_formated", "leaving_time_formatted", "leaving_time", "check_out")
+                        val depLine = listOf(depDate, depTime).filter { it.isNotBlank() }.joinToString(" • ")
+
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .shadow(18.dp, RoundedCornerShape(24.dp), ambientColor = Brand.Primary, spotColor = Brand.Primary)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surface),
+                        ) {
+                            Box(Modifier.fillMaxWidth().background(Brand.HeroGradient).padding(20.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.18f)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            when {
+                                                isHotel -> Icons.Default.Apartment
+                                                isBus -> Icons.Default.DirectionsBus
+                                                else -> Icons.Default.DirectionsBoat
+                                            },
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(26.dp),
+                                        )
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            title,
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        if (sub.isNotBlank()) {
+                                            Text(sub, color = Color.White.copy(.9f), style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                        if (depLine.isNotBlank()) {
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(depLine, color = Color.White.copy(.78f), style = MaterialTheme.typography.labelMedium)
+                                        }
+                                    }
                                 }
                             }
-                            b.invoiceUrl?.takeIf { it.isNotBlank() && b.downloadable }?.let { url ->
-                                TextButton({
-                                    runCatching {
-                                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                            Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                val bmp = remember(qrText) { qr(qrText) }
+                                Box(Modifier.size(204.dp), contentAlignment = Alignment.Center) {
+                                    Image(bmp.asImageBitmap(), t(R.string.ticket), Modifier.fillMaxSize())
+                                    Surface(
+                                        modifier = Modifier.size(44.dp),
+                                        shape = CircleShape,
+                                        color = Color.White,
+                                        shadowElevation = 4.dp,
+                                    ) {
+                                        Box(Modifier.padding(6.dp), contentAlignment = Alignment.Center) {
+                                            Image(
+                                                painter = painterResource(R.drawable.logo_mark),
+                                                contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(),
+                                            )
+                                        }
                                     }
-                                }) { Text(t(R.string.invoice)) }
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    t(R.string.label_pnr, b.pnr.ifBlank { "#${b.id}" }),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                                Info(
+                                    t(R.string.label_date),
+                                    b.firstItem.str("leaving_time_formated", "leaving_time_formatted", "schedule_date", "check_in", default = b.bookingDate),
+                                )
+                                Info(t(R.string.label_boarding), b.firstItem.str("boarding_point", default = t(R.string.em_dash)))
+                                Info(t(R.string.label_payment), b.paymentStatus.ifBlank { b.status })
+                                Info(t(R.string.label_status), b.status.ifBlank { b.paymentStatus })
+                                Info(t(R.string.label_transaction), b.transactionId ?: t(R.string.em_dash))
+                                val subTotal = dataObj.d("total_amount")
+                                val discount = dataObj.d("total_discount")
+                                val vatTotal = dataObj.d("vat_total")
+                                val chargeTotal = dataObj.d("charge_total")
+                                if (subTotal != null && subTotal > 0.0) Info(t(R.string.fare), money(subTotal))
+                                if (discount != null && discount > 0.0) Info("Discount", money(discount))
+                                if (vatTotal != null && vatTotal > 0.0) Info(t(R.string.vat), money(vatTotal))
+                                if (chargeTotal != null && chargeTotal > 0.0) Info(t(R.string.service_charge), money(chargeTotal))
+                                Info(t(R.string.total), money(b.totalPayable))
                             }
                         }
                     }
-                    msg?.let { Text(it, color = Brand.Primary) }
+
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                "${t(R.string.label_items)} (${b.items.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            b.invoiceUrl?.takeIf { it.isNotBlank() && b.downloadable }?.let { url ->
+                                FilledTonalButton(
+                                    onClick = {
+                                        runCatching {
+                                            ctx.startActivity(
+                                                android.content.Intent(
+                                                    android.content.Intent.ACTION_VIEW,
+                                                    android.net.Uri.parse(url),
+                                                ),
+                                            )
+                                        }
+                                    },
+                                ) {
+                                    Icon(Icons.Default.Download, null, Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(t(R.string.invoice))
+                                }
+                            }
+                        }
+                    }
+
+                    if (b.items.isEmpty()) {
+                        item {
+                            SoftCard(Modifier.fillMaxWidth()) {
+                                Text(
+                                    t(R.string.em_dash),
+                                    modifier = Modifier.padding(16.dp),
+                                    color = Brand.Muted,
+                                )
+                            }
+                        }
+                    } else {
+                        items(b.items) { it0 ->
+                            TicketItemCard(
+                                booking = b,
+                                item = it0,
+                                onCancel = { confirmCancel = it0.i("id") },
+                            )
+                        }
+                    }
+
+                    b.firstItem?.let { first ->
+                        item {
+                            PassengerAndTripCard(first)
+                        }
+                    }
+
+                    msg?.let { m ->
+                        item {
+                            Text(m, color = Brand.Primary, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+
+                    val driverTripId = b.raw.i("driver_trip_id", "driverTripId", "trip_id")
+                        ?: b.firstItem.i("driver_trip_id", "driverTripId", "trip_id")
+                        ?: b.id
                     val tripActive = !b.isPast() &&
-                        com.durpalla.booking.core.BookingCancelRules.isBoatBooking(b) &&
+                        BookingCancelRules.isBoatBooking(b) &&
+                        driverTripId > 0 &&
                         listOf(b.paymentStatus, b.status).joinToString(" ").lowercase().let { st ->
                             listOf("paid", "success", "confirmed", "complete").any { st.contains(it) } &&
                                 listOf("cancel", "fail", "refund").none { st.contains(it) }
                         }
-                    val driverName = b.firstItem.str("driver_name", "vehicle_name", "operator_name", default = t(R.string.call_driver))
                     if (tripActive) {
-                        Spacer(Modifier.height(12.dp))
-                        CallDriverButton(tripId = b.id, driverName = driverName, tripActive = true)
-                        val tripLog = b.raw.a("callLog").objects()
-                            .ifEmpty { b.firstItem.a("callLog").objects() }
-                        CallLogSection(b.id, tripCallLog = tripLog)
+                        item {
+                            val driverName = b.firstItem.str("driver_name", "vehicle_name", "operator_name", default = t(R.string.call_driver))
+                            Column {
+                                CallDriverButton(tripId = driverTripId, driverName = driverName, tripActive = true)
+                                val tripLog = b.raw.a("callLog").objects()
+                                    .ifEmpty { b.firstItem.a("callLog").objects() }
+                                CallLogSection(driverTripId, tripCallLog = tripLog)
+                            }
+                        }
                     }
                 }
             }
@@ -206,13 +365,132 @@ fun TicketScreen(id: Int) {
     }
 }
 
+@Composable
+private fun TicketItemCard(
+    booking: Booking,
+    item: JsonObject,
+    onCancel: () -> Unit,
+) {
+    val isHotel = BookingCancelRules.isHotelStay(booking, item)
+    val fare = money(item.d("fare", "price", "amount"))
+    val canCancel = BookingCancelRules.canCancelItem(booking, item)
+
+    SoftCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (isHotel) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Apartment, null, tint = Brand.Primary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        item.str("hotel_name", default = t(R.string.svc_hotel)),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(fare, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, color = Brand.Primary)
+                }
+                val room = item.str("room_type_title", default = t(R.string.room))
+                Text(room, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                val ci = item.str("check_in")
+                val co = item.str("check_out")
+                if (ci.isNotBlank() || co.isNotBlank()) {
+                    Text("$ci → $co", style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                }
+                val adults = item.i("adults") ?: 0
+                val children = item.i("children") ?: 0
+                if (adults > 0 || children > 0) {
+                    Text("${t(R.string.adults)}: $adults" + if (children > 0) ", ${t(R.string.children)}: $children" else "", style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                }
+            } else {
+                val cabinNo = item.str("cabin_no", "seat_no", "label")
+                val cabinType = item.str("cabin_type", "item_type", "type").uppercase()
+                val acText = if (item.b("is_ac")) t(R.string.filter_ac) else t(R.string.filter_non_ac)
+                val title = listOf(cabinNo, cabinType, acText).filter { it.isNotBlank() }.joinToString(" · ")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.EventSeat, null, tint = Brand.Primary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        title.ifBlank { t(R.string.ticket) },
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(fare, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, color = Brand.Primary)
+                }
+                val sub = listOf(item.str("vehicle_name"), item.str("route_name")).filter { it.isNotBlank() }.joinToString(" · ")
+                if (sub.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.DirectionsBoat, null, tint = Brand.Muted, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(sub, style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                    }
+                }
+                val dep = listOf(
+                    item.str("schedule_date"),
+                    item.str("leaving_time_formated", "leaving_time_formatted", "leaving_time"),
+                ).filter { it.isNotBlank() }.joinToString(" · ")
+                if (dep.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Schedule, null, tint = Brand.Muted, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(dep, style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                    }
+                }
+            }
+            if (canCancel) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Brand.Error),
+                    border = BorderStroke(1.dp, Brand.Error.copy(alpha = 0.6f)),
+                ) {
+                    Icon(Icons.Default.Cancel, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(t(R.string.cancel_ticket))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PassengerAndTripCard(item: JsonObject) {
+    val p = item.o("passenger")
+    val pName = p.str("name", default = item.str("passenger_name", "guest_name"))
+    val pMobile = p.str("mobile", "phone", default = item.str("passenger_mobile", "guest_mobile"))
+    val pType = p.str("type")
+    val pPersons = p.i("person", "persons") ?: 1
+
+    if (pName.isBlank() && pMobile.isBlank() && item.str("route_name").isBlank()) return
+
+    SoftCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(t(R.string.passenger), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            if (pName.isNotBlank()) {
+                Info(t(R.string.full_name), if (pType.isNotBlank()) "$pName ($pType)" else pName)
+            }
+            if (pMobile.isNotBlank()) {
+                Info(t(R.string.mobile_number), pMobile)
+            }
+            if (pPersons > 0) {
+                Info(t(R.string.guests), "$pPersons")
+            }
+        }
+    }
+}
+
 @Composable private fun Info(k: String, v: String) = Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
     Text(k, Modifier.weight(1f), color = Brand.Muted); Text(v, fontWeight = FontWeight.SemiBold)
 }
 
 fun qr(text: String, size: Int = 512): Bitmap {
-    val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
+    val hints = mapOf(
+        EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.H,
+        EncodeHintType.MARGIN to 1,
+    )
+    val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, hints)
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
-    for (x in 0 until size) for (y in 0 until size) bmp.setPixel(x, y, if (m[x, y]) 0xFF0A3550.toInt() else 0xFFFFFFFF.toInt())
+    for (x in 0 until size) for (y in 0 until size) bmp.setPixel(x, y, if (m[x, y]) 0xFF0A2E46.toInt() else 0xFFFFFFFF.toInt())
     return bmp
 }

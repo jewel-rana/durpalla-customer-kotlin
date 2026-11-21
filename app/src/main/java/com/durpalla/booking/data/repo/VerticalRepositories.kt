@@ -201,9 +201,9 @@ class ApiExperienceRepository(
     private val tours: TourRepository,
     private val entertainment: EntertainmentRepository,
 ) : ExperienceRepository {
-    override suspend fun list(service: Service, query: String): List<Experience> = when (service) {
-        Service.TOUR -> tours.search(query.ifBlank { null }, java.time.LocalDate.now().toString())
-        Service.ENTERTAINMENT -> entertainment.search(query)
+    override suspend fun list(service: Service, query: String, date: String?): List<Experience> = when (service) {
+        Service.TOUR -> tours.search(query.ifBlank { null }, date?.takeIf { it.isNotBlank() } ?: java.time.LocalDate.now().toString())
+        Service.ENTERTAINMENT -> entertainment.search(query, date?.takeIf { it.isNotBlank() })
         else -> emptyList()
     }
 
@@ -216,7 +216,7 @@ class ApiExperienceRepository(
 }
 
 interface ExperienceRepository {
-    suspend fun list(service: Service, query: String = ""): List<Experience>
+    suspend fun list(service: Service, query: String = "", date: String? = null): List<Experience>
     suspend fun details(id: Int): Experience?
 }
 

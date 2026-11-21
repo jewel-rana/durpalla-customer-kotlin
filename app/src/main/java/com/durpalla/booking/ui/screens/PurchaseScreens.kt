@@ -50,7 +50,7 @@ fun CheckoutScreen() {
     val total = c.cart.amountWithCharges()
 
     Scaffold(topBar = { DTopBar(t(R.string.checkout), onBack = nav::back) }, bottomBar = {
-        Surface(shadowElevation = 16.dp) {
+        Surface(shadowElevation = 16.dp, modifier = Modifier.fillMaxWidth().imePadding()) {
             Column(Modifier.navigationBarsPadding().padding(16.dp)) {
                 err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
                 val passengerErr = t(R.string.enter_passenger_name_mobile)
@@ -74,7 +74,7 @@ fun CheckoutScreen() {
             }
         }
     }) { pad ->
-        Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxSize().padding(pad).dismissKeyboardOnTap().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             StepIndicator(1)
             if (cart.isEmpty()) EmptyState(Icons.Default.ShoppingCart, t(R.string.cart_empty), t(R.string.cart_empty_body))
             cart.groupBy { it.tripId }.forEach { (_, items) ->

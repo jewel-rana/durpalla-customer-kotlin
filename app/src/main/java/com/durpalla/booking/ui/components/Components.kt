@@ -24,6 +24,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.composed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import coil.compose.AsyncImage
 import com.durpalla.booking.R
 import com.durpalla.booking.core.AppCtx
@@ -36,7 +41,7 @@ fun SoftCard(modifier: Modifier = Modifier, radius: Dp = 18.dp, onClick: (() -> 
     val shape = RoundedCornerShape(radius)
     Column(
         modifier
-            .shadow(10.dp, shape, ambientColor = Brand.ShadowTint, spotColor = Brand.ShadowTint)
+            .shadow(4.dp, shape, ambientColor = Brand.ShadowTint, spotColor = Brand.ShadowTint)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
@@ -103,9 +108,21 @@ fun SectionHeader(title: String, action: String? = null, onAction: () -> Unit = 
 
 @Composable
 fun PhotoBox(url: String?, @DrawableRes fallback: Int, modifier: Modifier = Modifier) {
-    if (url.isNullOrBlank()) Image(painterResource(fallback), null, modifier, contentScale = ContentScale.Crop)
-    else AsyncImage(model = url, contentDescription = null, modifier = modifier, contentScale = ContentScale.Crop,
-        placeholder = painterResource(fallback), error = painterResource(fallback))
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val req = remember(url, fallback) {
+        coil.request.ImageRequest.Builder(ctx)
+            .data(if (url.isNullOrBlank()) fallback else url)
+            .fallback(fallback)
+            .error(fallback)
+            .crossfade(true)
+            .build()
+    }
+    AsyncImage(
+        model = req,
+        contentDescription = null,
+        modifier = modifier,
+        contentScale = ContentScale.Crop,
+    )
 }
 
 /** Shimmer skeleton block. */
@@ -142,3 +159,15 @@ fun money(v: Double?): String = if (v == null) AppCtx.str(R.string.em_dash) else
 @Composable
 fun LogoHorizontal(modifier: Modifier = Modifier, white: Boolean = false) =
     Image(painterResource(if (white) R.drawable.logo_horizontal_white else R.drawable.logo_horizontal_blue), t(R.string.cd_app_name), modifier)
+
+/** Dismisses soft keyboard and clears focus when the user taps anywhere on the layout body. */
+fun Modifier.dismissKeyboardOnTap(): Modifier = composed {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    pointerInput(Unit) {
+        detectTapGestures(onTap = {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        })
+    }
+}
