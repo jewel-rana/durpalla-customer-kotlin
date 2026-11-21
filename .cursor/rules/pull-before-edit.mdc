@@ -1,0 +1,26 @@
+---
+description: Pull the current branch, then master, before any edit
+alwaysApply: true
+---
+
+# Pull before any change
+
+Before the first edit in a task, update git. Do this even for a one-line change. Read-only answers do not need a pull.
+
+## Order (mandatory)
+
+1. Pull the **current** branch first.
+2. Then pull **`master`**. This step is mandatory on every branch, including `dev`.
+
+```bash
+git pull
+git pull origin master
+```
+
+Do not start edits until both commands succeed.
+
+## If a pull fails
+
+Stop. Resolve conflicts, then continue the task. Do not edit on top of a failed or half-finished pull.
+
+Do not use `--rebase`, `--force`, or `reset` to make the pull succeed.
