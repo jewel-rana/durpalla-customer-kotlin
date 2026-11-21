@@ -5,7 +5,7 @@
     </style>
     <style name="Theme.Durpalla.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/white</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo_icon</item>
         <item name="postSplashScreenTheme">@style/Theme.Durpalla</item>
     </style>
 </resources>

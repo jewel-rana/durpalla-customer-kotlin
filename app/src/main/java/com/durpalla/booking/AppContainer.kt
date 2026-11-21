@@ -51,7 +51,10 @@ class AppContainer(context: Context) {
      * Driver calling. Mock by default ([BuildConfig.USE_MOCK_CALLS]).
      * Contract: docs/calling-contract.md (Durpalla/durpalla-driver).
      */
-    val calls: CallRepository = if (BuildConfig.USE_MOCK_CALLS) {
+    val calls: CallRepository = if (
+        BuildConfig.USE_MOCK_CALLS ||
+        runCatching { com.google.firebase.FirebaseApp.getApps(context).isEmpty() }.getOrDefault(true)
+    ) {
         MockCallRepository(context.applicationContext, appScope)
     } else {
         ApiCallRepository(

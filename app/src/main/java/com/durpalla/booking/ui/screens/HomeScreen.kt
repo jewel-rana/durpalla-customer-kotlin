@@ -190,14 +190,14 @@ fun HomeScreen() {
                 item { OffersCarousel(d.offers) }
                 item { SectionHeader(t(R.string.popular_routes)) }
                 if (d.popular.isEmpty()) item { PopularFallback() } else item {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(d.popular) { trip -> TripMiniCard(trip) { nav.go(Routes.trip(trip.tripId, trip.serviceType)) } }
                     }
                 }
                 if (d.hotels.isNotEmpty()) {
                     item { SectionHeader(t(R.string.top_hotels), t(R.string.tab_search)) { nav.tab(Routes.searchFor("hotel")) } }
                     item {
-                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(d.hotels) { h -> HotelCard(h, Modifier.width(230.dp)) { nav.go(Routes.hotel(h.id, todayIso(1), todayIso(2))) } }
                         }
                     }
@@ -205,7 +205,7 @@ fun HomeScreen() {
                 if (d.boats.isNotEmpty()) {
                     item { SectionHeader(t(R.string.top_boats), t(R.string.see_all)) { nav.go(Routes.boatList("", "${todayIso(1)}T09:00:00", "${todayIso(1)}T18:00:00")) } }
                     item {
-                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(d.boats) { b ->
                                 ExperienceMiniCard(b) { nav.go(Routes.boatDetails(b.id, "${todayIso(1)}T09:00:00", "${todayIso(1)}T18:00:00")) }
                             }
@@ -215,7 +215,7 @@ fun HomeScreen() {
                 if (d.entertainment.isNotEmpty()) {
                     item { SectionHeader(t(R.string.top_entertainment), t(R.string.see_all)) { nav.go(Routes.experiences("entertainment")) } }
                     item {
-                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(d.entertainment) { ent ->
                                 ExperienceMiniCard(ent) { nav.go(Routes.experience(ent.id, "entertainment")) }
                             }
@@ -224,7 +224,7 @@ fun HomeScreen() {
                 }
                 item { SectionHeader(t(R.string.explore)) }
                 item {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         val ex = listOf(
                             Triple("Sajek", R.drawable.photo_sajek, "tour"),
                             Triple("Sundarbans", R.drawable.photo_sundarbans, "tour"),
@@ -266,7 +266,7 @@ private fun PopularFallback() {
         Triple("Dhaka (Sadar Ghat)", "Bhola", 1 to 3),
         Triple("Dhaka (Sadar Ghat)", "Patuakhali", 1 to 4),
     )
-    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(routes) { (f, dest, ids) ->
             SoftCard(Modifier.width(220.dp), onClick = { nav.go(Routes.results("launch", f, dest, todayIso(), ids.first, ids.second)) }) {
                 Image(painterResource(R.drawable.photo_barishal), null, Modifier.fillMaxWidth().height(100.dp), contentScale = ContentScale.Crop)
@@ -320,7 +320,7 @@ fun OffersCarousel(offers: List<Offer>) {
             Offer(0, t(R.string.sample_offer_2_title), t(R.string.sample_offer_2_body), null, null),
         )
     }
-    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp)), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(list) { o ->
             Box(Modifier.size(290.dp, 130.dp).clip(RoundedCornerShape(20.dp)).background(Brand.HeroGradient)) {
                 if (o.image != null) PhotoBox(o.image, R.drawable.photo_river, Modifier.matchParentSize())

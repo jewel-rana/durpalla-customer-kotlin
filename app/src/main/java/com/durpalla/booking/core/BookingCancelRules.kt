@@ -32,6 +32,16 @@ object BookingCancelRules {
             item.s("hotel_name") != null || item.s("room_type_title") != null
     }
 
+    fun isBoatBooking(booking: Booking, item: JsonObject = booking.firstItem ?: JsonObject(emptyMap())): Boolean {
+        val rawType = booking.raw.str("service_type", "booking_type", "type", "category", "vertical").lowercase(Locale.US)
+        val itemType = item.str("item_type", "type", "service_type", "booking_type", "vehicle_type").lowercase(Locale.US)
+        if (rawType.contains("boat") || itemType.contains("boat")) return true
+        if (booking.raw.i("boat_id", "boat_hold_id", "trip_request_id", "bid_id") != null) return true
+        if (item.i("boat_id", "boat_hold_id", "trip_request_id", "bid_id") != null) return true
+        if (item.s("boat_name") != null || booking.raw.s("boat_name") != null) return true
+        return false
+    }
+
     private fun itemStatusOk(item: JsonObject): Boolean {
         val s = item.s("status") ?: return true
         return s == "true" || s == "1" || s.equals("active", true)

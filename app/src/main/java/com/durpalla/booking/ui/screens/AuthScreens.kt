@@ -64,11 +64,14 @@ private fun AuthScaffold(title: String, subtitle: String, content: @Composable C
                 .padding(20.dp, 8.dp, 20.dp, 56.dp),
         ) {
             Column {
-                IconButton(onClick = nav::back) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = nav::back) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Image(painterResource(R.drawable.logo_horizontal_white), null, Modifier.height(32.dp))
                 }
-                Image(painterResource(R.drawable.logo_horizontal_white), null, Modifier.height(34.dp))
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
                 Text(title, style = MaterialTheme.typography.headlineSmall, color = Color.White)
                 Text(subtitle, color = Color.White.copy(.8f))
             }
@@ -270,7 +273,13 @@ fun PasswordScreen(idRaw: String, redirect: String) {
                 loading = false
             }
         }
-        TextButton({ nav.nav.navigate(Routes.otp(id, redirect)) }, Modifier.fillMaxWidth()) {
+        TextButton(
+            {
+                scope.launch { runCatching { c.auth.sendOtp(id) } }
+                nav.nav.navigate(Routes.otp(id, redirect))
+            },
+            Modifier.fillMaxWidth(),
+        ) {
             Text(t(R.string.use_otp_instead))
         }
         // E5: forgot is BD-mobile only — never pass an email into it
@@ -352,13 +361,6 @@ fun OtpScreen(idRaw: String, redirect: String) {
         info?.let { Text(it, color = Brand.Primary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
         err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
         Spacer(Modifier.height(16.dp))
-        GradientButton(
-            t(R.string.send_otp),
-            Modifier.fillMaxWidth(),
-            enabled = seconds == 0 && !sending && id.display.isNotBlank(),
-            loading = sending,
-        ) { sendOtp() }
-        Spacer(Modifier.height(8.dp))
         GradientButton(
             t(R.string.verify),
             Modifier.fillMaxWidth(),

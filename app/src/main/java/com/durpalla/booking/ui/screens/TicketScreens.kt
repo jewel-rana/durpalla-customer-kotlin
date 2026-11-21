@@ -181,7 +181,7 @@ fun TicketScreen(id: Int) {
                     }
                     msg?.let { Text(it, color = Brand.Primary) }
                     val tripActive = !b.isPast() &&
-                        !com.durpalla.booking.core.BookingCancelRules.isHotelStay(b) &&
+                        com.durpalla.booking.core.BookingCancelRules.isBoatBooking(b) &&
                         listOf(b.paymentStatus, b.status).joinToString(" ").lowercase().let { st ->
                             listOf("paid", "success", "confirmed", "complete").any { st.contains(it) } &&
                                 listOf("cancel", "fail", "refund").none { st.contains(it) }

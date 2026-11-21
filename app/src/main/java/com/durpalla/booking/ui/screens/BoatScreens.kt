@@ -163,14 +163,12 @@ fun BoatDetailsScreen(id: Int, startsAt: String, endsAt: String) {
                         Text("$guests")
                         IconButton({ guests++ }) { Text("+") }
                     }
-                    if (com.durpalla.booking.BuildConfig.USE_MOCK_CALLS) {
-                        CallDriverButton(
-                            tripId = id,
-                            driverName = d.str("driver_name", "name", "title", default = t(R.string.call_driver)),
-                            tripActive = true,
-                        )
-                        CallLogSection(id, tripCallLog = d.a("callLog").objects())
-                    }
+                    CallDriverButton(
+                        tripId = id,
+                        driverName = d.str("driver_name", "name", "title", default = t(R.string.call_driver)),
+                        tripActive = true,
+                    )
+                    CallLogSection(id, tripCallLog = d.a("callLog").objects())
                     err?.let { Text(it, color = Brand.Error) }
                     val guestErr = t(R.string.guest_name_mobile_required)
                     GradientButton(t(R.string.book_now), Modifier.fillMaxWidth(), loading = loading) {
@@ -230,7 +228,7 @@ fun BoatCustomTripScreen() {
     val vm = rememberLoad("boat-stoppages") { c.boats.stoppages() }
     val state by vm.state.collectAsState()
     var selected by remember { mutableStateOf(setOf<Int>()) }
-    var tripDate by remember { mutableStateOf(todayIso(1)) }
+    var tripDate by remember { mutableStateOf(todayIso()) }
     var startHour by remember { mutableIntStateOf(9) }
     var endHour by remember { mutableIntStateOf(18) }
     var guests by remember { mutableIntStateOf(4) }

@@ -19,7 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.durpalla.booking.R
 import com.durpalla.booking.data.repo.GhatPlace
 import com.durpalla.booking.l10n.t
@@ -41,14 +47,18 @@ fun SearchScreen(initialService: String) {
     var fromId by rememberSaveable { mutableIntStateOf(0) }
     var toId by rememberSaveable { mutableIntStateOf(0) }
     var boatType by rememberSaveable { mutableStateOf("") }
+    var date by rememberSaveable { mutableStateOf(todayIso()) }
+    var checkOut by rememberSaveable { mutableStateOf(todayIso(1)) }
+    LaunchedEffect(Unit) {
+        if (date < todayIso()) date = todayIso()
+        if (checkOut <= date) checkOut = java.time.LocalDate.parse(date).plusDays(1).toString()
+    }
     LaunchedEffect(initialService) {
         if (service != initialService) {
             service = initialService
-            from = ""; to = ""; fromId = 0; toId = 0
+            from = ""; to = ""; fromId = 0; toId = 0; date = todayIso(); checkOut = todayIso(1)
         }
     }
-    var date by rememberSaveable { mutableStateOf(todayIso()) }
-    var checkOut by rememberSaveable { mutableStateOf(todayIso(1)) }
     var error by remember { mutableStateOf<String?>(null) }
     val selectStoppageHint = t(R.string.select_stoppage_from_list)
 
@@ -67,7 +77,7 @@ fun SearchScreen(initialService: String) {
                                 .clickable {
                                     if (service != k) {
                                         service = k
-                                        from = ""; to = ""; fromId = 0; toId = 0; error = null
+                                        from = ""; to = ""; fromId = 0; toId = 0; date = todayIso(); checkOut = todayIso(1); error = null
                                     }
                                 }
                                 .padding(vertical = 10.dp),
@@ -103,7 +113,7 @@ fun SearchScreen(initialService: String) {
                             date = it
                             if (checkOut <= it) checkOut = java.time.LocalDate.parse(it).plusDays(1).toString()
                         }
-                        DateField(if (service == "boat") t(R.string.ends) else t(R.string.check_out), checkOut, Modifier.weight(1f)) { checkOut = it }
+                        DateField(if (service == "boat") t(R.string.ends) else t(R.string.check_out), checkOut, Modifier.weight(1f), minDateIso = date) { checkOut = it }
                     }
                 } else {
                     Box {
@@ -131,7 +141,7 @@ fun SearchScreen(initialService: String) {
                             )
                         }
                         Box(
-                            Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(40.dp).clip(CircleShape).background(Brand.Primary)
+                            Modifier.align(Alignment.Center).size(40.dp).clip(CircleShape).background(Brand.Primary)
                                 .clickable {
                                     val tmpName = from; from = to; to = tmpName
                                     val tmpId = fromId; fromId = toId; toId = tmpId
@@ -144,10 +154,33 @@ fun SearchScreen(initialService: String) {
                     Spacer(Modifier.height(12.dp))
                     Text(t(R.string.journey_date), style = MaterialTheme.typography.labelMedium, color = Brand.Muted)
                     Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        FilterChip(date == todayIso(), { date = todayIso() }, { Text(t(R.string.today)) })
-                        FilterChip(date == todayIso(1), { date = todayIso(1) }, { Text(t(R.string.tomorrow)) })
-                        DateField(t(R.string.pick_date), date, Modifier.weight(1f)) { date = it }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DateField(
+                            label = t(R.string.pick_date),
+                            iso = date,
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            compact = true,
+                        ) { date = it }
+                        val isTomorrow = date == todayIso(1)
+                        Surface(
+                            modifier = Modifier.height(44.dp).clip(RoundedCornerShape(12.dp)).clickable { date = if (isTomorrow) todayIso() else todayIso(1) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isTomorrow) Brand.Primary else Brand.P50,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isTomorrow) Brand.Primary else Brand.Line),
+                        ) {
+                            Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    t(R.string.tomorrow),
+                                    color = if (isTomorrow) Color.White else Brand.P700,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
                     }
                 }
                 error?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
@@ -219,13 +252,19 @@ fun GhatPlaceField(
 ) {
     val c = LocalContainer.current
     LocalSuggest.trips = c.trips
+    val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
     var text by remember(value) { mutableStateOf(value) }
     var suggestions by remember { mutableStateOf(emptyList<GhatPlace>()) }
     var focused by remember { mutableStateOf(false) }
     var hadFocus by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
+    var fieldWidthPx by remember { mutableIntStateOf(0) }
+    var fieldHeightPx by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(focused, text, exclude, serviceType) {
-        if (!focused) return@LaunchedEffect
+    LaunchedEffect(focused, showMenu, text, exclude, serviceType) {
+        if (!focused || !showMenu) return@LaunchedEffect
         val q = if (selectedId > 0 && text == value) "" else text
         if (q.isNotEmpty()) delay(180)
         suggestions = runCatching { LocalSuggest.ghatPlaces(q, exclude, serviceType) }
@@ -233,11 +272,17 @@ fun GhatPlaceField(
             .take(10)
     }
 
-    Column {
+    Box(
+        Modifier.fillMaxWidth().onGloballyPositioned { coords ->
+            fieldWidthPx = coords.size.width
+            fieldHeightPx = coords.size.height
+        },
+    ) {
         OutlinedTextField(
             value = text,
             onValueChange = {
                 text = it
+                showMenu = true
                 if (selectedId > 0 && it != value) {
                     onPick(GhatPlace(0, it))
                 }
@@ -246,14 +291,20 @@ fun GhatPlaceField(
                 focused = isFocused
                 if (isFocused) {
                     hadFocus = true
+                    showMenu = true
                 } else if (hadFocus) {
-                    val exact = suggestions.firstOrNull { it.name.equals(text.trim(), ignoreCase = true) }
-                    if (selectedId <= 0 && exact != null) {
-                        text = exact.name
-                        onPick(exact)
-                    } else if (selectedId <= 0 && text.isNotBlank()) {
-                        text = ""
-                        onClear()
+                    showMenu = false
+                    if (picking) {
+                        picking = false
+                    } else {
+                        val exact = suggestions.firstOrNull { it.name.equals(text.trim(), ignoreCase = true) }
+                        if (selectedId <= 0 && exact != null) {
+                            text = exact.name
+                            onPick(exact)
+                        } else if (selectedId <= 0 && text.isNotBlank()) {
+                            text = ""
+                            onClear()
+                        }
                     }
                     suggestions = emptyList()
                 }
@@ -261,28 +312,64 @@ fun GhatPlaceField(
             label = { Text(label) },
             leadingIcon = { Icon(icon, null, tint = Brand.Primary) },
             trailingIcon = {
-                if (selectedId > 0) Icon(Icons.Default.CheckCircle, null, tint = Brand.Success, modifier = Modifier.size(18.dp))
+                if (selectedId > 0) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        null,
+                        tint = Brand.Success,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
         )
-        if (focused && suggestions.isNotEmpty()) {
-            Card(Modifier.fillMaxWidth().padding(top = 4.dp), shape = RoundedCornerShape(12.dp)) {
-                Column {
-                    suggestions.forEach { place ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clickable {
-                                    text = place.name
-                                    onPick(place)
-                                    suggestions = emptyList()
-                                }
-                                .padding(14.dp, 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(Icons.Default.Place, null, tint = Brand.Primary, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(place.name, Modifier.weight(1f))
+        if (focused && showMenu && suggestions.isNotEmpty()) {
+            val menuWidthDp = with(density) { fieldWidthPx.toDp() }
+            val yOffsetPx = fieldHeightPx + with(density) { 4.dp.roundToPx() }
+            Popup(
+                alignment = Alignment.TopStart,
+                offset = IntOffset(0, yOffsetPx),
+                onDismissRequest = {
+                    showMenu = false
+                    suggestions = emptyList()
+                },
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true,
+                ),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .then(if (menuWidthDp > 0.dp) Modifier.width(menuWidthDp) else Modifier.fillMaxWidth())
+                        .heightIn(max = 240.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 10.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Brand.Line),
+                ) {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        suggestions.forEachIndexed { idx, place ->
+                            if (idx > 0) HorizontalDivider(color = Brand.Line)
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clickable {
+                                        picking = true
+                                        showMenu = false
+                                        text = place.name
+                                        onPick(place)
+                                        suggestions = emptyList()
+                                        focusManager.clearFocus()
+                                    }
+                                    .padding(14.dp, 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Default.Place, null, tint = Brand.Primary, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(place.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            }
                         }
                     }
                 }
@@ -295,21 +382,81 @@ fun GhatPlaceField(
 fun SuggestField(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onChange: (String) -> Unit, fetch: suspend (String) -> List<String>) {
     val c = LocalContainer.current
     LocalSuggest.trips = c.trips
+    val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
     var suggestions by remember { mutableStateOf(emptyList<String>()) }
     var focused by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
     var typed by remember { mutableStateOf(false) }
-    LaunchedEffect(value, typed, focused) {
-        if (!focused) { suggestions = emptyList(); return@LaunchedEffect }
+    var fieldWidthPx by remember { mutableIntStateOf(0) }
+    var fieldHeightPx by remember { mutableIntStateOf(0) }
+    LaunchedEffect(value, typed, focused, showMenu) {
+        if (!focused || !showMenu) { suggestions = emptyList(); return@LaunchedEffect }
         if (typed && value.isNotEmpty()) delay(200)
         suggestions = runCatching { fetch(value) }.getOrDefault(emptyList()).take(8)
     }
-    Column {
-        OutlinedTextField(value, { onChange(it); typed = true }, Modifier.fillMaxWidth().onFocusChangedCompat { focused = it },
-            label = { Text(label) }, leadingIcon = { Icon(icon, null, tint = Brand.Primary) }, singleLine = true, shape = RoundedCornerShape(14.dp))
-        if (focused && suggestions.isNotEmpty()) {
-            Card(Modifier.fillMaxWidth().padding(top = 4.dp), shape = RoundedCornerShape(12.dp)) {
-                suggestions.forEach { s ->
-                    Text(s, Modifier.fillMaxWidth().clickable { onChange(s); typed = false; suggestions = emptyList() }.padding(14.dp, 12.dp))
+    Box(
+        Modifier.fillMaxWidth().onGloballyPositioned { coords ->
+            fieldWidthPx = coords.size.width
+            fieldHeightPx = coords.size.height
+        },
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = { onChange(it); typed = true; showMenu = true },
+            modifier = Modifier.fillMaxWidth().onFocusChangedCompat { isFocused ->
+                focused = isFocused
+                showMenu = isFocused
+                if (!isFocused) suggestions = emptyList()
+            },
+            label = { Text(label) },
+            leadingIcon = { Icon(icon, null, tint = Brand.Primary) },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+        )
+        if (focused && showMenu && suggestions.isNotEmpty()) {
+            val menuWidthDp = with(density) { fieldWidthPx.toDp() }
+            val yOffsetPx = fieldHeightPx + with(density) { 4.dp.roundToPx() }
+            Popup(
+                alignment = Alignment.TopStart,
+                offset = IntOffset(0, yOffsetPx),
+                onDismissRequest = {
+                    showMenu = false
+                    suggestions = emptyList()
+                },
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true,
+                ),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .then(if (menuWidthDp > 0.dp) Modifier.width(menuWidthDp) else Modifier.fillMaxWidth())
+                        .heightIn(max = 240.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 10.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Brand.Line),
+                ) {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        suggestions.forEachIndexed { idx, s ->
+                            if (idx > 0) HorizontalDivider(color = Brand.Line)
+                            Text(
+                                s,
+                                Modifier.fillMaxWidth()
+                                    .clickable {
+                                        showMenu = false
+                                        onChange(s)
+                                        typed = false
+                                        suggestions = emptyList()
+                                        focusManager.clearFocus()
+                                    }
+                                    .padding(14.dp, 12.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -320,19 +467,64 @@ fun Modifier.onFocusChangedCompat(cb: (Boolean) -> Unit): Modifier = this.onFocu
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DateField(label: String, iso: String, modifier: Modifier = Modifier, onPick: (String) -> Unit) {
+fun DateField(
+    label: String,
+    iso: String,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    minDateIso: String = todayIso(),
+    onPick: (String) -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
     OutlinedCard(modifier.clickable { open = true }, shape = RoundedCornerShape(12.dp)) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().then(if (compact) Modifier.fillMaxHeight().padding(horizontal = 12.dp) else Modifier.padding(12.dp)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Icon(Icons.Default.CalendarMonth, null, tint = Brand.Primary, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Column { Text(label, style = MaterialTheme.typography.labelSmall, color = Brand.Muted); Text(prettyDate(iso), style = MaterialTheme.typography.titleSmall) }
+            if (compact) {
+                Text(
+                    prettyDate(iso),
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            } else {
+                Column {
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = Brand.Muted, maxLines = 1)
+                    Text(prettyDate(iso), style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                }
+            }
         }
     }
     if (open) {
-        val st = rememberDatePickerState(initialSelectedDateMillis = java.time.LocalDate.parse(iso).atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli())
-        DatePickerDialog(onDismissRequest = { open = false }, confirmButton = {
-            TextButton({ st.selectedDateMillis?.let { onPick(Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().toString()) }; open = false }) { Text(t(R.string.ok)) }
-        }) { DatePicker(st) }
+        val today = java.time.LocalDate.now()
+        val minLocal = runCatching { java.time.LocalDate.parse(minDateIso) }.getOrDefault(today).let {
+            if (it.isBefore(today)) today else it
+        }
+        val minMillis = minLocal.atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+        val initLocal = runCatching { java.time.LocalDate.parse(iso) }.getOrDefault(minLocal).let {
+            if (it.isBefore(minLocal)) minLocal else it
+        }
+        val initMillis = initLocal.atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+        val st = rememberDatePickerState(
+            initialSelectedDateMillis = initMillis,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= minMillis
+                override fun isSelectableYear(year: Int): Boolean = year >= minLocal.year
+            },
+        )
+        DatePickerDialog(
+            onDismissRequest = { open = false },
+            confirmButton = {
+                TextButton({
+                    st.selectedDateMillis?.takeIf { it >= minMillis }?.let {
+                        onPick(Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().toString())
+                    }
+                    open = false
+                }) { Text(t(R.string.ok)) }
+            },
+        ) { DatePicker(st) }
     }
 }

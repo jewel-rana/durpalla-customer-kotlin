@@ -343,15 +343,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                             }
                         }
                     }
-                    val tripActive = effectiveType == "boat" ||
-                        d.str("status", "trip_status").lowercase() in listOf("active", "ongoing", "started", "boarding")
-                    if (tripActive) {
-                        val driver = d.str("driver_name", "captain_name", "vehicle_name", default = t(R.string.call_driver))
-                        Column(Modifier.padding(horizontal = 16.dp)) {
-                            CallDriverButton(tripId = tripId, driverName = driver, tripActive = true)
-                            CallLogSection(tripId, tripCallLog = d.a("callLog").objects())
-                        }
-                    }
+
                     Spacer(Modifier.height(90.dp))
                 }
             }

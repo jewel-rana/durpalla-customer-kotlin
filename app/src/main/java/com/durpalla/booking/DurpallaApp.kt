@@ -16,20 +16,28 @@ class DurpallaApp : Application() {
     override fun onCreate() {
         super.onCreate()
         AppCtx.init(this)
+        val firebaseReady = runCatching {
+            FirebaseApp.getApps(this).isNotEmpty() || FirebaseApp.initializeApp(this) != null
+        }.getOrDefault(false)
         container = AppContainer(this)
         Notifications.init(this)
         CallNotifications.ensureChannels(this)
         container.pusher.connect { container.session.token }
-        // Firebase is initialised automatically by google-services; guard in case the json is missing.
-        if (FirebaseApp.getApps(this).isNotEmpty() || FirebaseApp.initializeApp(this) != null) {
+        if (firebaseReady) {
             container.appScope.launch {
                 runCatching {
                     val token = FirebaseMessaging.getInstance().token.await()
                     if (token.isNotEmpty()) container.session.saveDeviceId(token)
                     container.auth.bindPushToken()
                 }.onFailure {
-                    // Fallback like PushDeviceService: soft device hint
-                    if (container.session.deviceId() == null) container.session.saveDeviceId("fbk_" + android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID))
+                    if (container.session.deviceId() == null) {
+                        container.session.saveDeviceId(
+                            "fbk_" + android.provider.Settings.Secure.getString(
+                                contentResolver,
+                                android.provider.Settings.Secure.ANDROID_ID,
+                            ),
+                        )
+                    }
                 }
             }
         }

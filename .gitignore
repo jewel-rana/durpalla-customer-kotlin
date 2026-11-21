@@ -34,3 +34,8 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Environment credentials (keep .env.example)
+.env
+.env.*
+!.env.example
