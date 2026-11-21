@@ -203,7 +203,7 @@ fun HotelDetailsScreen(id: Int, ci: String, co: String) {
                         val quote = r.o("quote")
                         val unitPrice = quote.d("total", "room_subtotal")
                             ?: r.d("base_price_per_night", "price", "total", "price_total", "price_per_night", "rate", "base_price")
-                            ?: quote.a("lines")?.firstOrNull()?.d("rate", "price")
+                            ?: (quote.a("lines")?.firstOrNull() as? kotlinx.serialization.json.JsonObject)?.d("rate", "price")
                             ?: 0.0
                         val count = roomQty[rtId] ?: 0
                         SoftCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth()) {
