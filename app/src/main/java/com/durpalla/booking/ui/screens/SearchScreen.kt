@@ -110,9 +110,9 @@ fun SearchScreen(initialService: String) {
                 when (service) {
                     "hotel", "boat" -> {
                         if (service == "hotel") {
-                            SuggestField(t(R.string.city), from, Icons.Default.LocationCity, { from = it }) { q -> LocalSuggest.city(q) }
+                            SuggestField(t(R.string.city), from, Icons.Default.LocationCity, { from = it }) { q -> LocalSuggest.city(q, "hotel") }
                         } else {
-                            SuggestField(t(R.string.search_boats_optional), from, Icons.Default.Sailing, { from = it }) { q -> LocalSuggest.city(q) }
+                            SuggestField(t(R.string.search_boats_optional), from, Icons.Default.Sailing, { from = it }) { q -> LocalSuggest.city(q, "boat") }
                             Spacer(Modifier.height(8.dp))
                             val boatTypes = listOf(
                                 "" to R.string.boat_type_all,
@@ -142,7 +142,7 @@ fun SearchScreen(initialService: String) {
                             value = from,
                             icon = if (service == "tour") Icons.Default.Landscape else Icons.Default.Celebration,
                             onChange = { from = it },
-                        ) { q -> LocalSuggest.city(q) }
+                        ) { q -> LocalSuggest.city(q, service) }
                         Spacer(Modifier.height(12.dp))
                         Text(t(R.string.journey_date), style = MaterialTheme.typography.labelMedium, color = Brand.Muted)
                         Spacer(Modifier.height(6.dp))
@@ -299,7 +299,7 @@ object LocalSuggest {
     lateinit var trips: com.durpalla.booking.data.repo.TripRepository
     suspend fun ghatPlaces(q: String, exclude: String, type: String) = trips.ghatPlaceSuggestions(q, exclude, type)
     suspend fun ghat(q: String, exclude: String, type: String) = trips.ghatSuggestions(q, exclude, type)
-    suspend fun city(q: String) = trips.citySuggestions(q)
+    suspend fun city(q: String = "", type: String? = null) = trips.citySuggestions(q, type)
 }
 
 /**

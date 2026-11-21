@@ -269,7 +269,7 @@ fun ExperienceListScreen(
                         value = dest,
                         icon = if (svc == Service.TOUR) Icons.Default.Landscape else Icons.Default.Celebration,
                         onChange = { dest = it },
-                    ) { query -> c.trips.citySuggestions(query) }
+                    ) { query -> c.trips.citySuggestions(query, if (svc == Service.TOUR) "tour" else "entertainment") }
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),

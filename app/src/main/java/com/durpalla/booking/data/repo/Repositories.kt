@@ -122,11 +122,24 @@ class TripRepository(private val api: ApiClient) {
     suspend fun ghatSuggestions(q: String, exclude: String? = null, type: String? = null): List<String> =
         ghatPlaceSuggestions(q, exclude, type).map { it.name }
 
-    suspend fun citySuggestions(q: String): List<String> {
-        val list = if (q.isBlank()) emptyList()
-        else runCatching { parseSuggestions(api.getJson("city/suggestion", mapOf("q" to q)).a("data")) }.getOrDefault(emptyList())
+    suspend fun citySuggestions(q: String = "", type: String? = "hotel"): List<String> {
+        val list = runCatching {
+            val res = api.getJson(
+                "trip/ghat-suggestions",
+                mapOf(
+                    "query" to q.trim().takeIf { it.isNotEmpty() },
+                    "type" to type,
+                ),
+            )
+            val arr = res.a("data") ?: res.o("data").a("items") ?: res.o("data").a("ghats")
+            parseSuggestions(arr).distinct()
+        }.getOrDefault(emptyList())
         if (list.isNotEmpty()) return list
-        return GhatFallback.matches(q, null)
+
+        val fallback = if (q.isBlank()) emptyList()
+        else runCatching { parseSuggestions(api.getJson("city/suggestion", mapOf("q" to q)).a("data")).distinct() }.getOrDefault(emptyList())
+        if (fallback.isNotEmpty()) return fallback
+        return if (type == "hotel") listOf("Dhaka", "Chittagong", "Barisal") else GhatFallback.matches(q, null)
     }
 
     private fun parseSuggestions(arr: JsonArray?): List<String> = arr?.mapNotNull { e ->
