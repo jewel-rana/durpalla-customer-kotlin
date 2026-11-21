@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.durpalla.booking.R
@@ -109,40 +111,111 @@ fun HotelDetailsScreen(id: Int, ci: String, co: String) {
                         val amen = h.a("amenities")?.mapNotNull(::labelOfElement) ?: emptyList()
                         if (amen.isNotEmpty()) LazyRow(contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(amen) { Pill(it) } }
                         h.s("description")?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = Brand.Muted, maxLines = 5) }
-                        SoftCard(Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth()) {
-                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(t(R.string.adults), fontWeight = FontWeight.SemiBold)
-                                    IconButton({ if (adults > 1) adults-- }) { Text("-") }
-                                    Text("$adults")
-                                    IconButton({ adults++ }) { Text("+") }
+                        SoftCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth()) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Icon(Icons.Default.Person, null, modifier = Modifier.size(16.dp), tint = Brand.Primary)
+                                    Text(t(R.string.adults), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (adults > 1) Brand.P50 else MaterialTheme.colorScheme.surfaceVariant.copy(.4f),
+                                        border = BorderStroke(1.dp, if (adults > 1) Brand.Primary else MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clickable(enabled = adults > 1) { adults-- },
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Remove, null, modifier = Modifier.size(14.dp), tint = if (adults > 1) Brand.Primary else Brand.Muted)
+                                        }
+                                    }
+                                    Text("$adults", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.widthIn(min = 16.dp), textAlign = TextAlign.Center)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Brand.P50,
+                                        border = BorderStroke(1.dp, Brand.Primary),
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clickable { adults++ },
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Add, null, modifier = Modifier.size(14.dp), tint = Brand.Primary)
+                                        }
+                                    }
                                 }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(t(R.string.children), fontWeight = FontWeight.SemiBold)
-                                    IconButton({ if (children > 0) children-- }) { Text("-") }
-                                    Text("$children")
-                                    IconButton({ children++ }) { Text("+") }
-                                }
-                                TextButton({ if (nav.ensureAuth(self)) showReviewDialog = true }) {
-                                    Text(t(R.string.write_review))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Icon(Icons.Default.ChildCare, null, modifier = Modifier.size(16.dp), tint = Brand.Primary)
+                                    Text(t(R.string.children), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (children > 0) Brand.P50 else MaterialTheme.colorScheme.surfaceVariant.copy(.4f),
+                                        border = BorderStroke(1.dp, if (children > 0) Brand.Primary else MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clickable(enabled = children > 0) { children-- },
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Remove, null, modifier = Modifier.size(14.dp), tint = if (children > 0) Brand.Primary else Brand.Muted)
+                                        }
+                                    }
+                                    Text("$children", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.widthIn(min = 16.dp), textAlign = TextAlign.Center)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Brand.P50,
+                                        border = BorderStroke(1.dp, Brand.Primary),
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clickable { children++ },
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Add, null, modifier = Modifier.size(14.dp), tint = Brand.Primary)
+                                        }
+                                    }
                                 }
                             }
                         }
                         reviewMsg?.let { Text(it, color = Brand.Success, modifier = Modifier.padding(horizontal = 16.dp)) }
-                        SectionHeader(t(R.string.rooms_for_dates, prettyDate(ci), prettyDate(co)))
+                        SectionHeader(
+                            title = t(R.string.rooms_for_dates, prettyDate(ci), prettyDate(co)),
+                            action = t(R.string.write_review),
+                            onAction = { if (nav.ensureAuth(self)) showReviewDialog = true },
+                        )
                         err?.let { Text(it, color = Brand.Error, modifier = Modifier.padding(horizontal = 16.dp)) }
                     }
-                    if (rooms.isEmpty()) item { EmptyState(Icons.Default.Bed, t(R.string.no_rooms_available)) }
-                    items(rooms) { r ->
+                    val displayRooms = rooms.ifEmpty {
+                        h.a("room_types")?.objects() ?: h.a("rooms")?.objects() ?: emptyList()
+                    }
+                    if (displayRooms.isEmpty()) item { EmptyState(Icons.Default.Bed, t(R.string.no_rooms_available)) }
+                    items(displayRooms) { r ->
                         val rtId = r.i("room_type_id", "id") ?: 0
-                        val unitPrice = r.d("total", "price_total", "price", "price_per_night") ?: 0.0
+                        val quote = r.o("quote")
+                        val unitPrice = quote.d("total", "room_subtotal")
+                            ?: r.d("base_price_per_night", "price", "total", "price_total", "price_per_night", "rate", "base_price")
+                            ?: quote.a("lines")?.firstOrNull()?.d("rate", "price")
+                            ?: 0.0
                         val count = roomQty[rtId] ?: 0
                         SoftCard(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth()) {
                             Column(Modifier.padding(16.dp)) {
                                 Text(r.str("title", "name", "room_type_title", default = t(R.string.room)), style = MaterialTheme.typography.titleMedium)
-                                Text(t(R.string.up_to_guests, r.i("max_adults", "capacity") ?: 2), color = Brand.Muted, style = MaterialTheme.typography.bodySmall)
+                                Text(t(R.string.up_to_guests, r.i("max_occupancy", "max_adults", "capacity") ?: 2), color = Brand.Muted, style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(8.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(money(unitPrice), Modifier.weight(1f), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge)
+                                    Column(Modifier.weight(1f)) {
+                                        Text(money(unitPrice), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge)
+                                        Text(t(R.string.per_night), color = Brand.Muted, style = MaterialTheme.typography.labelSmall)
+                                    }
                                     IconButton({ if (count > 0) roomQty = roomQty + (rtId to (count - 1)) }) { Icon(Icons.Default.RemoveCircleOutline, null) }
                                     Text("$count", style = MaterialTheme.typography.titleMedium)
                                     IconButton({ roomQty = roomQty + (rtId to (count + 1)) }) { Icon(Icons.Default.AddCircleOutline, null, tint = Brand.Primary) }
