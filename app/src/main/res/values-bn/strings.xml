@@ -385,4 +385,7 @@
     <string name="whatsapp_support">হোয়াটসঅ্যাপ সাপোর্ট</string>
     <string name="messenger_support">মেসেঞ্জার সাপোর্ট</string>
     <string name="maintenance_title">রক্ষণাবেক্ষণ চলছে</string>
+    <string name="paste_code">কোড পেস্ট করুন</string>
+    <string name="enable_notification_access">নোটিফিকেশন থেকে ওটিপি পড়ুন</string>
+    <string name="otp_auto_detected">ওটিপি শনাক্ত হয়েছে</string>
 </resources>

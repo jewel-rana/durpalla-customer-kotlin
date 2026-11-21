@@ -222,26 +222,22 @@ fun HotelDetailsScreen(id: Int, ci: String, co: String) {
                                     Spacer(Modifier.width(8.dp))
                                     GradientButton(t(R.string.book_now), Modifier.width(120.dp), loading = busy && count <= 1) {
                                         if (!nav.ensureAuth(self)) return@GradientButton
-                                        val lines = roomQty.filter { it.value > 0 }.toList().ifEmpty { listOf(rtId to 1) }
+                                        val selectedLines = roomQty.filter { it.value > 0 }.toList()
+                                        val lines = if (selectedLines.isNotEmpty()) selectedLines else listOf(rtId to 1)
                                         scope.launch {
                                             busy = true; err = null
                                             var holdId: Int? = null
                                             runCatching {
-                                                val quoteBody = jsonOf(
-                                                    "hotel_id" to id,
-                                                    "lines" to lines.map { (rid, q) -> mapOf("room_type_id" to rid, "quantity" to q) },
-                                                    "check_in" to ci, "check_out" to co, "adults" to adults, "children" to children,
-                                                )
-                                                c.hotels.quote(quoteBody)
                                                 val hold = c.hotels.hold(id, lines, ci, co, adults = adults, children = children)
                                                 holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
                                                     ?: throw ApiException(AppCtx.str(R.string.err_hold_failed))
                                                 val conf = c.hotels.confirm(holdId!!)
                                                 val booking = conf.o("data").o("booking") ?: conf.o("booking") ?: conf.o("data")
                                                 val bid = booking.i("id") ?: conf.o("data").i("booking_id", "order_id", "id")
-                                                    ?: conf.i("booking_id") ?: throw ApiException(AppCtx.str(R.string.err_booking_id_short))
+                                                    ?: conf.i("booking_id", "order_id") ?: throw ApiException(AppCtx.str(R.string.err_booking_id_short))
                                                 val amt = booking.d("total_payable")
                                                     ?: conf.o("data").d("total_payable", "amount", "total")
+                                                    ?: conf.d("total_payable", "amount", "total")
                                                     ?: (unitPrice * lines.sumOf { it.second })
                                                 bid to amt
                                             }.onSuccess { (bid, amt) -> nav.go(Routes.payment(bid, amt)) }

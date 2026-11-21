@@ -385,4 +385,7 @@
     <string name="whatsapp_support">WhatsApp Support</string>
     <string name="messenger_support">Messenger Support</string>
     <string name="maintenance_title">Under Maintenance</string>
+    <string name="paste_code">Paste code</string>
+    <string name="enable_notification_access">Auto-read from notifications</string>
+    <string name="otp_auto_detected">OTP auto-detected</string>
 </resources>

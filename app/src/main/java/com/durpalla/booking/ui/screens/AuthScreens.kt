@@ -29,6 +29,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.durpalla.booking.R
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.NotificationsActive
+import com.durpalla.booking.core.*
 import com.durpalla.booking.core.AuthCheckResult
 import com.durpalla.booking.core.AuthIdentifier
 import com.durpalla.booking.core.AuthValidators
@@ -337,10 +340,48 @@ fun OtpScreen(idRaw: String, redirect: String) {
         }
     }
 
+    fun doVerify(otpCode: String) {
+        if (loading || !AuthValidators.isOtpComplete(otpCode)) return
+        scope.launch {
+            loading = true
+            err = null
+            runCatching { c.auth.verifyOtp(id, otpCode, "register") }.onSuccess { r ->
+                val step = stepOf(r)
+                when {
+                    c.session.isAuthenticated -> {
+                        c.auth.bindPushToken()
+                        nav.finishAuth(redirect)
+                    }
+                    step in listOf("register", "signup", "sign_up") ->
+                        nav.nav.navigate(Routes.register(id, otpCode, redirect))
+                    step in listOf("login", "signin", "sign_in") ->
+                        nav.nav.navigate(Routes.password(id, redirect))
+                    step == "reset" && id.mobile != null ->
+                        nav.nav.navigate(Routes.forgotReset(id.mobile!!))
+                    else -> err = r.message ?: verificationComplete
+                }
+            }.onFailure { err = it.message }
+            loading = false
+        }
+    }
+
+    val otpAutoDetectedMsg = t(R.string.otp_auto_detected)
+    val autoReader = rememberOtpAutoReader { received ->
+        code = received
+        info = otpAutoDetectedMsg
+        doVerify(received)
+    }
+
     AuthScaffold(t(R.string.otp_title), subtitle) {
         BasicTextField(
             code,
-            { v -> code = v.filter(Char::isDigit).take(6) },
+            { v ->
+                val clean = v.filter(Char::isDigit).take(6)
+                code = clean
+                if (clean.length == 6) {
+                    doVerify(clean)
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             decorationBox = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -361,8 +402,37 @@ fun OtpScreen(idRaw: String, redirect: String) {
                 }
             },
         )
-        info?.let { Text(it, color = Brand.Primary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
-        err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = {
+                    if (autoReader.pasteFromClipboard()) {
+                        info = otpAutoDetectedMsg
+                    }
+                },
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+            ) {
+                Icon(Icons.Default.ContentPaste, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(t(R.string.paste_code), style = MaterialTheme.typography.labelSmall)
+            }
+
+            if (!id.isMobile && !autoReader.isNotificationAccessEnabled()) {
+                TextButton(
+                    onClick = { autoReader.openNotificationSettings() },
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                ) {
+                    Icon(Icons.Default.NotificationsActive, null, modifier = Modifier.size(16.dp), tint = Brand.Primary)
+                    Spacer(Modifier.width(4.dp))
+                    Text(t(R.string.enable_notification_access), style = MaterialTheme.typography.labelSmall, color = Brand.Primary)
+                }
+            }
+        }
+        info?.let { Text(it, color = Brand.Primary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
+        err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
         Spacer(Modifier.height(16.dp))
         GradientButton(
             t(R.string.verify),
@@ -370,27 +440,7 @@ fun OtpScreen(idRaw: String, redirect: String) {
             enabled = AuthValidators.isOtpComplete(code),
             loading = loading,
         ) {
-            scope.launch {
-                loading = true
-                err = null
-                runCatching { c.auth.verifyOtp(id, code, "register") }.onSuccess { r ->
-                    val step = stepOf(r)
-                    when {
-                        c.session.isAuthenticated -> {
-                            c.auth.bindPushToken()
-                            nav.finishAuth(redirect)
-                        }
-                        step in listOf("register", "signup", "sign_up") ->
-                            nav.nav.navigate(Routes.register(id, code, redirect))
-                        step in listOf("login", "signin", "sign_in") ->
-                            nav.nav.navigate(Routes.password(id, redirect))
-                        step == "reset" && id.mobile != null ->
-                            nav.nav.navigate(Routes.forgotReset(id.mobile!!))
-                        else -> err = r.message ?: verificationComplete
-                    }
-                }.onFailure { err = it.message }
-                loading = false
-            }
+            doVerify(code)
         }
         TextButton(onClick = { sendOtp() }, Modifier.fillMaxWidth(), enabled = seconds == 0 && !sending && id.display.isNotBlank()) {
             Text(if (seconds > 0) t(R.string.resend_in, seconds) else t(R.string.resend))
@@ -606,10 +656,37 @@ fun ForgotOtpScreen(mobile: String) {
     val scope = rememberCoroutineScope()
     val otpVerifiedMsg = t(R.string.otp_verified_chip)
 
+    fun doVerify(otpCode: String) {
+        if (loading || !AuthValidators.isOtpComplete(otpCode)) return
+        scope.launch {
+            loading = true
+            err = null
+            c.session.clear()
+            runCatching { c.auth.forgotVerify(mobile, otpCode) }
+                .onSuccess { r ->
+                    if (r.success) nav.nav.navigate(Routes.forgotReset(mobile))
+                    else err = r.message ?: otpVerifiedMsg
+                }
+                .onFailure { err = it.message }
+            loading = false
+        }
+    }
+
+    val autoReader = rememberOtpAutoReader { received ->
+        code = received
+        doVerify(received)
+    }
+
     AuthScaffold(t(R.string.otp_title), t(R.string.otp_forgot_subtitle, mobile)) {
         BasicTextField(
             code,
-            { v -> code = v.filter(Char::isDigit).take(6) },
+            { v ->
+                val clean = v.filter(Char::isDigit).take(6)
+                code = clean
+                if (clean.length == 6) {
+                    doVerify(clean)
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             decorationBox = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -630,7 +707,21 @@ fun ForgotOtpScreen(mobile: String) {
                 }
             },
         )
-        err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = { autoReader.pasteFromClipboard() },
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+            ) {
+                Icon(Icons.Default.ContentPaste, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(t(R.string.paste_code), style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
         Spacer(Modifier.height(16.dp))
         GradientButton(
             t(R.string.verify),
@@ -638,18 +729,7 @@ fun ForgotOtpScreen(mobile: String) {
             enabled = AuthValidators.isOtpComplete(code),
             loading = loading,
         ) {
-            scope.launch {
-                loading = true
-                err = null
-                c.session.clear()
-                runCatching { c.auth.forgotVerify(mobile, code) }
-                    .onSuccess { r ->
-                        if (r.success) nav.nav.navigate(Routes.forgotReset(mobile))
-                        else err = r.message ?: otpVerifiedMsg
-                    }
-                    .onFailure { err = it.message }
-                loading = false
-            }
+            doVerify(code)
         }
     }
 }

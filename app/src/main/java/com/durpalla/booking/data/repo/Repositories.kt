@@ -302,7 +302,9 @@ class HotelRepository(private val api: ApiClient) {
     ): JsonObject {
         val rooms = lines.sumOf { it.second }
         val key = "hc${hotelId}r${rooms}t${System.currentTimeMillis() * 1000}".take(64)
+        val primaryRt = lines.firstOrNull { it.first > 0 }?.first ?: 0
         val body = jsonOf(
+            "room_type_id" to primaryRt,
             "lines" to lines.map { (rt, qty) -> mapOf("room_type_id" to rt, "quantity" to qty) },
             "check_in" to checkIn,
             "check_out" to checkOut,
