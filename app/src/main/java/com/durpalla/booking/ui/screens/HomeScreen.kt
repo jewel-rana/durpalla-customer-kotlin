@@ -1,6 +1,10 @@
 package com.durpalla.booking.ui.screens
 
 import androidx.compose.foundation.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -116,31 +120,58 @@ fun HomeScreen() {
         }
     }
     val state by vm.state.collectAsState()
+    val isDark by c.session.darkMode.collectAsState(initial = false)
+    val listState = rememberLazyListState()
+    val isScrolled by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 48
+        }
+    }
+    val topBarBg by animateColorAsState(
+        targetValue = if (isScrolled) MaterialTheme.colorScheme.surface else Color.Transparent,
+        animationSpec = tween(200),
+        label = "topBarBg",
+    )
+    val topBarElevation by animateDpAsState(
+        targetValue = if (isScrolled) 4.dp else 0.dp,
+        animationSpec = tween(200),
+        label = "topBarElevation",
+    )
+    val actionTint by animateColorAsState(
+        targetValue = if (isScrolled) MaterialTheme.colorScheme.onSurface else Color.White,
+        animationSpec = tween(200),
+        label = "actionTint",
+    )
+
     val visibleTiles = remember(state) {
         val active = (state as? Load.Ok)?.value?.activeServiceKeys.orEmpty()
         if (active.isEmpty()) serviceTiles else serviceTiles.filter { it.key in active }.ifEmpty { serviceTiles }
     }
 
-    LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        item {
-            Box(Modifier.fillMaxWidth().height(250.dp)) {
-                PhotoBox(null, R.drawable.photo_launch, Modifier.matchParentSize())
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Brand.Navy.copy(.55f), Brand.Navy.copy(.92f)))))
-                Column(Modifier.statusBarsPadding().padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        LogoHorizontal(Modifier.height(30.dp), white = true)
-                        Spacer(Modifier.weight(1f))
-                        if (loggedIn) FrostedIcon(Icons.Outlined.Notifications) { nav.go(Routes.NOTIFICATIONS) }
-                        else Button(onClick = { nav.go(Routes.login(Routes.HOME)) }, colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(.2f))) {
-                            Text(t(R.string.sign_in), color = Color.White)
-                        }
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item {
+                Box(Modifier.fillMaxWidth().height(240.dp)) {
+                    PhotoBox(null, R.drawable.photo_launch, Modifier.matchParentSize())
+                    Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Brand.Navy.copy(.55f), Brand.Navy.copy(.92f)))))
+                    Column(
+                        Modifier
+                            .statusBarsPadding()
+                            .padding(horizontal = 20.dp)
+                            .padding(top = 58.dp, bottom = 18.dp)
+                    ) {
+                        Text(
+                            if (loggedIn) t(R.string.hi_name, user.str("name", default = t(R.string.traveller))) else t(R.string.greeting_guest),
+                            color = Color.White.copy(.8f),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(t(R.string.where_to), style = MaterialTheme.typography.headlineSmall, color = Color.White)
                     }
-                    Spacer(Modifier.height(22.dp))
-                    Text(if (loggedIn) t(R.string.hi_name, user.str("name", default = t(R.string.traveller))) else t(R.string.greeting_guest), color = Color.White.copy(.8f))
-                    Text(t(R.string.where_to), style = MaterialTheme.typography.headlineSmall, color = Color.White)
                 }
             }
-        }
         item {
             SoftCard(Modifier.padding(horizontal = 16.dp).offset(y = (-48).dp)) {
                 Column(Modifier.padding(14.dp)) {
@@ -253,6 +284,59 @@ fun HomeScreen() {
                     }
                 }
                 item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+
+        // Sticky Top Bar
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(),
+            color = topBarBg,
+            shadowElevation = topBarElevation,
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LogoHorizontal(
+                    modifier = Modifier.height(30.dp),
+                    white = if (isDark) true else !isScrolled,
+                )
+                Spacer(Modifier.weight(1f))
+                if (loggedIn) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isScrolled) MaterialTheme.colorScheme.surfaceVariant.copy(.6f) else Color.White.copy(.28f),
+                        border = BorderStroke(1.dp, if (isScrolled) MaterialTheme.colorScheme.outlineVariant.copy(.5f) else Color.White.copy(.4f)),
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clickable { nav.go(Routes.NOTIFICATIONS) },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.Notifications,
+                                contentDescription = t(R.string.notifications),
+                                tint = actionTint,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = { nav.go(Routes.login(Routes.HOME)) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isScrolled) MaterialTheme.colorScheme.primary else Color.White.copy(.2f),
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    ) {
+                        Text(t(R.string.sign_in), color = Color.White, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
             }
         }
     }
