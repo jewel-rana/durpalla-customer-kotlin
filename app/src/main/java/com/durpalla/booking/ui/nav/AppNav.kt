@@ -23,6 +23,7 @@ import com.durpalla.booking.R
 import com.durpalla.booking.l10n.ProvideAppLocale
 import com.durpalla.booking.l10n.t
 import com.durpalla.booking.ui.components.GradientButton
+import com.durpalla.booking.ui.components.dismissKeyboardOnTap
 import com.durpalla.booking.ui.screens.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
@@ -143,7 +144,7 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
             },
             contentWindowInsets = WindowInsets(0),
         ) { pad ->
-            Box(Modifier.fillMaxSize().padding(pad).com.durpalla.booking.ui.components.dismissKeyboardOnTap()) {
+            Box(Modifier.fillMaxSize().padding(pad).dismissKeyboardOnTap()) {
             NavHost(nav, startDestination = Routes.SPLASH,
                 enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(320)) + fadeIn(tween(320)) },
                 exitTransition = { fadeOut(tween(200)) },

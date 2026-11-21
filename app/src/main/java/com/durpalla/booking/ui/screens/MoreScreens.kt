@@ -167,9 +167,42 @@ fun ProfileScreen() {
         }
     }
 
-    Scaffold(topBar = { DTopBar(t(R.string.edit_profile), onBack = nav::back) }) { pad ->
+    Scaffold(
+        topBar = { DTopBar(t(R.string.edit_profile), onBack = nav::back) },
+        bottomBar = {
+            Surface(
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth().imePadding(),
+            ) {
+                Box(Modifier.navigationBarsPadding().padding(16.dp)) {
+                    GradientButton(t(R.string.save), Modifier.fillMaxWidth(), loading = loading) {
+                        scope.launch {
+                            loading = true
+                            val part = croppedBytes?.let { bytes ->
+                                MultipartBody.Part.createFormData(
+                                    "avatar",
+                                    "avatar.jpg",
+                                    bytes.toRequestBody("image/jpeg".toMediaType()),
+                                )
+                            }
+                            msg = runCatching {
+                                c.profile.update(name.trim(), email.trim(), mobile.trim().ifBlank { null }, part).message
+                                    ?: AppCtx.str(R.string.saved)
+                            }.getOrElse { it.message }
+                            loading = false
+                        }
+                    }
+                }
+            }
+        },
+    ) { pad ->
         Column(
-            Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp),
+            Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .dismissKeyboardOnTap()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -191,23 +224,7 @@ fun ProfileScreen() {
             OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.email)) })
             OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.mobile_number)) })
             msg?.let { Text(it, color = Brand.Primary) }
-            GradientButton(t(R.string.save), Modifier.fillMaxWidth(), loading = loading) {
-                scope.launch {
-                    loading = true
-                    val part = croppedBytes?.let { bytes ->
-                        MultipartBody.Part.createFormData(
-                            "avatar",
-                            "avatar.jpg",
-                            bytes.toRequestBody("image/jpeg".toMediaType()),
-                        )
-                    }
-                    msg = runCatching {
-                        c.profile.update(name.trim(), email.trim(), mobile.trim().ifBlank { null }, part).message
-                            ?: AppCtx.str(R.string.saved)
-                    }.getOrElse { it.message }
-                    loading = false
-                }
-            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 
@@ -315,8 +332,53 @@ fun ChangePasswordScreen() {
     val mismatchMsg = t(R.string.passwords_do_not_match)
     val successMsg = t(R.string.password_changed)
 
-    Scaffold(topBar = { DTopBar(t(R.string.change_password), onBack = nav::back) }) { pad ->
-        Column(Modifier.padding(pad).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Scaffold(
+        topBar = { DTopBar(t(R.string.change_password), onBack = nav::back) },
+        bottomBar = {
+            Surface(
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth().imePadding(),
+            ) {
+                Box(Modifier.navigationBarsPadding().padding(16.dp)) {
+                    GradientButton(
+                        t(R.string.save),
+                        Modifier.fillMaxWidth(),
+                        enabled = currentPass.length >= 6 && newPass.length >= 8 && confirmPass.length >= 8,
+                        loading = loading,
+                    ) {
+                        if (newPass != confirmPass) {
+                            isError = true
+                            msg = mismatchMsg
+                            return@GradientButton
+                        }
+                        scope.launch {
+                            loading = true
+                            runCatching {
+                                c.profile.changePassword(currentPass, newPass, confirmPass)
+                            }.onSuccess { r ->
+                                isError = false
+                                msg = r.message ?: successMsg
+                                currentPass = ""; newPass = ""; confirmPass = ""
+                            }.onFailure {
+                                isError = true
+                                msg = it.message
+                            }
+                            loading = false
+                        }
+                    }
+                }
+            }
+        },
+    ) { pad ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .dismissKeyboardOnTap()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             OutlinedTextField(
                 currentPass,
                 { currentPass = it },
@@ -343,32 +405,7 @@ fun ChangePasswordScreen() {
                 singleLine = true,
             )
             msg?.let { Text(it, color = if (isError) Brand.Error else Brand.Success) }
-            GradientButton(
-                t(R.string.save),
-                Modifier.fillMaxWidth(),
-                enabled = currentPass.length >= 6 && newPass.length >= 8 && confirmPass.length >= 8,
-                loading = loading,
-            ) {
-                if (newPass != confirmPass) {
-                    isError = true
-                    msg = mismatchMsg
-                    return@GradientButton
-                }
-                scope.launch {
-                    loading = true
-                    runCatching {
-                        c.profile.changePassword(currentPass, newPass, confirmPass)
-                    }.onSuccess { r ->
-                        isError = false
-                        msg = r.message ?: successMsg
-                        currentPass = ""; newPass = ""; confirmPass = ""
-                    }.onFailure {
-                        isError = true
-                        msg = it.message
-                    }
-                    loading = false
-                }
-            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
