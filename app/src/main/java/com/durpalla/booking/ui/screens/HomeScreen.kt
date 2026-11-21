@@ -286,6 +286,7 @@ fun HomeScreen() {
                 item { Spacer(Modifier.height(24.dp)) }
             }
         }
+    }
 
         // Sticky Top Bar
         Surface(
