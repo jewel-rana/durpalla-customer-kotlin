@@ -38,7 +38,12 @@ object Brand {
 private fun inter(w: Int) = Font(R.font.inter, FontWeight(w), variationSettings = FontVariation.Settings(FontVariation.weight(w)))
 
 @OptIn(ExperimentalTextApi::class)
-val Inter = FontFamily(inter(400), inter(500), inter(600), inter(700), inter(800))
+val Inter = FontFamily(
+    Font(R.font.solaiman_lipi_regular, FontWeight.Normal),
+    Font(R.font.solaiman_lipi_bold, FontWeight.SemiBold),
+    Font(R.font.solaiman_lipi_bold, FontWeight.Bold),
+    inter(400), inter(500), inter(600), inter(700), inter(800),
+)
 
 private val base = Typography()
 val AppTypography = Typography(

@@ -20,6 +20,34 @@ class HomeRepository(private val api: ApiClient) {
     suspend fun topHotels(): List<Hotel> =
         api.getJson("hotel/home/top", mapOf("limit" to 10)).a("data").objects().mapNotNull(Hotel::from)
 
+    suspend fun siteInit(): JsonObject =
+        runCatching { api.getJson("site/init").o("data") ?: JsonObject(emptyMap()) }.getOrDefault(JsonObject(emptyMap()))
+
+    suspend fun faq(): List<Pair<String, String>> = runCatching {
+        val r = api.getJson("faq")
+        val arr = r.a("data") ?: r.o("data").a("faqs") ?: r.o("data").a("items") ?: r.a("faqs")
+        arr.objects().mapNotNull { m ->
+            val q = m.str("question", "title", "q")
+            val a = m.str("answer", "body", "content", "a")
+            if (q.isNotBlank() && a.isNotBlank()) q to a else null
+        }
+    }.getOrDefault(emptyList())
+
+    suspend fun cmsPage(slug: String): Pair<String, String>? = runCatching {
+        val r = api.getJson("page/$slug")
+        val d = r.o("data") ?: r.o("page") ?: r
+        val title = d.str("title", "name")
+        val rawHtml = d.str("content", "body", "description", "html")
+        val clean = rawHtml
+            .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+            .replace(Regex("</(p|div|li|h[1-6])>", RegexOption.IGNORE_CASE), "\n\n")
+            .replace(Regex("<[^>]+>"), "")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .lines().joinToString("\n") { it.trim() }.replace(Regex("\n{3,}"), "\n\n").trim()
+        if (clean.isNotBlank()) title to clean else null
+    }.getOrNull()
+
     suspend fun offers(): List<Offer> = api.getJson("offers").a("data").objects().map {
         Offer(
             it.i("id") ?: 0,
@@ -36,9 +64,24 @@ class TripRepository(private val api: ApiClient) {
      * Transport search: `GET search?type=launch|bus|train|flight`.
      * Boat uses [BoatRentalRepository.search], not this.
      */
-    suspend fun search(type: String, from: String, to: String, date: String): List<TripSummary> {
+    suspend fun search(
+        type: String,
+        from: String,
+        to: String,
+        date: String,
+        fromLocationId: Int? = null,
+        toLocationId: Int? = null,
+    ): List<TripSummary> {
         require(type != "boat") { "Boat search uses boat-rental/search" }
-        val json = api.getJson("search", mapOf("type" to type, "trip_from" to from, "trip_to" to to, "trip_date" to date))
+        val query = buildMap<String, Any?> {
+            put("type", type)
+            put("trip_from", from)
+            put("trip_to", to)
+            put("trip_date", date)
+            if (fromLocationId != null && fromLocationId > 0) put("from_location_id", fromLocationId)
+            if (toLocationId != null && toLocationId > 0) put("to_location_id", toLocationId)
+        }
+        val json = api.getJson("search", query)
         if (!json.success) throw ApiException(json.message ?: AppCtx.str(R.string.err_search_failed))
         val data = json["data"]
         val list = when (data) {
@@ -49,16 +92,35 @@ class TripRepository(private val api: ApiClient) {
         return list.mapNotNull { TripSummary.from(it, type) }
     }
 
-    suspend fun ghatSuggestions(q: String, exclude: String? = null, type: String? = null): List<String> {
-        if (q.isBlank()) return emptyList()
+    suspend fun ghatPlaceSuggestions(q: String = "", exclude: String? = null, type: String? = null): List<GhatPlace> {
         val list = runCatching {
-            api.getJson(
+            val res = api.getJson(
                 "trip/ghat-suggestions",
-                mapOf("query" to q.trim(), "exclude" to exclude?.takeIf { it.isNotBlank() }, "type" to type),
-            ).a("data").let(::parseSuggestions)
-        }.getOrDefault(emptyList()).filter { !it.equals(exclude, true) }
-        return list.ifEmpty { GhatFallback.matches(q, exclude) }
+                mapOf(
+                    "query" to q.trim().takeIf { it.isNotEmpty() },
+                    "exclude" to exclude?.takeIf { it.isNotBlank() },
+                    "type" to type,
+                ),
+            )
+            val arr = res.a("data") ?: res.o("data").a("items") ?: res.o("data").a("ghats")
+            arr?.mapNotNull { e ->
+                when (e) {
+                    is JsonObject -> {
+                        val id = e.i("id", "location_id", "ghat_id") ?: return@mapNotNull null
+                        val name = listOf("name", "city", "title", "ghat_name", "place_name", "label", "trip_from")
+                            .firstNotNullOfOrNull { e.s(it) }?.trim().orEmpty()
+                        if (id > 0 && name.isNotEmpty()) GhatPlace(id, name) else null
+                    }
+                    else -> null
+                }
+            }.orEmpty()
+        }.getOrDefault(emptyList()).filter { !it.name.equals(exclude, true) }
+        if (list.isNotEmpty()) return list
+        return GhatFallback.placeMatches(q, exclude)
     }
+
+    suspend fun ghatSuggestions(q: String, exclude: String? = null, type: String? = null): List<String> =
+        ghatPlaceSuggestions(q, exclude, type).map { it.name }
 
     suspend fun citySuggestions(q: String): List<String> =
         if (q.isBlank()) emptyList()
@@ -264,7 +326,12 @@ class ProfileRepository(private val api: ApiClient, private val session: Session
         return u
     }
 
-    suspend fun update(name: String, email: String, phone: String?): JsonObject {
+    suspend fun update(
+        name: String,
+        email: String,
+        phone: String?,
+        avatarPart: okhttp3.MultipartBody.Part? = null,
+    ): JsonObject {
         val r = api.putMultipart(
             "my/profile",
             buildMap {
@@ -272,11 +339,21 @@ class ProfileRepository(private val api: ApiClient, private val session: Session
                 put("email", email)
                 phone?.let { put("phone", it) }
             },
-            null,
+            avatarPart,
         ).requireSuccess(AppCtx.str(R.string.err_update_failed))
         (r.o("data") ?: r.o("user"))?.let { session.saveUser(it) }
         return r
     }
+
+    suspend fun changePassword(currentPassword: String, newPassword: String, confirmPassword: String): JsonObject =
+        api.postJson(
+            "my/password/change",
+            jsonOf(
+                "current_password" to currentPassword,
+                "password" to newPassword,
+                "password_confirmation" to confirmPassword,
+            ),
+        ).requireSuccess(AppCtx.str(R.string.err_update_failed))
 }
 
 /** Master ghat fallback (expanded). */
@@ -292,5 +369,12 @@ object GhatFallback {
         "Munshiganj", "Gazipur",
     )
     fun matches(q: String, exclude: String?) =
-        ghats.filter { it.contains(q.trim(), true) && !it.equals(exclude, true) }
+        ghats.filter { (q.isBlank() || it.contains(q.trim(), true)) && !it.equals(exclude, true) }
+
+    fun placeMatches(q: String, exclude: String?): List<GhatPlace> =
+        ghats.mapIndexedNotNull { idx, name ->
+            if ((q.isBlank() || name.contains(q.trim(), true)) && !name.equals(exclude, true)) {
+                GhatPlace(idx + 1, name)
+            } else null
+        }
 }

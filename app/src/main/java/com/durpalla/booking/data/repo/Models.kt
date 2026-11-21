@@ -4,6 +4,8 @@ import com.durpalla.booking.core.*
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
+data class GhatPlace(val id: Int, val name: String)
+
 enum class Service(val apiType: String?, val kind: String) {
     LAUNCH("launch", "transport"),
     BUS("bus", "transport"),

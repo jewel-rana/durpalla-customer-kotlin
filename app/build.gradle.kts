@@ -9,6 +9,15 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+val localProps: Map<String, String> = rootProject.file("local.properties")
+    .takeIf { it.exists() }
+    ?.readLines()
+    ?.mapNotNull { line ->
+        val s = line.trim()
+        if (s.isEmpty() || s.startsWith("#") || !s.contains("=")) null
+        else s.substringBefore("=").trim() to s.substringAfter("=").trim()
+    }?.toMap().orEmpty()
+
 android {
     namespace = "com.durpalla.booking"
     compileSdk = 35
@@ -24,14 +33,16 @@ android {
         buildConfigField("String", "BASE_URL", "\"https://dev-apigw.durpalla.com/api/v1/\"")
         buildConfigField("String", "AUTH_BASE_URL", "\"\"") // empty → same as BASE_URL
         buildConfigField("String", "ASSETS_BASE_URL", "\"https://dev-assets.durpalla.com\"")
-        buildConfigField("String", "PUSHER_KEY", "\"aed7edc1e0e3afd30d65\"") // TODO: move to local.properties
-        buildConfigField("String", "PUSHER_CLUSTER", "\"ap2\"")
-        buildConfigField("String", "RECAPTCHA_SITE_KEY", "\"6Le3VUYsAAAAADJfnKuZ6aWKhvkf4KJJ1dsnHOKT\"")
+        val pusherKey = localProps["PUSHER_KEY"] ?: "aed7edc1e0e3afd30d65"
+        val pusherCluster = localProps["PUSHER_CLUSTER"] ?: "ap2"
+        val recaptchaKey = localProps["RECAPTCHA_SITE_KEY"] ?: "6Le3VUYsAAAAADJfnKuZ6aWKhvkf4KJJ1dsnHOKT"
+        val useMockCalls = localProps["USE_MOCK_CALLS"] ?: "false"
+        buildConfigField("String", "PUSHER_KEY", "\"$pusherKey\"")
+        buildConfigField("String", "PUSHER_CLUSTER", "\"$pusherCluster\"")
+        buildConfigField("String", "RECAPTCHA_SITE_KEY", "\"$recaptchaKey\"")
         buildConfigField("String", "RECAPTCHA_ORIGIN", "\"https://durpalla.com\"")
         buildConfigField("String", "GHAT_SUGGEST_API_PATH", "\"trip/ghat-suggestions\"")
-        // In-app driver calling (WebRTC). Mock until backend + Firestore contract is live.
-        // TODO(calling): see Durpalla/durpalla-driver docs/calling-contract.md
-        buildConfigField("boolean", "USE_MOCK_CALLS", "true")
+        buildConfigField("boolean", "USE_MOCK_CALLS", useMockCalls)
         buildConfigField("String", "WEBRTC_STUN_URLS", "\"stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302\"")
         buildConfigField("String", "WEBRTC_TURN_URLS", "\"\"") // TURN creds from backend later
         buildConfigField("String", "WEBRTC_TURN_USERNAME", "\"\"")

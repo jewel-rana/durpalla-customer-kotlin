@@ -1,5 +1,6 @@
 package com.durpalla.booking.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,8 +8,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBoat
+import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -16,49 +19,96 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.durpalla.booking.R
 import com.durpalla.booking.core.*
+import com.durpalla.booking.l10n.t
 import com.durpalla.booking.ui.components.*
 import com.durpalla.booking.ui.nav.LocalContainer
 import com.durpalla.booking.ui.nav.LocalNav
 import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import com.durpalla.booking.l10n.t
+
+/** Enforces 6:00 AM – 10:00 PM boat operating window (mirrors web `lib/boatServiceHours.ts` & Flutter `boat_service_hours.dart`). */
+object BoatServiceHours {
+    const val OPEN_HOUR = 6
+    const val CLOSE_HOUR = 22
+    fun isWithinServiceHours(startHour: Int, endHour: Int): Boolean =
+        startHour in OPEN_HOUR..CLOSE_HOUR && endHour in OPEN_HOUR..CLOSE_HOUR && endHour > startHour
+}
 
 @Composable
 fun BoatListScreen(query: String = "", startsAt: String = "", endsAt: String = "") {
     val c = LocalContainer.current
     val nav = LocalNav.current
+    var selectedType by remember { mutableStateOf("") }
     val start = startsAt.ifBlank { LocalDate.now().atTime(9, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) }
     val end = endsAt.ifBlank { LocalDate.now().plusDays(1).atTime(18, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) }
-    val vm = rememberLoad("boats-$query-$start-$end") { c.boats.search(query.ifBlank { null }, start, end) }
+    val effectiveQuery = listOf(query.trim(), selectedType.trim()).filter { it.isNotEmpty() }.joinToString(" ")
+    val vm = rememberLoad("boats-$effectiveQuery-$start-$end") { c.boats.search(effectiveQuery.ifBlank { null }, start, end) }
     val state by vm.state.collectAsState()
+    val boatTypes = listOf(
+        "" to R.string.boat_type_all,
+        "House Boat" to R.string.boat_type_house,
+        "Speed Boat" to R.string.boat_type_speed,
+        "Steamer" to R.string.boat_type_steamer,
+        "Fishing Boat" to R.string.boat_type_fishing,
+    )
+
     Scaffold(
-        topBar = { DTopBar(t(R.string.svc_boat), onBack = nav::back) },
+        topBar = {
+            DTopBar(
+                t(R.string.svc_boat),
+                onBack = nav::back,
+                actions = {
+                    TextButton(onClick = { nav.go(Routes.BOAT_MY_REQUESTS) }) {
+                        Icon(Icons.Default.ListAlt, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(t(R.string.my_trip_requests))
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = { nav.go(Routes.boatCustomTrip()) }) {
                 Text(t(R.string.custom_trip))
             }
         },
     ) { pad ->
-        Box(Modifier.padding(pad)) {
-            when (val s = state) {
-                Load.Loading -> LoadingList()
-                is Load.Err -> ErrorState(s.message) { vm.reload() }
-                is Load.Ok -> if (s.value.isEmpty()) {
-                    EmptyState(Icons.Default.DirectionsBoat, t(R.string.no_boats_found), t(R.string.no_boats_body))
-                } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(s.value, key = { it.id }) { e ->
-                        SoftCard(onClick = { nav.go(Routes.boatDetails(e.id, start, end)) }) {
-                            if (e.photoUrl != null) {
-                                AsyncImage(e.photoUrl, null, Modifier.fillMaxWidth().height(150.dp), contentScale = ContentScale.Crop)
-                            }
-                            Column(Modifier.padding(14.dp)) {
-                                Text(e.title, style = MaterialTheme.typography.titleMedium)
-                                Text("${e.location} • ${e.duration}", color = Brand.Muted, style = MaterialTheme.typography.bodySmall)
-                                Text(money(e.price), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
+        Column(Modifier.padding(pad)) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                boatTypes.forEach { (key, labelRes) ->
+                    FilterChip(selectedType == key, { selectedType = key }, { Text(t(labelRes)) })
+                }
+            }
+            Box(Modifier.weight(1f)) {
+                when (val s = state) {
+                    Load.Loading -> LoadingList()
+                    is Load.Err -> ErrorState(s.message) { vm.reload() }
+                    is Load.Ok -> {
+                        val filtered = if (selectedType.isEmpty()) s.value else s.value.filter { e ->
+                            val hay = "${e.title} ${e.location} ${e.duration} ${e.raw.str("boat_type", "category", "description")}"
+                            hay.contains(selectedType, ignoreCase = true)
+                        }.ifEmpty { s.value }
+                        if (filtered.isEmpty()) {
+                            EmptyState(Icons.Default.DirectionsBoat, t(R.string.no_boats_found), t(R.string.no_boats_body))
+                        } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            items(filtered, key = { it.id }) { e ->
+                                SoftCard(onClick = { nav.go(Routes.boatDetails(e.id, start, end)) }) {
+                                    if (e.photoUrl != null) {
+                                        AsyncImage(e.photoUrl, null, Modifier.fillMaxWidth().height(150.dp), contentScale = ContentScale.Crop)
+                                    }
+                                    Column(Modifier.padding(14.dp)) {
+                                        Text(e.title, style = MaterialTheme.typography.titleMedium)
+                                        Text("${e.location} • ${e.duration}", color = Brand.Muted, style = MaterialTheme.typography.bodySmall)
+                                        Text(money(e.price), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
+                                    }
+                                }
                             }
                         }
                     }
@@ -88,21 +138,31 @@ fun BoatDetailsScreen(id: Int, startsAt: String, endsAt: String) {
             is Load.Err -> Box(Modifier.padding(pad)) { ErrorState(s.message) { vm.reload() } }
             is Load.Ok -> {
                 val d = s.value
+                val packages = d.a("packages").objects()
+                var selectedPkgId by remember(d) { mutableStateOf(packages.firstOrNull()?.i("id")) }
                 Column(
                     Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(d.str("name", "title", default = t(R.string.boat_numbered, id)), style = MaterialTheme.typography.headlineSmall)
                     Text(d.str("description", "details"), color = Brand.Muted)
+                    if (packages.isNotEmpty()) {
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            packages.forEach { pkg ->
+                                val pid = pkg.i("id") ?: return@forEach
+                                val pTitle = pkg.str("name", "title", default = "#$pid")
+                                FilterChip(selectedPkgId == pid, { selectedPkgId = pid }, { Text("$pTitle • ${money(pkg.d("price", "fare"))}") })
+                            }
+                        }
+                    }
                     OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.full_name)) })
                     OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.mobile_number)) })
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(t(R.string.guests), Modifier.weight(1f))
                         IconButton({ if (guests > 1) guests-- }) { Text("-") }
                         Text("$guests")
                         IconButton({ guests++ }) { Text("+") }
                     }
-                    // Demo Call driver when mock calls enabled (bid/booking not yet confirmed)
                     if (com.durpalla.booking.BuildConfig.USE_MOCK_CALLS) {
                         CallDriverButton(
                             tripId = id,
@@ -123,14 +183,26 @@ fun BoatDetailsScreen(id: Int, startsAt: String, endsAt: String) {
                             loading = true
                             err = null
                             runCatching {
+                                val rentalMode = d.str("rental_mode", default = if (selectedPkgId != null) "package" else "day")
+                                c.boats.quote(
+                                    jsonOf(
+                                        "boat_id" to id,
+                                        "rental_mode" to rentalMode,
+                                        "starts_at" to startsAt,
+                                        "ends_at" to endsAt,
+                                        "guests" to guests,
+                                        "package_id" to selectedPkgId,
+                                    ),
+                                )
                                 val hold = c.boats.hold(
                                     boatId = id,
-                                    rentalMode = d.str("rental_mode", default = "day"),
+                                    rentalMode = rentalMode,
                                     startsAt = startsAt,
                                     endsAt = endsAt,
                                     guests = guests,
                                     guestName = name.trim(),
                                     guestMobile = mobile.trim(),
+                                    packageId = selectedPkgId,
                                 )
                                 val holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
                                     ?: throw ApiException(AppCtx.str(R.string.err_hold_failed))
@@ -158,21 +230,53 @@ fun BoatCustomTripScreen() {
     val vm = rememberLoad("boat-stoppages") { c.boats.stoppages() }
     val state by vm.state.collectAsState()
     var selected by remember { mutableStateOf(setOf<Int>()) }
+    var tripDate by remember { mutableStateOf(todayIso(1)) }
+    var startHour by remember { mutableIntStateOf(9) }
+    var endHour by remember { mutableIntStateOf(18) }
     var guests by remember { mutableIntStateOf(4) }
     var notes by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
     var requestId by remember { mutableStateOf<Int?>(null) }
-    var bids by remember { mutableStateOf<List<kotlinx.serialization.json.JsonObject>>(emptyList()) }
+    var bids by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
     var acceptedBidIds by remember { mutableStateOf(setOf<Int>()) }
     val scope = rememberCoroutineScope()
-    val starts = LocalDateTime.now().plusDays(1).withHour(9).withMinute(0)
-        .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-    val ends = LocalDateTime.now().plusDays(1).withHour(18).withMinute(0)
-        .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+    val serviceHoursErr = t(R.string.boat_service_hours_blocked)
 
-    Scaffold(topBar = { DTopBar(t(R.string.custom_boat_trip), onBack = nav::back) }) { pad ->
+    Scaffold(
+        topBar = {
+            DTopBar(
+                t(R.string.custom_boat_trip),
+                onBack = nav::back,
+                actions = {
+                    TextButton(onClick = { nav.go(Routes.BOAT_MY_REQUESTS) }) {
+                        Text(t(R.string.my_trip_requests))
+                    }
+                },
+            )
+        },
+    ) { pad ->
         Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            DateField(t(R.string.journey_date), tripDate, Modifier.fillMaxWidth()) { tripDate = it }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SoftCard(Modifier.weight(1f)) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${t(R.string.starts)}: ${startHour}:00", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                        IconButton({ if (startHour > 0) startHour-- }) { Text("-") }
+                        IconButton({ if (startHour < 23) startHour++ }) { Text("+") }
+                    }
+                }
+                SoftCard(Modifier.weight(1f)) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${t(R.string.ends)}: ${endHour}:00", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                        IconButton({ if (endHour > 0) endHour-- }) { Text("-") }
+                        IconButton({ if (endHour < 23) endHour++ }) { Text("+") }
+                    }
+                }
+            }
+            if (!BoatServiceHours.isWithinServiceHours(startHour, endHour)) {
+                Text(serviceHoursErr, color = Brand.Error, style = MaterialTheme.typography.bodySmall)
+            }
             Text(t(R.string.pick_stoppage), style = MaterialTheme.typography.titleMedium)
             when (val s = state) {
                 Load.Loading -> LoadingList(2)
@@ -180,24 +284,35 @@ fun BoatCustomTripScreen() {
                 is Load.Ok -> s.value.forEach { st ->
                     val id = st.i("id") ?: return@forEach
                     val name = st.str("name", "title")
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(selected.contains(id), {
                             selected = if (it) selected + id else selected - id
                         })
-                        Text(name, Modifier.padding(top = 12.dp))
+                        Text(name)
                     }
                 }
             }
             OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.notes_optional)) })
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(t(R.string.guests), Modifier.weight(1f))
                 IconButton({ if (guests > 1) guests-- }) { Text("-") }
                 Text("$guests")
                 IconButton({ guests++ }) { Text("+") }
             }
             err?.let { Text(it, color = Brand.Error) }
-            GradientButton(t(R.string.request_bids), Modifier.fillMaxWidth(), enabled = selected.isNotEmpty(), loading = loading) {
+            GradientButton(
+                t(R.string.request_bids),
+                Modifier.fillMaxWidth(),
+                enabled = selected.isNotEmpty() && BoatServiceHours.isWithinServiceHours(startHour, endHour),
+                loading = loading,
+            ) {
                 if (!nav.ensureAuth(Routes.boatCustomTrip())) return@GradientButton
+                if (!BoatServiceHours.isWithinServiceHours(startHour, endHour)) {
+                    err = serviceHoursErr
+                    return@GradientButton
+                }
+                val starts = LocalDate.parse(tripDate).atTime(startHour, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                val ends = LocalDate.parse(tripDate).atTime(endHour, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                 scope.launch {
                     loading = true
                     err = null
@@ -211,63 +326,171 @@ fun BoatCustomTripScreen() {
                 }
             }
             if (bids.isNotEmpty()) {
-                Text(t(R.string.bids), style = MaterialTheme.typography.titleMedium)
-                bids.forEach { b ->
-                    val bidId = b.i("id") ?: return@forEach
-                    val status = b.str("status").lowercase()
-                    val acceptable = status in listOf("pending", "open", "")
-                    val accepted = status in listOf("accepted", "confirmed") || acceptedBidIds.contains(bidId)
-                    val driverName = b.str("driver_name", "boat_name", "operator", default = t(R.string.call_driver))
-                    val tripIdForCall = requestId ?: b.i("trip_id", "id") ?: bidId
-                    SoftCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(money(b.d("amount", "price", "fare")), fontWeight = FontWeight.Bold)
-                            Text(b.str("boat_name", "operator", "message"), color = Brand.Muted)
-                            if (acceptable) {
-                                GradientButton(t(R.string.accept_bid), Modifier.fillMaxWidth()) {
+                BoatBidsList(
+                    requestId = requestId,
+                    bids = bids,
+                    acceptedBidIds = acceptedBidIds,
+                    onAccepted = { bidId, bookingId, amt ->
+                        acceptedBidIds = acceptedBidIds + bidId
+                        nav.go(Routes.payment(bookingId, amt))
+                    },
+                    onMockAccepted = { bidId -> acceptedBidIds = acceptedBidIds + bidId },
+                    onError = { err = it },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BoatMyTripRequestsScreen() {
+    val c = LocalContainer.current
+    val nav = LocalNav.current
+    val vm = rememberLoad("my-boat-requests") { c.boats.listTripRequests() }
+    val state by vm.state.collectAsState()
+    var selectedReqId by remember { mutableStateOf<Int?>(null) }
+    var detail by remember { mutableStateOf<JsonObject?>(null) }
+    var bids by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
+    var acceptedBidIds by remember { mutableStateOf(setOf<Int>()) }
+    var err by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    Scaffold(topBar = { DTopBar(t(R.string.my_trip_requests), onBack = nav::back) }) { pad ->
+        Box(Modifier.padding(pad)) {
+            when (val s = state) {
+                Load.Loading -> LoadingList()
+                is Load.Err -> ErrorState(s.message) { vm.reload() }
+                is Load.Ok -> if (s.value.isEmpty()) {
+                    EmptyState(Icons.Default.DirectionsBoat, t(R.string.no_trip_requests), t(R.string.no_boats_body))
+                } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(s.value) { req ->
+                        val reqId = req.i("id") ?: return@items
+                        val status = req.str("status", default = "open")
+                        val starts = req.str("starts_at", "date")
+                        val guests = req.i("guests") ?: 1
+                        val isExpanded = selectedReqId == reqId
+                        SoftCard(
+                            onClick = {
+                                if (isExpanded) {
+                                    selectedReqId = null
+                                } else {
+                                    selectedReqId = reqId
                                     scope.launch {
-                                        loading = true
-                                        runCatching {
-                                            val hold = c.boats.acceptBid(bidId)
-                                            val holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
-                                                ?: throw ApiException(AppCtx.str(R.string.err_no_hold))
-                                            val user = c.session.user.value
-                                            val conf = c.boats.confirm(
-                                                holdId,
-                                                user.str("name", default = AppCtx.str(R.string.guest)),
-                                                user.str("mobile", "phone", default = ""),
-                                            )
-                                            val bookingId = conf.o("data").i("booking_id", "order_id", "id")
-                                                ?: throw ApiException(AppCtx.str(R.string.err_no_booking))
-                                            bookingId to (conf.o("data").d("total_payable", "amount") ?: 0.0)
-                                        }.onSuccess { (bid, amt) ->
-                                            acceptedBidIds = acceptedBidIds + bidId
-                                            nav.go(Routes.payment(bid, amt))
-                                        }.onFailure {
-                                            // Mock path: still mark accepted so Call driver can be demoed
-                                            if (com.durpalla.booking.BuildConfig.USE_MOCK_CALLS) {
-                                                acceptedBidIds = acceptedBidIds + bidId
-                                            }
-                                            err = it.message
-                                        }
-                                        loading = false
+                                        detail = runCatching { c.boats.tripRequest(reqId) }.getOrNull()
+                                        bids = runCatching { c.boats.bids(reqId) }.getOrDefault(emptyList())
                                     }
                                 }
-                            }
-                            if (accepted) {
-                                Spacer(Modifier.height(8.dp))
-                                CallDriverButton(
-                                    tripId = tripIdForCall,
-                                    driverName = driverName,
-                                    bidAccepted = true,
-                                )
-                                CallLogSection(
-                                    tripIdForCall,
-                                    tripCallLog = b.a("callLog").objects(),
-                                )
+                            },
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("#$reqId • $starts", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                                    Pill(status)
+                                }
+                                Text("${t(R.string.guests)}: $guests • ${req.str("notes")}", color = Brand.Muted, style = MaterialTheme.typography.bodySmall)
+                                if (!status.contains("cancel", true) && !status.contains("confirm", true)) {
+                                    TextButton(
+                                        onClick = {
+                                            scope.launch {
+                                                runCatching { c.boats.cancelTripRequest(reqId) }
+                                                vm.reload()
+                                            }
+                                        },
+                                    ) {
+                                        Text(t(R.string.cancel_request), color = Brand.Error)
+                                    }
+                                }
+                                if (isExpanded) {
+                                    detail?.a("stoppages")?.objects()?.map { it.str("name") }?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }?.let { stNames ->
+                                        Text(stNames.joinToString(" → "), style = MaterialTheme.typography.bodySmall, color = Brand.Primary)
+                                    }
+                                    err?.let { Text(it, color = Brand.Error) }
+                                    BoatBidsList(
+                                        requestId = reqId,
+                                        bids = bids,
+                                        acceptedBidIds = acceptedBidIds,
+                                        onAccepted = { bidId, bookingId, amt ->
+                                            acceptedBidIds = acceptedBidIds + bidId
+                                            nav.go(Routes.payment(bookingId, amt))
+                                        },
+                                        onMockAccepted = { bidId -> acceptedBidIds = acceptedBidIds + bidId },
+                                        onError = { err = it },
+                                    )
+                                }
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoatBidsList(
+    requestId: Int?,
+    bids: List<JsonObject>,
+    acceptedBidIds: Set<Int>,
+    onAccepted: (Int, Int, Double) -> Unit,
+    onMockAccepted: (Int) -> Unit,
+    onError: (String?) -> Unit,
+) {
+    val c = LocalContainer.current
+    val scope = rememberCoroutineScope()
+    var loadingBid by remember { mutableStateOf<Int?>(null) }
+
+    Text(t(R.string.bids), style = MaterialTheme.typography.titleMedium)
+    bids.forEach { b ->
+        val bidId = b.i("id") ?: return@forEach
+        val status = b.str("status").lowercase()
+        val acceptable = status in listOf("pending", "open", "")
+        val accepted = status in listOf("accepted", "confirmed") || acceptedBidIds.contains(bidId)
+        val driverName = b.str("driver_name", "boat_name", "operator", default = t(R.string.call_driver))
+        val tripIdForCall = requestId ?: b.i("trip_id", "id") ?: bidId
+        SoftCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp)) {
+                Text(money(b.d("amount", "price", "fare")), fontWeight = FontWeight.Bold)
+                Text(b.str("boat_name", "operator", "message"), color = Brand.Muted)
+                if (acceptable) {
+                    GradientButton(t(R.string.accept_bid), Modifier.fillMaxWidth(), loading = loadingBid == bidId) {
+                        scope.launch {
+                            loadingBid = bidId
+                            runCatching {
+                                val hold = c.boats.acceptBid(bidId)
+                                val holdId = hold.o("data").i("hold_id", "id") ?: hold.i("hold_id")
+                                    ?: throw ApiException(AppCtx.str(R.string.err_no_hold))
+                                val user = c.session.user.value
+                                val conf = c.boats.confirm(
+                                    holdId,
+                                    user.str("name", default = AppCtx.str(R.string.guest)),
+                                    user.str("mobile", "phone", default = ""),
+                                )
+                                val bookingId = conf.o("data").i("booking_id", "order_id", "id")
+                                    ?: throw ApiException(AppCtx.str(R.string.err_no_booking))
+                                bookingId to (conf.o("data").d("total_payable", "amount") ?: 0.0)
+                            }.onSuccess { (bookingId, amt) ->
+                                onAccepted(bidId, bookingId, amt)
+                            }.onFailure {
+                                if (com.durpalla.booking.BuildConfig.USE_MOCK_CALLS) {
+                                    onMockAccepted(bidId)
+                                }
+                                onError(it.message)
+                            }
+                            loadingBid = null
+                        }
+                    }
+                }
+                if (accepted) {
+                    Spacer(Modifier.height(8.dp))
+                    CallDriverButton(
+                        tripId = tripIdForCall,
+                        driverName = driverName,
+                        bidAccepted = true,
+                    )
+                    CallLogSection(
+                        tripIdForCall,
+                        tripCallLog = b.a("callLog").objects(),
+                    )
                 }
             }
         }

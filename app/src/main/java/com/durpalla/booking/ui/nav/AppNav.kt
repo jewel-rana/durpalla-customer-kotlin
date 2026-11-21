@@ -47,7 +47,8 @@ object Routes {
     fun forgotOtp(mobile: String) = "forgototp/${Uri.encode(mobile)}"
     fun forgotReset(mobile: String) = "forgotreset/${Uri.encode(mobile)}"
     fun searchFor(service: String) = "search?service=$service"
-    fun results(type: String, from: String, to: String, date: String) = "results/$type/${Uri.encode(from)}/${Uri.encode(to)}/$date"
+    fun results(type: String, from: String, to: String, date: String, fromId: Int = 0, toId: Int = 0) =
+        "results/$type/${Uri.encode(from)}/${Uri.encode(to)}/$date?fromId=$fromId&toId=$toId"
     fun trip(id: Int, type: String) = "trip/$id/$type"
     const val CHECKOUT = "checkout"
     fun payment(bookingId: Int, amount: Double) = "payment/$bookingId/$amount"
@@ -64,12 +65,14 @@ object Routes {
     fun boatDetails(id: Int, starts: String, ends: String) =
         "boat/$id/${Uri.encode(starts)}/${Uri.encode(ends)}"
     fun boatCustomTrip() = "boatcustom"
+    const val BOAT_MY_REQUESTS = "boatrequests"
+    const val CHANGE_PASSWORD = "changepassword"
     const val CALL = "call"
     const val PROFILE = "profile"; const val SAVED = "saved"; const val SUPPORT = "support"; const val FAQ = "faq"
     const val ABOUT = "about"; const val TERMS = "terms"; const val SETTINGS = "settings"; const val NOTIFICATIONS = "notifications"
 
     /** Pages that need a signed-in customer (checkout, payment, tickets, personal pages). */
-    private val protectedPrefixes = listOf(TICKETS, CHECKOUT, "payment/", "payweb/", "payresult/", "ticket/", PROFILE, SAVED, "expbook/", NOTIFICATIONS, CALL)
+    private val protectedPrefixes = listOf(TICKETS, CHECKOUT, "payment/", "payweb/", "payresult/", "ticket/", PROFILE, CHANGE_PASSWORD, BOAT_MY_REQUESTS, SAVED, "expbook/", NOTIFICATIONS, CALL)
     fun isProtected(route: String) = protectedPrefixes.any { route == it || route.startsWith(it) }
 }
 
@@ -191,9 +194,22 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                 composable("forgototp/{mobile}") { ForgotOtpScreen(it.arguments!!.getString("mobile")!!) }
                 composable("forgotreset/{mobile}") { ForgotResetScreen(it.arguments!!.getString("mobile")!!) }
 
-                composable("results/{type}/{from}/{to}/{date}") { e ->
+                composable(
+                    "results/{type}/{from}/{to}/{date}?fromId={fromId}&toId={toId}",
+                    arguments = listOf(
+                        navArgument("fromId") { type = NavType.IntType; defaultValue = 0 },
+                        navArgument("toId") { type = NavType.IntType; defaultValue = 0 },
+                    ),
+                ) { e ->
                     val a = e.arguments!!
-                    ResultsScreen(a.getString("type")!!, a.getString("from")!!, a.getString("to")!!, a.getString("date")!!)
+                    ResultsScreen(
+                        a.getString("type")!!,
+                        a.getString("from")!!,
+                        a.getString("to")!!,
+                        a.getString("date")!!,
+                        a.getInt("fromId").takeIf { it > 0 },
+                        a.getInt("toId").takeIf { it > 0 },
+                    )
                 }
                 composable("trip/{id}/{type}", arguments = listOf(navArgument("id") { type = NavType.IntType })) {
                     TripDetailsScreen(it.arguments!!.getInt("id"), it.arguments!!.getString("type")!!)
@@ -243,9 +259,11 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                     )
                 }
                 composable("boatcustom") { BoatCustomTripScreen() }
+                composable(Routes.BOAT_MY_REQUESTS) { BoatMyTripRequestsScreen() }
                 composable(Routes.CALL) { OutgoingCallScreen() }
 
                 composable(Routes.PROFILE) { ProfileScreen() }
+                composable(Routes.CHANGE_PASSWORD) { ChangePasswordScreen() }
                 composable(Routes.SAVED) { SavedScreen() }
                 composable(Routes.SUPPORT) { InfoScreen(InfoKind.SUPPORT) }
                 composable(Routes.FAQ) { InfoScreen(InfoKind.FAQ) }

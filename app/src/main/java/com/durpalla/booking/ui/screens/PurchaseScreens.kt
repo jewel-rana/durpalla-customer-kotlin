@@ -148,13 +148,40 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
     }
     val state by vm.state.collectAsState()
     var selected by remember { mutableStateOf<Int?>(null) }
+    var agreedPolicies by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val mustAgreeMsg = t(R.string.must_agree_policies)
     Scaffold(topBar = { DTopBar(t(R.string.payment_method), onBack = nav::back) }, bottomBar = {
         Surface(shadowElevation = 16.dp) {
             Column(Modifier.navigationBarsPadding().padding(16.dp)) {
-                err?.let { Text(it, color = Brand.Error) }
-                GradientButton(t(R.string.pay_now) + " • " + money(amount), Modifier.fillMaxWidth(), enabled = selected != null, loading = loading) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+                    Checkbox(checked = agreedPolicies, onCheckedChange = { agreedPolicies = it; if (it) err = null })
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            t(R.string.agree_checkout_policies),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.clickable { agreedPolicies = !agreedPolicies },
+                        )
+                        Text(
+                            t(R.string.cancellation_refund_policy) + " • " + t(R.string.terms_conditions) + " • " + t(R.string.privacy_policy),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Brand.Primary,
+                            modifier = Modifier.clickable { nav.go(Routes.TERMS) },
+                        )
+                    }
+                }
+                err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
+                GradientButton(
+                    t(R.string.pay_now) + " • " + money(amount),
+                    Modifier.fillMaxWidth(),
+                    enabled = selected != null && agreedPolicies,
+                    loading = loading,
+                ) {
+                    if (!agreedPolicies) {
+                        err = mustAgreeMsg
+                        return@GradientButton
+                    }
                     scope.launch {
                         loading = true; err = null
                         runCatching { c.payments.make(bookingId, selected!!, amount) }

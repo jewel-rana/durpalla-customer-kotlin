@@ -35,9 +35,14 @@ import com.durpalla.booking.l10n.t
 @Composable
 fun TicketsScreen() {
     val c = LocalContainer.current; val nav = LocalNav.current
-    val vm = rememberLoad("tickets") { c.bookings.myBookings(1).first }
+    val vm = rememberLoad("tickets") { c.bookings.myBookings(1) }
     val state by vm.state.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
+    var extraItems by remember { mutableStateOf<List<Booking>>(emptyList()) }
+    var currentPage by remember { mutableIntStateOf(1) }
+    var loadingMore by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(Modifier.fillMaxWidth().background(Brand.HeroGradient).statusBarsPadding().padding(20.dp)) {
             Text(t(R.string.my_tickets), style = MaterialTheme.typography.headlineSmall, color = Color.White)
@@ -45,15 +50,41 @@ fun TicketsScreen() {
         TabRow(tab) { listOf(R.string.upcoming, R.string.past, R.string.cancelled).forEachIndexed { i, l -> Tab(tab == i, { tab = i }, text = { Text(t(l)) }) } }
         when (val s = state) {
             Load.Loading -> LoadingList()
-            is Load.Err -> ErrorState(s.message) { vm.reload() }
+            is Load.Err -> ErrorState(s.message) { extraItems = emptyList(); currentPage = 1; vm.reload() }
             is Load.Ok -> {
-                val list = s.value.filter { b ->
+                val (firstPageItems, lastPage) = s.value
+                val allBookings = remember(firstPageItems, extraItems) { (firstPageItems + extraItems).distinctBy { it.id } }
+                val list = allBookings.filter { b ->
                     val st = (b.status + " " + b.paymentStatus).lowercase()
                     when (tab) { 2 -> st.contains("cancel"); 1 -> b.isPast() && !st.contains("cancel"); else -> !b.isPast() && !st.contains("cancel") }
                 }
-                if (list.isEmpty()) EmptyState(Icons.Default.ConfirmationNumber, t(R.string.no_tickets_yet), t(R.string.no_tickets_body), t(R.string.find_a_trip)) { nav.tab(Routes.SEARCH) }
-                else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (list.isEmpty() && currentPage >= lastPage) {
+                    EmptyState(Icons.Default.ConfirmationNumber, t(R.string.no_tickets_yet), t(R.string.no_tickets_body), t(R.string.find_a_trip)) { nav.tab(Routes.SEARCH) }
+                } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(list, key = { it.id }) { b -> BookingRow(b) { nav.go(Routes.ticket(b.id)) } }
+                    if (currentPage < lastPage) {
+                        item {
+                            OutlinedButton(
+                                onClick = {
+                                    if (!loadingMore) {
+                                        scope.launch {
+                                            loadingMore = true
+                                            runCatching { c.bookings.myBookings(currentPage + 1) }
+                                                .onSuccess { (more, _) ->
+                                                    extraItems = extraItems + more
+                                                    currentPage += 1
+                                                }
+                                            loadingMore = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                else Text(t(R.string.load_more))
+                            }
+                        }
+                    }
                 }
             }
         }

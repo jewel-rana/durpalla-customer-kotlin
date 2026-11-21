@@ -235,8 +235,8 @@ internal fun experienceFromJson(m: JsonObject, service: Service): Experience? {
     val title = m.str("title", "name", "vehicle_name")
     if (title.isBlank()) return null
     val photo = MediaUrl.resolve(m.s("photo") ?: m.s("cover") ?: m.s("image") ?: m.s("thumbnail"))
-    val highlights = m.a("highlights")?.mapNotNull { (it as? JsonPrimitive)?.content }
-        ?: m.a("amenities")?.mapNotNull { (it as? JsonPrimitive)?.content }
+    val highlights = (m.a("highlights") ?: m.a("whats_included") ?: m.a("amenities") ?: m.a("facilities"))
+        ?.mapNotNull(::labelOfElement)?.filter { it.isNotBlank() }
         ?: emptyList()
     val fallbackRes = when (service) {
         Service.ENTERTAINMENT -> R.drawable.photo_concert
@@ -247,7 +247,7 @@ internal fun experienceFromJson(m: JsonObject, service: Service): Experience? {
         id = id,
         service = service,
         title = title,
-        location = m.str("location", "city", "destination", "place"),
+        location = labelOfField(m, "location", "city", "destination", "place", "address"),
         duration = m.str("duration", "duration_text", "rental_mode"),
         price = m.d("price", "price_from", "min_price", "fare") ?: 0.0,
         rating = m.d("rating", "stars") ?: 0.0,
@@ -257,4 +257,18 @@ internal fun experienceFromJson(m: JsonObject, service: Service): Experience? {
         date = m.str("date", "depart_date", "visit_date", "starts_at", "schedule"),
         raw = m,
     )
+}
+
+internal fun labelOfElement(el: kotlinx.serialization.json.JsonElement?): String? = when (el) {
+    is JsonPrimitive -> el.content.takeIf { it.isNotBlank() }
+    is JsonObject -> el.str("name", "title", "label").takeIf { it.isNotBlank() }
+    else -> null
+}
+
+internal fun labelOfField(m: JsonObject, vararg keys: String): String {
+    for (k in keys) {
+        val v = labelOfElement(m[k])
+        if (!v.isNullOrBlank()) return v
+    }
+    return ""
 }
