@@ -27,9 +27,12 @@ import com.durpalla.booking.ui.nav.Routes
 import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import androidx.compose.ui.graphics.Color
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /** Enforces 6:00 AM – 10:00 PM boat operating window (mirrors web `lib/boatServiceHours.ts` & Flutter `boat_service_hours.dart`). */
 object BoatServiceHours {
@@ -350,6 +353,75 @@ fun BoatCustomTripScreen() {
     }
 }
 
+private fun parseDateTimeOrNull(raw: String?): LocalDateTime? {
+    if (raw.isNullOrBlank()) return null
+    val trimmed = raw.trim()
+    val dateTimeFormats = listOf(
+        DateTimeFormatter.ISO_DATE_TIME,
+        DateTimeFormatter.ISO_LOCAL_DATE_TIME,
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"),
+        DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.US),
+    )
+    for (f in dateTimeFormats) {
+        val dt = runCatching { LocalDateTime.parse(trimmed, f) }.getOrNull()
+        if (dt != null) return dt
+    }
+    val d = runCatching { LocalDate.parse(trimmed.take(10)) }.getOrNull()
+    if (d != null) return d.atStartOfDay()
+    return null
+}
+
+private fun hasExplicitTime(raw: String?): Boolean {
+    if (raw.isNullOrBlank()) return false
+    return raw.contains(":")
+}
+
+private fun formatHumanDateTime(startsAt: String, endsAt: String? = null): String {
+    if (startsAt.isBlank()) return ""
+    val startDt = parseDateTimeOrNull(startsAt)
+    val endDt = parseDateTimeOrNull(endsAt)
+    val hasStartTime = hasExplicitTime(startsAt)
+    val hasEndTime = hasExplicitTime(endsAt)
+    val dateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US)
+    val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
+
+    return when {
+        startDt != null && endDt != null -> {
+            val startDateStr = startDt.format(dateFormatter)
+            if (startDt.toLocalDate() == endDt.toLocalDate()) {
+                if (hasStartTime && hasEndTime) {
+                    val startTimeStr = startDt.format(timeFormatter)
+                    val endTimeStr = endDt.format(timeFormatter)
+                    "$startDateStr, $startTimeStr – $endTimeStr"
+                } else if (hasStartTime) {
+                    "$startDateStr, ${startDt.format(timeFormatter)}"
+                } else {
+                    startDateStr
+                }
+            } else {
+                val endDateStr = endDt.format(dateFormatter)
+                if (hasStartTime && hasEndTime) {
+                    "$startDateStr, ${startDt.format(timeFormatter)} – $endDateStr, ${endDt.format(timeFormatter)}"
+                } else {
+                    "$startDateStr – $endDateStr"
+                }
+            }
+        }
+        startDt != null -> {
+            val startDateStr = startDt.format(dateFormatter)
+            if (hasStartTime) {
+                "$startDateStr, ${startDt.format(timeFormatter)}"
+            } else {
+                startDateStr
+            }
+        }
+        else -> startsAt
+    }
+}
+
 @Composable
 fun BoatMyTripRequestsScreen() {
     val c = LocalContainer.current
@@ -373,10 +445,32 @@ fun BoatMyTripRequestsScreen() {
                 } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(s.value) { req ->
                         val reqId = req.i("id") ?: return@items
-                        val status = req.str("status", default = "open")
-                        val starts = req.str("starts_at", "date")
+                        val rawStatus = req.str("status", default = "open").lowercase()
+                        val starts = req.str("starts_at", "date", "schedule_date")
+                        val ends = req.str("ends_at", "end_date")
+                        val expiresAt = req.str("expires_at", "expiry_time")
                         val guests = req.i("guests") ?: 1
                         val isExpanded = selectedReqId == reqId
+
+                        val startDt = parseDateTimeOrNull(starts)
+                        val endDt = parseDateTimeOrNull(ends)
+                        val expiresDt = parseDateTimeOrNull(expiresAt)
+                        val now = LocalDateTime.now()
+
+                        val isAwarded = rawStatus in listOf("awarded", "confirmed", "accepted")
+                        val isCancelled = rawStatus in listOf("cancelled", "canceled")
+                        val isExpired = !isAwarded && (rawStatus == "expired" ||
+                            (expiresDt != null && now.isAfter(expiresDt)) ||
+                            (expiresDt == null && endDt != null && (if (hasExplicitTime(ends)) now.isAfter(endDt) else now.toLocalDate().isAfter(endDt.toLocalDate()))) ||
+                            (expiresDt == null && endDt == null && startDt != null && (if (hasExplicitTime(starts)) now.isAfter(startDt) else now.toLocalDate().isAfter(startDt.toLocalDate()))))
+
+                        val displayStatus = when {
+                            isCancelled -> t(R.string.cancelled)
+                            isExpired -> t(R.string.auto_cancelled)
+                            isAwarded -> "Awarded"
+                            else -> rawStatus.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        }
+
                         SoftCard(
                             onClick = {
                                 if (isExpanded) {
@@ -392,11 +486,28 @@ fun BoatMyTripRequestsScreen() {
                         ) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("#$reqId • $starts", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                                    Pill(status)
+                                    val dateTimeLabel = formatHumanDateTime(starts, ends)
+                                    Text(
+                                        "#$reqId • $dateTimeLabel",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    when {
+                                        isCancelled || isExpired -> Pill(
+                                            displayStatus,
+                                            bg = Color(0xFFFEE2E2),
+                                            fg = Brand.Error,
+                                        )
+                                        isAwarded -> Pill(
+                                            displayStatus,
+                                            bg = Color(0xFFDCFCE7),
+                                            fg = Brand.Success,
+                                        )
+                                        else -> Pill(displayStatus)
+                                    }
                                 }
                                 Text("${t(R.string.guests)}: $guests • ${req.str("notes")}", color = Brand.Muted, style = MaterialTheme.typography.bodySmall)
-                                if (!status.contains("cancel", true) && !status.contains("confirm", true)) {
+                                if (!isCancelled && !isExpired && !isAwarded && rawStatus == "open") {
                                     TextButton(
                                         onClick = {
                                             scope.launch {
@@ -417,6 +528,7 @@ fun BoatMyTripRequestsScreen() {
                                         requestId = reqId,
                                         bids = bids,
                                         acceptedBidIds = acceptedBidIds,
+                                        canAccept = !isCancelled && !isExpired && !isAwarded,
                                         onAccepted = { bidId, bookingId, amt ->
                                             acceptedBidIds = acceptedBidIds + bidId
                                             nav.go(Routes.payment(bookingId, amt))
@@ -439,6 +551,7 @@ private fun BoatBidsList(
     requestId: Int?,
     bids: List<JsonObject>,
     acceptedBidIds: Set<Int>,
+    canAccept: Boolean = true,
     onAccepted: (Int, Int, Double) -> Unit,
     onMockAccepted: (Int) -> Unit,
     onError: (String?) -> Unit,
@@ -451,7 +564,7 @@ private fun BoatBidsList(
     bids.forEach { b ->
         val bidId = b.i("id") ?: return@forEach
         val status = b.str("status").lowercase()
-        val acceptable = status in listOf("pending", "open", "")
+        val acceptable = status in listOf("pending", "open", "") && canAccept
         val accepted = status in listOf("accepted", "confirmed") || acceptedBidIds.contains(bidId)
         val driverName = b.str("driver_name", "boat_name", "operator", default = t(R.string.call_driver))
         val tripIdForCall = requestId ?: b.i("trip_id", "id") ?: bidId

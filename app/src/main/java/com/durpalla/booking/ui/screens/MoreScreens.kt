@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
 import com.durpalla.booking.core.*
@@ -325,12 +326,16 @@ fun ChangePasswordScreen() {
     var currentPass by remember { mutableStateOf("") }
     var newPass by remember { mutableStateOf("") }
     var confirmPass by remember { mutableStateOf("") }
+    var showCurrentPass by remember { mutableStateOf(false) }
+    var showNewPass by remember { mutableStateOf(false) }
+    var showConfirmPass by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val mismatchMsg = t(R.string.passwords_do_not_match)
     val successMsg = t(R.string.password_changed)
+    val minLenMsg = t(R.string.password_min_8)
 
     Scaffold(
         topBar = { DTopBar(t(R.string.change_password), onBack = nav::back) },
@@ -343,12 +348,17 @@ fun ChangePasswordScreen() {
                     GradientButton(
                         t(R.string.save),
                         Modifier.fillMaxWidth(),
-                        enabled = currentPass.length >= 6 && newPass.length >= 8 && confirmPass.length >= 8,
+                        enabled = currentPass.isNotBlank() && newPass.length >= 6 && confirmPass.isNotBlank(),
                         loading = loading,
                     ) {
                         if (newPass != confirmPass) {
                             isError = true
                             msg = mismatchMsg
+                            return@GradientButton
+                        }
+                        if (newPass.length < 6) {
+                            isError = true
+                            msg = minLenMsg
                             return@GradientButton
                         }
                         scope.launch {
@@ -384,8 +394,17 @@ fun ChangePasswordScreen() {
                 { currentPass = it },
                 Modifier.fillMaxWidth(),
                 label = { Text(t(R.string.current_password)) },
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (showCurrentPass) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton({ showCurrentPass = !showCurrentPass }) {
+                        Icon(
+                            if (showCurrentPass) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (showCurrentPass) "Hide password" else "Show password",
+                        )
+                    }
+                },
                 singleLine = true,
+                shape = RoundedCornerShape(14.dp),
             )
             OutlinedTextField(
                 newPass,
@@ -393,16 +412,34 @@ fun ChangePasswordScreen() {
                 Modifier.fillMaxWidth(),
                 label = { Text(t(R.string.new_password)) },
                 supportingText = { Text(t(R.string.password_min_8)) },
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (showNewPass) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton({ showNewPass = !showNewPass }) {
+                        Icon(
+                            if (showNewPass) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (showNewPass) "Hide password" else "Show password",
+                        )
+                    }
+                },
                 singleLine = true,
+                shape = RoundedCornerShape(14.dp),
             )
             OutlinedTextField(
                 confirmPass,
                 { confirmPass = it },
                 Modifier.fillMaxWidth(),
                 label = { Text(t(R.string.confirm_password)) },
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (showConfirmPass) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton({ showConfirmPass = !showConfirmPass }) {
+                        Icon(
+                            if (showConfirmPass) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (showConfirmPass) "Hide password" else "Show password",
+                        )
+                    }
+                },
                 singleLine = true,
+                shape = RoundedCornerShape(14.dp),
             )
             msg?.let { Text(it, color = if (isError) Brand.Error else Brand.Success) }
             Spacer(Modifier.height(16.dp))

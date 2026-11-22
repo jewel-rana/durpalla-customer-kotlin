@@ -402,6 +402,7 @@ class ProfileRepository(private val api: ApiClient, private val session: Session
             jsonOf(
                 "current_password" to currentPassword,
                 "password" to newPassword,
+                "confirm_password" to confirmPassword,
                 "password_confirmation" to confirmPassword,
             ),
         ).requireSuccess(AppCtx.str(R.string.err_update_failed))

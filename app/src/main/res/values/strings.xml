@@ -231,6 +231,7 @@
     <string name="label_items">Items</string>
     <string name="label_pnr">PNR %1$s</string>
     <string name="invoice">Invoice</string>
+    <string name="download_invoice">Download Invoice</string>
     <string name="cancel_refund_policy">Refunds follow the operator\'s cancellation policy.</string>
     <string name="confirm">Confirm</string>
     <string name="keep">Keep</string>
@@ -357,6 +358,7 @@
     <string name="my_trip_requests">My trip requests</string>
     <string name="no_trip_requests">No custom trip requests yet</string>
     <string name="cancel_request">Cancel request</string>
+    <string name="auto_cancelled">Auto Cancelled</string>
     <string name="select_slot">Select time slot</string>
     <string name="reviews">Reviews</string>
     <string name="write_review">Write a review</string>

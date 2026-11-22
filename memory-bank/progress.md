@@ -3,7 +3,20 @@
 Target: Flutter master `@8ee2bed`. Tracker detail: `MASTER_PORT_TODOS.md`.
 
 ## Done
-- **Debug APK builds** (`./gradlew assembleDebug`): compile fixes landed; debug NDK `abiFilters` = `arm64-v8a` (artifact size). APK: `/opt/cursor/artifacts/durpalla-customer-debug.apk`.
+- **Password Change & Show/Hide Toggle (2026-11-22)**:
+  - Fixed password change API payload (`confirm_password` required by backend validator).
+  - Added show/hide password toggle for all three password fields in `ChangePasswordScreen`.
+- **Boat My Trip Requests enhancements (2026-11-22)**:
+  - Auto-cancelled expired trip request items with localized `auto_cancelled` pill.
+  - Removed "Cancel Request" button for expired/cancelled/awarded items.
+  - Human-friendly date & time formatting for trip requests (`d MMM yyyy, h:mm a`).
+- **Ticket / Booking Details enhancements (2026-11-22)**:
+  - Hide items section when booking has no items.
+  - Service name badge on top right corner of booking header card.
+  - QR code displayed only on successful/confirmed bookings; empty placeholder box for unpaid/pending/failed.
+  - Highlighted prominent download invoice button with `Brand.Primary`.
+  - Payment method and gateway info rows displayed in booking details card.
+- **Debug APK builds** (`./gradlew assembleDebug`): compile fixes landed; debug NDK `abiFilters` = `arm64-v8a` (artifact size). APK: `/opt/cursor/artifacts/durpalla-customer-debug.apk` and `app/build/outputs/apk/debug/app-debug.apk`.
 - P0 HTTP: `X-Guest-Id`, language headers, assets rewrite, `my/bookings/android`, cart sync (charge/VAT/expiry), hotel multi-room, tour/entertainment/boat APIs, cancel rules, email+mobile auth.
 - P1 partial: ApiUserMessage, secure token, payment WebView hints, RC gateway filter, invoice link, `hotel_review_prompt`, `app-config?platform=android`.
 - L10n §10.2/§10.3: remote packs, language onboarding, settings picker, RTL for ar/ur/fa, bundled en/bn.

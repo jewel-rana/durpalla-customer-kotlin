@@ -231,6 +231,7 @@
     <string name="label_items">আইটেম</string>
     <string name="label_pnr">PNR %1$s</string>
     <string name="invoice">ইনভয়েস</string>
+    <string name="download_invoice">ইনভয়েস ডাউনলোড করুন</string>
     <string name="cancel_refund_policy">রিফান্ড অপারেটরের বাতিলকরণ নীতি অনুসরণ করে।</string>
     <string name="confirm">নিশ্চিত করুন</string>
     <string name="keep">রাখুন</string>
@@ -357,6 +358,7 @@
     <string name="my_trip_requests">আমার ট্রিপ অনুরোধ</string>
     <string name="no_trip_requests">এখনো কোনো কাস্টম ট্রিপ অনুরোধ নেই</string>
     <string name="cancel_request">অনুরোধ বাতিল</string>
+    <string name="auto_cancelled">স্বয়ংক্রিয়ভাবে বাতিল</string>
     <string name="select_slot">টাইম স্লট বাছুন</string>
     <string name="reviews">রিভিউ</string>
     <string name="write_review">রিভিউ লিখুন</string>

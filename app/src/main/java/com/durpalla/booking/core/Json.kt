@@ -37,8 +37,8 @@ fun JsonObject?.b(key: String): Boolean {
 }
 fun JsonArray?.objects(): List<JsonObject> = this?.mapNotNull { it as? JsonObject } ?: emptyList()
 
-/** `success` flag as Flutter computes it: explicit success or status==true. */
-val JsonObject.success: Boolean get() = s("success")?.let { it == "true" } ?: (s("status") == "true")
+/** `success` flag as Flutter computes it: explicit success or status==true / status=="success". */
+val JsonObject.success: Boolean get() = b("success") || b("status") || s("status").equals("success", true) || (s("success") == "true")
 val JsonObject.message: String? get() = s("message")
 
 fun jsonOf(vararg pairs: Pair<String, Any?>): JsonObject = buildJsonObject {

@@ -168,8 +168,33 @@ fun TicketScreen(id: Int) {
                     item {
                         val fi = b.firstItem
                         val isHotel = BookingCancelRules.isHotelStay(b)
-                        val isBus = fi.str("item_type", "type", "service_type", "vehicle_type").contains("bus", true) ||
-                            b.raw.str("service_type", "type").contains("bus", true)
+                        val isBoat = BookingCancelRules.isBoatBooking(b)
+                        val rawType = b.raw.str("service_type", "type", "booking_type", "category", "vertical").lowercase()
+                        val itemType = fi.str("item_type", "type", "service_type", "vehicle_type").lowercase()
+                        val isEntertainment = rawType.contains("entertainment") || itemType.contains("entertainment") || fi.s("venue_name") != null
+                        val isTour = rawType.contains("tour") || itemType.contains("tour") || fi.s("tour_title") != null
+                        val isBus = rawType.contains("bus") || itemType.contains("bus")
+                        val isLaunch = !isBus && !isBoat && (rawType.contains("launch") || itemType.contains("launch") || itemType.contains("cabin") || itemType.contains("deck"))
+
+                        val serviceName = when {
+                            isHotel -> t(R.string.svc_hotel)
+                            isBoat -> t(R.string.svc_boat)
+                            isEntertainment -> "Entertainment"
+                            isTour -> t(R.string.svc_tour)
+                            isLaunch -> t(R.string.svc_launch)
+                            isBus -> t(R.string.svc_bus)
+                            else -> fi.str("service_name", "service_type", "type").ifBlank {
+                                b.raw.str("service_name", "service_type", "type")
+                            }.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }.ifBlank { t(R.string.svc_bus) }
+                        }
+
+                        val isSuccessful = run {
+                            val blob = listOf(b.paymentStatus, b.status).joinToString(" ").lowercase()
+                            val hasSuccess = listOf("complete", "completed", "success", "confirmed", "paid", "successful").any { blob.contains(it) }
+                            val hasFailure = listOf("cancel", "fail", "reject", "refund", "incomplete", "pending", "draft", "expired").any { blob.contains(it) }
+                            hasSuccess && !hasFailure
+                        }
+
                         val title = fi.str("vehicle_name", "hotel_name", "boat_name").ifBlank {
                             dataObj.str("vehicle_name", "hotel_name", "boat_name", default = t(R.string.label_booking))
                         }
@@ -187,7 +212,10 @@ fun TicketScreen(id: Int) {
                                 .background(MaterialTheme.colorScheme.surface),
                         ) {
                             Box(Modifier.fillMaxWidth().background(Brand.HeroGradient).padding(20.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(end = 76.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
                                     Box(
                                         Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.18f)),
                                         contentAlignment = Alignment.Center,
@@ -220,22 +248,70 @@ fun TicketScreen(id: Int) {
                                         }
                                     }
                                 }
+                                Surface(
+                                    modifier = Modifier.align(Alignment.TopEnd),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color.White.copy(alpha = 0.22f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+                                ) {
+                                    Text(
+                                        text = serviceName,
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                    )
+                                }
                             }
                             Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                val bmp = remember(qrText) { qr(qrText) }
-                                Box(Modifier.size(204.dp), contentAlignment = Alignment.Center) {
-                                    Image(bmp.asImageBitmap(), t(R.string.ticket), Modifier.fillMaxSize())
-                                    Surface(
-                                        modifier = Modifier.size(44.dp),
-                                        shape = CircleShape,
-                                        color = Color.White,
-                                        shadowElevation = 4.dp,
+                                if (isSuccessful) {
+                                    val bmp = remember(qrText) { qr(qrText) }
+                                    Box(Modifier.size(204.dp), contentAlignment = Alignment.Center) {
+                                        Image(bmp.asImageBitmap(), t(R.string.ticket), Modifier.fillMaxSize())
+                                        Surface(
+                                            modifier = Modifier.size(44.dp),
+                                            shape = CircleShape,
+                                            color = Color.White,
+                                            shadowElevation = 4.dp,
+                                        ) {
+                                            Box(Modifier.padding(6.dp), contentAlignment = Alignment.Center) {
+                                                Image(
+                                                    painter = painterResource(R.drawable.logo_mark),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(204.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                            .border(
+                                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+                                                RoundedCornerShape(16.dp),
+                                            ),
+                                        contentAlignment = Alignment.Center,
                                     ) {
-                                        Box(Modifier.padding(6.dp), contentAlignment = Alignment.Center) {
-                                            Image(
-                                                painter = painterResource(R.drawable.logo_mark),
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
+                                            modifier = Modifier.padding(16.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.QrCode2,
                                                 contentDescription = null,
-                                                modifier = Modifier.fillMaxSize(),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                modifier = Modifier.size(56.dp),
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                text = t(R.string.label_payment) + ": " + b.paymentStatus.ifBlank { b.status },
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                             )
                                         }
                                     }
@@ -253,6 +329,18 @@ fun TicketScreen(id: Int) {
                                 )
                                 Info(t(R.string.label_boarding), b.firstItem.str("boarding_point", default = t(R.string.em_dash)))
                                 Info(t(R.string.label_payment), b.paymentStatus.ifBlank { b.status })
+                                val payMethod = listOf("payment_method", "method")
+                                    .firstNotNullOfOrNull { dataObj.s(it) ?: dataObj.o("payment")?.s(it) }
+                                    ?: b.raw.str("payment_method")
+                                val gwName = listOf("gateway_name", "gateway", "payment_gateway")
+                                    .firstNotNullOfOrNull { dataObj.s(it) ?: dataObj.o("payment")?.s(it) ?: dataObj.o("gateway")?.s("name") }
+                                    ?: b.raw.str("gateway_name", "gateway")
+                                if (payMethod.isNotBlank()) {
+                                    Info(t(R.string.payment_method), payMethod.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() })
+                                }
+                                if (gwName.isNotBlank() && !gwName.equals(payMethod, ignoreCase = true)) {
+                                    Info(t(R.string.label_gateway), gwName)
+                                }
                                 Info(t(R.string.label_status), b.status.ifBlank { b.paymentStatus })
                                 Info(t(R.string.label_transaction), b.transactionId ?: t(R.string.em_dash))
                                 val subTotal = dataObj.d("total_amount")
@@ -268,49 +356,46 @@ fun TicketScreen(id: Int) {
                         }
                     }
 
-                    item {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
+                    b.invoiceUrl?.takeIf { it.isNotBlank() && b.downloadable }?.let { url ->
+                        item {
+                            Button(
+                                onClick = {
+                                    runCatching {
+                                        ctx.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(url),
+                                            ),
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Brand.Primary,
+                                    contentColor = Color.White,
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    t(R.string.download_invoice),
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                            }
+                        }
+                    }
+
+                    if (b.items.isNotEmpty()) {
+                        item {
                             Text(
                                 "${t(R.string.label_items)} (${b.items.size})",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                             )
-                            b.invoiceUrl?.takeIf { it.isNotBlank() && b.downloadable }?.let { url ->
-                                FilledTonalButton(
-                                    onClick = {
-                                        runCatching {
-                                            ctx.startActivity(
-                                                android.content.Intent(
-                                                    android.content.Intent.ACTION_VIEW,
-                                                    android.net.Uri.parse(url),
-                                                ),
-                                            )
-                                        }
-                                    },
-                                ) {
-                                    Icon(Icons.Default.Download, null, Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(t(R.string.invoice))
-                                }
-                            }
                         }
-                    }
-
-                    if (b.items.isEmpty()) {
-                        item {
-                            SoftCard(Modifier.fillMaxWidth()) {
-                                Text(
-                                    t(R.string.em_dash),
-                                    modifier = Modifier.padding(16.dp),
-                                    color = Brand.Muted,
-                                )
-                            }
-                        }
-                    } else {
                         items(b.items) { it0 ->
                             TicketItemCard(
                                 booking = b,
