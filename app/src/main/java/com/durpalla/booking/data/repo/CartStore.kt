@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -66,7 +67,32 @@ class CartStore(
         }
         if (rows.isEmpty()) return // master: empty server keeps local
         val parsed = rows.mapNotNull(CartItem::fromServer)
-        if (parsed.isNotEmpty()) set(parsed)
+        if (parsed.isEmpty()) return
+        // GET /cart omits client trip meta (boarding, book_token). Merge from local.
+        val prevByLock = _items.value.associateBy { it.lockId }
+        val merged = parsed.map { item ->
+            val prev = prevByLock[item.lockId] ?: return@map item
+            val prevMeta = prev.meta
+            val serverMeta = item.meta
+            val meta = buildJsonObject {
+                prevMeta?.forEach { (k, v) -> put(k, v) }
+                serverMeta?.forEach { (k, v) -> put(k, v) }
+                listOf(
+                    "boarding_point_id",
+                    "boarding_point_name",
+                    "boarding_point_label",
+                    "boarding_points",
+                    "book_token",
+                    "stoppages",
+                    "supplier",
+                ).forEach { key ->
+                    val keep = serverMeta?.get(key) ?: prevMeta?.get(key)
+                    if (keep != null) put(key, keep)
+                }
+            }
+            item.copy(meta = meta, forSelf = prev.forSelf)
+        }
+        set(merged)
     }
 
     private fun rescheduleAll() {

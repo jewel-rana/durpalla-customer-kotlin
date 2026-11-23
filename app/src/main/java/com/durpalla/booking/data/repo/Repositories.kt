@@ -187,26 +187,56 @@ class TripRepository(private val api: ApiClient) {
 class BookingRepository(private val api: ApiClient) {
     /**
      * amount = subtotal + Σtotal_charge + Σtotal_vat; for_self as 0/1 (master checkout).
+     * Local inventory → booking/confirm; Paribahan supplier holds → order/confirm.
      */
-    suspend fun confirm(items: List<CartItem>, passengerName: String?, passengerMobile: String?): Pair<Int, JsonObject> {
+    suspend fun confirm(
+        items: List<CartItem>,
+        passengerName: String?,
+        passengerMobile: String?,
+        forSelf: Boolean = passengerName.isNullOrBlank(),
+        boarding: BoardingOption? = null,
+    ): Pair<Int, JsonObject> {
         val amount = items.sumOf { it.lineTotal }
+        val isSupplier = items.any {
+            val supplier = it.meta?.s("supplier").orEmpty()
+            supplier == "paribahan" || !it.meta?.s("book_token").isNullOrBlank()
+        }
         val payload = jsonOf(
             "items" to items.map {
-                mapOf(
-                    "item_id" to it.itemId,
-                    "type" to it.type,
-                    "price" to it.price,
-                    "lock_id" to it.lockId,
-                    "meta" to it.meta,
-                    "for_self" to if (passengerName.isNullOrBlank()) 1 else 0,
-                    "passengers" to if (passengerName.isNullOrBlank()) null
-                    else listOf(mapOf("name" to passengerName, "mobile" to passengerMobile)),
-                )
+                val bookingId = it.meta?.i("booking_id")
+                    ?: it.lockId.toIntOrNull()
+                buildMap<String, Any?> {
+                    put("item_id", it.itemId)
+                    put("type", it.type)
+                    put("price", it.price)
+                    put("lock_id", it.lockId)
+                    put("meta", it.meta)
+                    put("for_self", if (forSelf) 1 else 0)
+                    put(
+                        "passengers",
+                        listOf(
+                            mapOf(
+                                "name" to passengerName.orEmpty(),
+                                "mobile" to passengerMobile.orEmpty(),
+                            ),
+                        ),
+                    )
+                    if (bookingId != null && bookingId > 0) put("booking_id", bookingId)
+                    it.meta?.s("supplier")?.let { s -> put("supplier", s) }
+                    if (boarding != null) {
+                        put("boardingPoint", mapOf("id" to boarding.id, "name" to boarding.name))
+                    }
+                }
             },
             "amount" to amount,
             "platform" to "android",
+            "channel" to "android",
+            "service_type" to "transport",
+            "customer_name" to passengerName,
+            "customer_mobile" to passengerMobile,
         )
-        val r = api.postJson("booking/confirm", payload).requireSuccess(AppCtx.str(R.string.err_booking_failed))
+        val path = if (isSupplier) "order/confirm" else "booking/confirm"
+        val r = api.postJson(path, payload).requireSuccess(AppCtx.str(R.string.err_booking_failed))
         val bm = r.o("booking") ?: r.o("data")
         val id = bm.i("id") ?: r.i("booking_id", "order_id", "id")
             ?: throw ApiException(AppCtx.str(R.string.err_booking_id_missing))

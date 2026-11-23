@@ -24,6 +24,9 @@ import com.durpalla.booking.R
 import com.durpalla.booking.core.*
 import com.durpalla.booking.data.repo.CartItem
 import com.durpalla.booking.data.repo.SeatItem
+import com.durpalla.booking.data.repo.boardingOptionsFromTrip
+import com.durpalla.booking.data.repo.findBoardingOption
+import com.durpalla.booking.data.repo.withBoarding
 import com.durpalla.booking.l10n.t
 import com.durpalla.booking.ui.components.*
 import com.durpalla.booking.ui.nav.LocalContainer
@@ -47,6 +50,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
     val tab = MutableStateFlow("")
     val floor = MutableStateFlow(1)
     val selectedClass = MutableStateFlow("")
+    val selectedBoardingId = MutableStateFlow("")
     val busy = MutableStateFlow<Int?>(null)
     val snack = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val liveLocked = MutableStateFlow<Set<String>>(emptySet())
@@ -88,6 +92,13 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
             val tabs = availableTabs(d)
             tab.value = preferredTab(tabs, defaultFloor, d)
             selectedClass.value = ""
+            val boarding = boardingOptionsFromTrip(d)
+            val current = selectedBoardingId.value
+            selectedBoardingId.value = when {
+                current.isNotBlank() && boarding.any { it.id == current } -> current
+                boarding.isNotEmpty() -> boarding.first().id
+                else -> ""
+            }
             Load.Ok(d)
         }, { Load.Err(it.message ?: AppCtx.str(R.string.generic_error)) })
     }
@@ -198,8 +209,12 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
                     else snack.emit(AppCtx.str(R.string.could_not_release))
                 } else {
                     val r = c.trips.lockItem(tripId, s.kind, id, c.pusher.socketId)
-                    val data = r.o("data")
+                    val data = r.o("data") ?: JsonObject(emptyMap())
                     val lockId = data.s("lock_id") ?: data.s("reservation_id") ?: r.s("lock_id") ?: ""
+                    val boarding = findBoardingOption(
+                        boardingOptionsFromTrip(d),
+                        selectedBoardingId.value,
+                    )
                     cartStore.add(
                         CartItem(
                             itemId = id,
@@ -211,7 +226,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
                             vehicleName = d.str("vehicle_name"),
                             routeName = d.str("route_name"),
                             expiresAt = data.s("expires_at") ?: data.s("locked_until"),
-                            meta = data,
+                            meta = data.withBoarding(d, boarding),
                             totalCharge = data.d("total_charge") ?: 0.0,
                             totalVat = data.d("total_vat") ?: 0.0,
                         ),
@@ -228,6 +243,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
     override fun onCleared() { c.pusher.unsubscribe(channel) }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripDetailsScreen(tripId: Int, type: String) {
     val c = LocalContainer.current; val nav = LocalNav.current
@@ -236,6 +252,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
     val tab by vm.tab.collectAsState()
     val floor by vm.floor.collectAsState()
     val selectedClass by vm.selectedClass.collectAsState()
+    val selectedBoardingId by vm.selectedBoardingId.collectAsState()
     val cart by c.cart.items.collectAsState()
     val busy by vm.busy.collectAsState()
     vm.liveLocked.collectAsState().value; vm.liveReleased.collectAsState().value
@@ -275,6 +292,55 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                             Text(d.str("route_name"), color = Color.White.copy(.85f))
                             val stops = d.a("stoppages").objects().map { it.str("name") }.filter { it.isNotBlank() }
                             if (stops.isNotEmpty()) Text(stops.joinToString(" • "), color = Brand.Amber, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        }
+                    }
+                    val boardingOptions = remember(d) { boardingOptionsFromTrip(d) }
+                    if (boardingOptions.isNotEmpty()) {
+                        SoftCard(Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth()) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(t(R.string.boarding_point), style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    t(R.string.boarding_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Brand.Muted,
+                                )
+                                var expanded by remember { mutableStateOf(false) }
+                                val selected = findBoardingOption(boardingOptions, selectedBoardingId)
+                                    ?: boardingOptions.first()
+                                val boardingLocked = mine.isNotEmpty()
+                                ExposedDropdownMenuBox(
+                                    expanded = expanded && !boardingLocked,
+                                    onExpandedChange = { if (!boardingLocked) expanded = !expanded },
+                                ) {
+                                    OutlinedTextField(
+                                        value = selected.label,
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        enabled = !boardingLocked,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor(),
+                                        trailingIcon = {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded && !boardingLocked)
+                                        },
+                                        label = { Text(t(R.string.boarding_point)) },
+                                    )
+                                    ExposedDropdownMenu(
+                                        expanded = expanded && !boardingLocked,
+                                        onDismissRequest = { expanded = false },
+                                    ) {
+                                        boardingOptions.forEach { option ->
+                                            DropdownMenuItem(
+                                                text = { Text(option.label) },
+                                                onClick = {
+                                                    vm.selectedBoardingId.value = option.id
+                                                    expanded = false
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     val tabs = vm.availableTabs(d)

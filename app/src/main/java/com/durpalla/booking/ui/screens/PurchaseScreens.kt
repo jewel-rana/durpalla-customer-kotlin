@@ -28,6 +28,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.durpalla.booking.R
 import com.durpalla.booking.core.*
+import com.durpalla.booking.data.repo.boardingOptionsFromMeta
+import com.durpalla.booking.data.repo.findBoardingOption
 import com.durpalla.booking.ui.components.*
 import com.durpalla.booking.ui.nav.LocalContainer
 import com.durpalla.booking.ui.nav.LocalNav
@@ -52,6 +54,33 @@ fun CheckoutScreen() {
     val vat = c.cart.totalVat()
     val total = c.cart.amountWithCharges()
     val mustAgreeMsg = t(R.string.must_agree_policies)
+    val boardingOptions = remember(cart) {
+        boardingOptionsFromMeta(cart.firstOrNull()?.meta)
+    }
+    var selectedBoardingId by remember { mutableStateOf("") }
+    LaunchedEffect(boardingOptions, cart) {
+        val fromCart = cart.firstOrNull()?.meta?.s("boarding_point_id").orEmpty()
+        selectedBoardingId = when {
+            selectedBoardingId.isNotBlank() &&
+                boardingOptions.any { it.id == selectedBoardingId } -> selectedBoardingId
+            fromCart.isNotBlank() && boardingOptions.any { it.id == fromCart } -> fromCart
+            else -> {
+                val fromName = cart.firstOrNull()?.meta?.s("boarding_point_name").orEmpty()
+                    .trim().lowercase()
+                boardingOptions.firstOrNull {
+                    it.name.trim().lowercase() == fromName
+                }?.id
+                    ?: boardingOptions.singleOrNull()?.id
+                    ?: ""
+            }
+        }
+    }
+    LaunchedEffect(forSelf, user) {
+        if (!forSelf) return@LaunchedEffect
+        val u = user
+        name = u.str("name", "full_name")
+        mobile = u.str("mobile", "phone")
+    }
 
     Scaffold(topBar = { DTopBar(t(R.string.checkout), onBack = nav::back) }, bottomBar = {
         Surface(shadowElevation = 16.dp, modifier = Modifier.fillMaxWidth().imePadding()) {
@@ -80,8 +109,14 @@ fun CheckoutScreen() {
                     enabled = cart.isNotEmpty() && agreedPolicies,
                     loading = loading,
                 ) {
-                    if (!forSelf && (name.isBlank() || mobile.isBlank())) {
+                    if (name.isBlank() || mobile.isBlank()) {
                         err = passengerErr
+                        return@GradientButton
+                    }
+                    if (boardingOptions.isNotEmpty() &&
+                        findBoardingOption(boardingOptions, selectedBoardingId) == null
+                    ) {
+                        err = t(R.string.boarding_required)
                         return@GradientButton
                     }
                     if (!agreedPolicies) {
@@ -90,7 +125,16 @@ fun CheckoutScreen() {
                     }
                     scope.launch {
                         loading = true; err = null
-                        runCatching { c.bookings.confirm(cart, if (forSelf) null else name, if (forSelf) null else mobile) }
+                        val boarding = findBoardingOption(boardingOptions, selectedBoardingId)
+                        runCatching {
+                            c.bookings.confirm(
+                                cart,
+                                name.trim(),
+                                mobile.trim(),
+                                forSelf = forSelf,
+                                boarding = boarding,
+                            )
+                        }
                             .onSuccess { (id, _) ->
                                 c.cart.retainHoldsAfterBooking()
                                 c.cart.clearLocal()
@@ -128,14 +172,59 @@ fun CheckoutScreen() {
                     }
                 }
             }
-            SoftCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(t(R.string.passenger), style = MaterialTheme.typography.titleMedium)
-                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(forSelf, { forSelf = it }); Text(t(R.string.travelling_as_me, user.str("name", default = t(R.string.me)))) }
-                    if (!forSelf) {
-                        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.full_name)) })
-                        OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.mobile_number)) })
+            if (boardingOptions.isNotEmpty()) {
+                SoftCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(t(R.string.boarding_point), style = MaterialTheme.typography.titleMedium)
+                        Text(t(R.string.boarding_hint), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
+                        boardingOptions.forEach { option ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedBoardingId = option.id }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(
+                                    selected = selectedBoardingId == option.id,
+                                    onClick = { selectedBoardingId = option.id },
+                                )
+                                Text(option.label, Modifier.weight(1f))
+                            }
+                        }
                     }
+                }
+            }
+            SoftCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(t(R.string.passenger), style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(forSelf, {
+                            forSelf = it
+                            if (it) {
+                                name = user.str("name", "full_name")
+                                mobile = user.str("mobile", "phone")
+                            } else {
+                                name = ""
+                                mobile = ""
+                            }
+                        })
+                        Text(t(R.string.travelling_as_me, user.str("name", default = t(R.string.me))))
+                    }
+                    OutlinedTextField(
+                        name,
+                        { name = it; if (forSelf) forSelf = false },
+                        Modifier.fillMaxWidth(),
+                        label = { Text(t(R.string.full_name)) },
+                        readOnly = forSelf && name.isNotBlank(),
+                    )
+                    OutlinedTextField(
+                        mobile,
+                        { mobile = it; if (forSelf) forSelf = false },
+                        Modifier.fillMaxWidth(),
+                        label = { Text(t(R.string.mobile_number)) },
+                        readOnly = forSelf && mobile.isNotBlank(),
+                    )
                 }
             }
             SoftCard(Modifier.fillMaxWidth()) {
