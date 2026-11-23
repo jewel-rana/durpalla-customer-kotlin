@@ -24,11 +24,16 @@ class DurpallaMessagingService : FirebaseMessagingService() {
         IncomingCallPayload.fromPush(data)?.let { call ->
             val app = application as DurpallaApp
             app.container.appScope.launch {
-                app.container.calls.handleIncoming(
-                    call.callId, call.tripIdInt, call.callerName, call.provider,
-                )
+                runCatching {
+                    app.container.calls.handleIncoming(
+                        call.callId, call.tripIdInt, call.callerName, call.provider,
+                    )
+                }.onSuccess {
+                    CallNotifications.showIncoming(app, call.callId, call.tripIdInt, call.callerName)
+                }.onFailure {
+                    android.util.Log.e("DurpallaCalls", "Could not initialize incoming call", it)
+                }
             }
-            CallNotifications.showIncoming(this, call.callId, call.tripIdInt, call.callerName)
             return
         }
         val event = data["event"] ?: data["type"]

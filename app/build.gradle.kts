@@ -37,6 +37,7 @@ fun ensureTrailingSlash(url: String): String =
     if (url.isBlank()) "" else if (url.endsWith("/")) url else "$url/"
 
 val apiBaseUrl = ensureTrailingSlash(envVal("API_BASE_URL", "BASE_URL", default = "https://apigw.durpalla.com/api/v1"))
+val apiDnsOverride = envVal("API_DNS_OVERRIDE", default = "")
 val apiAuthBaseUrl = ensureTrailingSlash(envVal("API_AUTH_BASE_URL", "AUTH_BASE_URL", default = ""))
 val assetsBaseUrl = envVal("ASSETS_BASE_URL", default = "https://assets.durpalla.com").trimEnd('/')
 val pusherKey = envVal("PUSHER_KEY", default = "")
@@ -66,6 +67,7 @@ android {
 
         // All base URLs and credentials are loaded from .env at build time (copied from durpalla-flutter-app/.env).
         buildConfigField("String", "BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("String", "API_DNS_OVERRIDE", "\"$apiDnsOverride\"")
         buildConfigField("String", "AUTH_BASE_URL", "\"$apiAuthBaseUrl\"")
         buildConfigField("String", "ASSETS_BASE_URL", "\"$assetsBaseUrl\"")
         buildConfigField("String", "PUSHER_KEY", "\"$pusherKey\"")

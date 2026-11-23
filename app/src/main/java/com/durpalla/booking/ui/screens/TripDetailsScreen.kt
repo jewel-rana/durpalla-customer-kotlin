@@ -38,6 +38,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 
+data class SupplierPassenger(val name: String, val mobile: String)
+private data class PendingSupplierHold(val seat: SeatItem, val trip: JsonObject)
+
 /**
  * Port of trip_details_screen.dart following `.cursor/rules/seat-layout.mdc`:
  * - Outer floor map keys (`cabin_row`) are VERTICAL columns placed left -> right.
@@ -58,10 +61,15 @@ class TripDetailsVm(
     val selectedClass = MutableStateFlow("")
     val selectedBoardingId = MutableStateFlow("")
     val busy = MutableStateFlow<Int?>(null)
+    val passengerDialogOpen = MutableStateFlow(false)
+    val passengerName = MutableStateFlow("")
+    val passengerMobile = MutableStateFlow("")
+    val passengerError = MutableStateFlow("")
     val snack = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val liveLocked = MutableStateFlow<Set<String>>(emptySet())
     val liveReleased = MutableStateFlow<Set<String>>(emptySet())
     private val cartStore = c.cart
+    private var pendingSupplierHold: PendingSupplierHold? = null
     private val channel = "trip.$tripId"
 
     init {
@@ -204,7 +212,7 @@ class TripDetailsVm(
         return s.isBooked || s.isTempLocked
     }
 
-    fun toggle(s: SeatItem, d: JsonObject) {
+    fun toggle(s: SeatItem, d: JsonObject, passenger: SupplierPassenger? = null) {
         val id = s.itemId ?: return
         val existing = cartStore.items.value.firstOrNull { it.itemId == id }
         viewModelScope.launch {
@@ -217,26 +225,30 @@ class TripDetailsVm(
                     val options = boardingOptionsFromTrip(d)
                     val boarding = findBoardingOption(options, selectedBoardingId.value)
                     val token = d.s("book_token") ?: bookToken
-                    val supplier = token?.let {
-                        val u = c.session.user.value
-                        val pName = u.str("name", "full_name")
-                        val pMobile = u.str("mobile", "phone")
-                        if (pName.isBlank() || pMobile.isBlank()) {
-                            snack.emit(AppCtx.str(R.string.enter_passenger_name_mobile))
+                    val supplier = if (token != null) {
+                        if (passenger == null) {
+                            val user = c.session.user.value
+                            val profileName = user.str("name", "full_name")
+                            val profileMobile = user.str("mobile", "phone")
+                            if (passengerName.value.isBlank() && profileName.isNotBlank()) passengerName.value = profileName
+                            if (passengerMobile.value.isBlank() && profileMobile.isNotBlank()) passengerMobile.value = profileMobile
+                            passengerError.value = ""
+                            pendingSupplierHold = PendingSupplierHold(s, d)
+                            passengerDialogOpen.value = true
                             return@launch
                         }
                         val bp = boarding ?: options.firstOrNull()
                         SupplierLock(
-                            bookToken = it,
+                            bookToken = token,
                             seatIds = listOf(s.raw.s("supplier_seat_id") ?: id.toString()),
                             seatLabels = listOf(s.label),
                             ticketPrices = listOf(s.fare),
-                            passengerName = pName,
-                            passengerMobile = pMobile,
+                            passengerName = passenger.name,
+                            passengerMobile = passenger.mobile,
                             boardingPointId = bp?.id,
                             boardingPointName = bp?.name,
                         )
-                    }
+                    } else null
                     val r = c.trips.lockItem(tripId, s.kind, id, c.pusher.socketId, supplier)
                     val body = r.o("data") ?: JsonObject(emptyMap())
                     val data = body.a("items").objects().firstOrNull() ?: body
@@ -274,6 +286,25 @@ class TripDetailsVm(
         }
     }
 
+    fun dismissPassengerDialog() {
+        passengerDialogOpen.value = false
+        pendingSupplierHold = null
+    }
+
+    fun confirmPassengerDetails() {
+        val name = passengerName.value.trim()
+        val mobile = passengerMobile.value.trim()
+        val pending = pendingSupplierHold ?: return
+        if (name.isBlank() || mobile.isBlank()) {
+            passengerError.value = AppCtx.str(R.string.enter_passenger_name_mobile)
+            return
+        }
+        passengerError.value = ""
+        passengerDialogOpen.value = false
+        pendingSupplierHold = null
+        toggle(pending.seat, pending.trip, SupplierPassenger(name, mobile))
+    }
+
     override fun onCleared() { c.pusher.unsubscribe(channel) }
 }
 
@@ -289,6 +320,10 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
     val selectedBoardingId by vm.selectedBoardingId.collectAsState()
     val cart by c.cart.items.collectAsState()
     val busy by vm.busy.collectAsState()
+    val passengerDialogOpen by vm.passengerDialogOpen.collectAsState()
+    val passengerName by vm.passengerName.collectAsState()
+    val passengerMobile by vm.passengerMobile.collectAsState()
+    val passengerError by vm.passengerError.collectAsState()
     vm.liveLocked.collectAsState().value; vm.liveReleased.collectAsState().value
     val snackHost = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.snack.collect { snackHost.showSnackbar(it) } }
@@ -448,6 +483,41 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
                 }
             }
         }
+    }
+
+    if (passengerDialogOpen) {
+        AlertDialog(
+            onDismissRequest = vm::dismissPassengerDialog,
+            title = { Text(t(R.string.passenger_hold_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(t(R.string.passenger_hold_hint), style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = passengerName,
+                        onValueChange = { vm.passengerName.value = it; vm.passengerError.value = "" },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(t(R.string.full_name)) },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = passengerMobile,
+                        onValueChange = { vm.passengerMobile.value = it; vm.passengerError.value = "" },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(t(R.string.mobile_number)) },
+                        singleLine = true,
+                    )
+                    if (passengerError.isNotBlank()) {
+                        Text(passengerError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = vm::confirmPassengerDetails) { Text(t(R.string.hold_seat)) }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::dismissPassengerDialog) { Text(t(R.string.cancel)) }
+            },
+        )
     }
 }
 

@@ -12,6 +12,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
 import java.io.IOException
+import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
 /**
@@ -22,6 +23,16 @@ import java.util.concurrent.TimeUnit
  * - 401 → forced logout when authenticated (nav → Home)
  */
 class ApiClient(private val session: SessionStore) {
+
+    private val apiDns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            return if (BuildConfig.DEBUG && hostname.equals("apigw.durpalla.site", ignoreCase = true) && BuildConfig.API_DNS_OVERRIDE.isNotBlank()) {
+                listOf(InetAddress.getByName(BuildConfig.API_DNS_OVERRIDE))
+            } else {
+                Dns.SYSTEM.lookup(hostname)
+            }
+        }
+    }
 
     private val authInterceptor = Interceptor { chain ->
         val lang = session.contentLanguage.ifBlank { "en" }
@@ -77,6 +88,7 @@ class ApiClient(private val session: SessionStore) {
     }
 
     val okHttp: OkHttpClient = OkHttpClient.Builder()
+        .dns(apiDns)
         .addInterceptor(authInterceptor)
         .addInterceptor(debugLoggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)

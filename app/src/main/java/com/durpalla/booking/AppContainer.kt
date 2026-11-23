@@ -104,10 +104,15 @@ class AppContainer(context: Context) {
                 when (e.name) {
                     "call.incoming" -> {
                         val call = IncomingCallPayload.fromPusher(e.data) ?: return@collect
-                        calls.handleIncoming(
-                            call.callId, call.tripIdInt, call.callerName, call.provider,
-                        )
-                        CallNotifications.showIncoming(appContext, call.callId, call.tripIdInt, call.callerName)
+                        runCatching {
+                            calls.handleIncoming(
+                                call.callId, call.tripIdInt, call.callerName, call.provider,
+                            )
+                        }.onSuccess {
+                            CallNotifications.showIncoming(appContext, call.callId, call.tripIdInt, call.callerName)
+                        }.onFailure {
+                            android.util.Log.e("DurpallaCalls", "Could not initialize incoming call", it)
+                        }
                     }
                     "call.ended", "call.declined", "call.missed" -> {
                         val callId = e.data.s("callId") ?: return@collect

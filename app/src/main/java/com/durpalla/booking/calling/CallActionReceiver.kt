@@ -21,11 +21,13 @@ class CallActionReceiver : BroadcastReceiver() {
                     putExtra("autoAccept", true)
                 }
                 context.startActivity(open)
-                app.container.appScope.launch { calls.accept() }
             }
             CallNotifications.ACTION_DECLINE -> {
                 CallNotifications.cancelIncoming(context)
-                app.container.appScope.launch { calls.decline(reason = "declined") }
+                app.container.appScope.launch {
+                    runCatching { calls.decline(reason = "declined") }
+                        .onFailure { android.util.Log.w("CallActionReceiver", "Could not decline call", it) }
+                }
             }
         }
     }

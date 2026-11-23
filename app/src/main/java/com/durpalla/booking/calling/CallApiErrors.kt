@@ -25,6 +25,7 @@ object CallApiErrors {
         "CALL_ALREADY_ENDED" -> AppCtx.str(R.string.err_call_already_ended)
         "CALL_PROVIDER_MISMATCH" -> AppCtx.str(R.string.err_call_provider_mismatch)
         "CALL_PROVIDER_UNAVAILABLE" -> AppCtx.str(R.string.err_call_provider_unavailable)
+        "FIREBASE_NOT_CONFIGURED" -> AppCtx.str(R.string.err_call_provider_unavailable)
         "RATE_LIMITED" -> AppCtx.str(R.string.err_call_rate_limited)
         else -> AppCtx.str(R.string.err_could_not_start_call)
     }

@@ -247,6 +247,10 @@
     <string name="bids">Bids</string>
     <string name="accept_bid">Accept bid</string>
     <string name="enter_passenger_name_mobile">Enter passenger name and mobile</string>
+    <string name="passenger_hold_title">Passenger details for seat hold</string>
+    <string name="passenger_hold_hint">Enter the contact details Paribahan needs to reserve this seat. You can continue as a guest; sign-in is only needed before checkout.</string>
+    <string name="hold_seat">Hold seat</string>
+    <string name="cancel">Cancel</string>
     <string name="boarding_point">Boarding point</string>
     <string name="boarding_hint">Choose where you will get on. Drivers and operators use this at check-in.</string>
     <string name="boarding_required">Please select where you will board the vehicle.</string>

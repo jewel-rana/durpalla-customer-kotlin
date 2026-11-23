@@ -247,6 +247,10 @@
     <string name="bids">বিড</string>
     <string name="accept_bid">বিড গ্রহণ</string>
     <string name="enter_passenger_name_mobile">যাত্রীর নাম ও মোবাইল দিন</string>
+    <string name="passenger_hold_title">সিট ধরে রাখতে যাত্রীর তথ্য</string>
+    <string name="passenger_hold_hint">এই সিট সংরক্ষণে পরিবহনের প্রয়োজনীয় যোগাযোগের তথ্য দিন। অতিথি হিসেবে চালিয়ে যেতে পারবেন; শুধু চেকআউটের আগে সাইন ইন করতে হবে।</string>
+    <string name="hold_seat">সিট ধরে রাখুন</string>
+    <string name="cancel">বাতিল</string>
     <string name="boarding_point">বোর্ডিং পয়েন্ট</string>
     <string name="boarding_hint">কোথায় উঠবেন তা বেছে নিন। চেক-ইনে চালক ও অপারেটর এটি ব্যবহার করেন।</string>
     <string name="boarding_required">যানবাহনে কোথায় উঠবেন তা নির্বাচন করুন।</string>

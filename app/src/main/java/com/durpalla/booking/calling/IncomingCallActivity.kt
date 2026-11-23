@@ -43,7 +43,11 @@ class IncomingCallActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             LaunchedEffect(callId) {
                 if (container.calls.session.value == null && callId.isNotBlank()) {
-                    runCatching { container.calls.handleIncoming(callId, tripId, peer) }.onFailure { finish() }
+                    val initialized = runCatching { container.calls.handleIncoming(callId, tripId, peer) }
+                    if (initialized.isFailure) {
+                        finish()
+                        return@LaunchedEffect
+                    }
                 }
                 if (autoAccept) tryAccept(container)
             }

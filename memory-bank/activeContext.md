@@ -1,5 +1,17 @@
 # Active context — durpalla-customer-kotlin
 
+## 2026-11-23 — Call setup failure handling
+- Incoming call setup failures are caught in Pusher, FCM, notification, and activity paths; notification Accept no longer starts a duplicate uncaught accept coroutine.
+- Local apigw has no `storage/app/firebase/service-account.json`, so `GET /auth/firebase-token` returns `FIREBASE_NOT_CONFIGURED`; calls still need that server credential to work.
+
+## 2026-11-23 — Guest supplier seat holds
+- Paribahan seat selection stays guest-accessible. The seat-hold form collects passenger name/mobile, prefilled from the signed-in profile when available and editable; checkout remains sign-in gated.
+- Passenger details are kept in the trip screen state until the user leaves it; held supplier bookings receive the values with the lock request.
+
+## 2026-11-23 — Local API debug build
+- Debug `.env` points to `http://apigw.durpalla.site/api/v1`; the desktop resolves this hostname to loopback, so `API_DNS_OVERRIDE=192.168.0.136` maps it to the desktop LAN IP in the debug OkHttp client. Debug-only network security permits cleartext for this host; the base policy remains HTTPS-only.
+- `./gradlew installDebug` succeeded on the connected RMX3286 (Android 13); app logcat confirmed local API calls return HTTP 200.
+
 ## 2026-11-23 — Paribahan (partner bus) parity with durpalla-web `42cbd55`
 - **Trip ids are strings** (`pb:123` for Paribahan): `TripSummary.tripId`, `CartItem.tripId`, `TripDetailsVm`, `Routes.trip(id, type, bookToken)` → `trip/{id}/{type}?bt={bt}` (id `Uri.encode`d). Compare trip ids as strings.
 - **book_token**: parsed from search rows, passed via nav `bt`, sent as `GET trip/{id}?book_token=`; merged into trip data if API omits it.
