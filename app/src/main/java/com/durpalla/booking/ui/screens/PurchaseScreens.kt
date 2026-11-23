@@ -103,6 +103,7 @@ fun CheckoutScreen() {
                 }
                 err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
                 val passengerErr = t(R.string.enter_passenger_name_mobile)
+                val boardingErr = t(R.string.boarding_required)
                 GradientButton(
                     t(R.string.confirm_booking) + " • " + money(total),
                     Modifier.fillMaxWidth(),
@@ -116,7 +117,7 @@ fun CheckoutScreen() {
                     if (boardingOptions.isNotEmpty() &&
                         findBoardingOption(boardingOptions, selectedBoardingId) == null
                     ) {
-                        err = t(R.string.boarding_required)
+                        err = boardingErr
                         return@GradientButton
                     }
                     if (!agreedPolicies) {
@@ -163,7 +164,7 @@ fun CheckoutScreen() {
                                 Text(money(ci.lineTotal), fontWeight = FontWeight.SemiBold)
                                 IconButton({
                                     scope.launch {
-                                        if (c.trips.releaseLock(ci.lockId, ci.itemId)) c.cart.remove(ci)
+                                        if (c.trips.releaseLock(ci)) c.cart.remove(ci)
                                     }
                                 }) { Icon(Icons.Default.Close, null) }
                             }

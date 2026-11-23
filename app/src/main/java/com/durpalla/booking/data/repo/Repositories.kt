@@ -156,15 +156,47 @@ class TripRepository(private val api: ApiClient) {
         }
     }?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
 
-    suspend fun tripDetails(tripId: Int): JsonObject =
-        api.get("trip/$tripId").requireSuccess(AppCtx.str(R.string.err_load_trip)).o("data") ?: JsonObject(emptyMap())
+    /** Paribahan trips need the search row's `book_token` to load seats. */
+    suspend fun tripDetails(tripId: String, bookToken: String? = null): JsonObject {
+        val token = bookToken?.takeIf { it.isNotBlank() }
+        val d = api.get("trip/$tripId", mapOf("book_token" to token))
+            .requireSuccess(AppCtx.str(R.string.err_load_trip)).o("data") ?: JsonObject(emptyMap())
+        if (token == null || d.s("book_token") != null) return d
+        return JsonObject(d + ("book_token" to JsonPrimitive(token)))
+    }
 
-    suspend fun lockItem(tripId: Int, type: String, itemId: Int, socketId: String?): JsonObject {
+    suspend fun lockItem(
+        tripId: String,
+        type: String,
+        itemId: Int,
+        socketId: String?,
+        supplier: SupplierLock? = null,
+    ): JsonObject {
+        val key = UUID.randomUUID().toString()
         val headers = buildMap {
-            put("X-Idempotency-Key", UUID.randomUUID().toString())
+            put("X-Idempotency-Key", key)
+            if (supplier != null) put("Idempotency-Key", key)
             if (!socketId.isNullOrEmpty()) put("X-Socket-Id", socketId)
         }
-        val r = api.postForm("cart/add", mapOf("trip_id" to "$tripId", "item_id" to "$itemId", "type" to type), headers)
+        val r = if (supplier != null) {
+            val body = jsonOf(
+                "trip_id" to tripId,
+                "item_id" to itemId,
+                "type" to type,
+                "platform" to "android",
+                "book_token" to supplier.bookToken,
+                "seat_ids" to supplier.seatIds,
+                "seat_lbls" to supplier.seatLabels,
+                "ticket_prices" to supplier.ticketPrices,
+                "passenger_name" to supplier.passengerName,
+                "passenger_mobile" to supplier.passengerMobile,
+                "boarding_point_id" to supplier.boardingPointId,
+                "boarding_point_name" to supplier.boardingPointName,
+            )
+            api.postJson("cart/add", JsonObject(body.filterValues { it !is JsonNull }), headers)
+        } else {
+            api.postForm("cart/add", mapOf("trip_id" to tripId, "item_id" to "$itemId", "type" to type), headers)
+        }
         if (r.success) return r
         val code = r.i("http_status") ?: 0
         throw ApiException(
@@ -173,8 +205,18 @@ class TripRepository(private val api: ApiClient) {
         )
     }
 
-    suspend fun releaseLock(lockId: String, itemId: Int?): Boolean {
-        val m = api.postJson("cart/unlock", jsonOf("lock_id" to lockId, "item_id" to itemId?.toString()))
+    /** Supplier holds need `supplier` + `booking_id` so the partner booking is cancelled too. */
+    suspend fun releaseLock(item: CartItem): Boolean =
+        releaseLock(item.lockId, item.itemId, item.meta?.s("supplier"), item.meta?.s("booking_id"))
+
+    suspend fun releaseLock(lockId: String, itemId: Int?, supplier: String? = null, bookingId: String? = null): Boolean {
+        val body = jsonOf(
+            "lock_id" to lockId,
+            "item_id" to itemId?.toString(),
+            "supplier" to supplier,
+            "booking_id" to bookingId,
+        )
+        val m = api.postJson("cart/unlock", JsonObject(body.filterValues { it !is JsonNull }))
         if (m.success) return true
         val code = m.s("code") ?: m.s("status")
         val msg = m.message.orEmpty().lowercase()

@@ -247,6 +247,9 @@
     <string name="bids">বিড</string>
     <string name="accept_bid">বিড গ্রহণ</string>
     <string name="enter_passenger_name_mobile">যাত্রীর নাম ও মোবাইল দিন</string>
+    <string name="boarding_point">বোর্ডিং পয়েন্ট</string>
+    <string name="boarding_hint">কোথায় উঠবেন তা বেছে নিন। চেক-ইনে চালক ও অপারেটর এটি ব্যবহার করেন।</string>
+    <string name="boarding_required">যানবাহনে কোথায় উঠবেন তা নির্বাচন করুন।</string>
     <string name="cart_empty">আপনার কার্ট খালি</string>
     <string name="cart_empty_body">আগে একটি কেবিন বা সিট বাছুন।</string>
     <string name="held_until">হোল্ড %1$s পর্যন্ত</string>

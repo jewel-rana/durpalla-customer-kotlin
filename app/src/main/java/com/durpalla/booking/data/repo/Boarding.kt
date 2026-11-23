@@ -33,6 +33,19 @@ fun formatBoardingTime(raw: String?): String {
     return "$hour:$minute $suffix"
 }
 
+/** Clock label from "06:30[:00]", "6:30 PM" or ISO datetimes (Paribahan `leaving_at`). */
+fun displayClock(raw: String?): String {
+    val value = raw?.trim().orEmpty()
+    if (value.isEmpty()) return ""
+    val clock = formatBoardingTime(value)
+    if (clock != value || Regex("""^\d{1,2}:\d{2}\s*(AM|PM)$""", RegexOption.IGNORE_CASE).matches(value)) return clock
+    if (!Regex("""[T\-/]""").containsMatchIn(value)) return value
+    val time = runCatching { java.time.OffsetDateTime.parse(value).toLocalTime() }.getOrNull()
+        ?: runCatching { java.time.LocalDateTime.parse(value.replace(" ", "T")).toLocalTime() }.getOrNull()
+        ?: return value
+    return formatBoardingTime("%02d:%02d".format(time.hour, time.minute))
+}
+
 /** Prefer supplier boarding_points; fall back to start/via stoppages. */
 fun boardingOptionsFromTrip(d: JsonObject?): List<BoardingOption> {
     if (d == null) return emptyList()
@@ -90,6 +103,18 @@ fun findBoardingOption(options: List<BoardingOption>, selectedId: String?): Boar
     if (selectedId.isNullOrBlank()) return null
     return options.firstOrNull { it.id == selectedId }
 }
+
+/** Paribahan `cart/add` JSON extras (sent only when the trip carries a `book_token`). */
+data class SupplierLock(
+    val bookToken: String,
+    val seatIds: List<String>,
+    val seatLabels: List<String>,
+    val ticketPrices: List<Double>,
+    val passengerName: String?,
+    val passengerMobile: String?,
+    val boardingPointId: String?,
+    val boardingPointName: String?,
+)
 
 /** Merge boarding selection into cart/lock meta so checkout can restore it. */
 fun JsonObject.withBoarding(

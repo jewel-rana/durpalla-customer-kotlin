@@ -83,14 +83,16 @@ class CartStore(
                     "boarding_point_label",
                     "boarding_points",
                     "book_token",
+                    "booking_id",
                     "stoppages",
                     "supplier",
+                    "trip_id",
                 ).forEach { key ->
                     val keep = serverMeta?.get(key) ?: prevMeta?.get(key)
                     if (keep != null) put(key, keep)
                 }
             }
-            item.copy(meta = meta, forSelf = prev.forSelf)
+            item.copy(meta = meta, forSelf = prev.forSelf, tripId = item.tripId.ifBlank { prev.tripId })
         }
         set(merged)
     }
@@ -116,7 +118,7 @@ class CartStore(
 
     suspend fun expireAndRelease(item: CartItem) {
         if (retainAfterBooking || item.retainHold) return
-        runCatching { trips.releaseLock(item.lockId, item.itemId) }
+        runCatching { trips.releaseLock(item) }
         _items.value = _items.value.filterNot { it.lockId == item.lockId }
         expiryJobs.remove(item.lockId)
     }

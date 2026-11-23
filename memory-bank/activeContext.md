@@ -1,5 +1,13 @@
 # Active context — durpalla-customer-kotlin
 
+## 2026-11-23 — Paribahan (partner bus) parity with durpalla-web `42cbd55`
+- **Trip ids are strings** (`pb:123` for Paribahan): `TripSummary.tripId`, `CartItem.tripId`, `TripDetailsVm`, `Routes.trip(id, type, bookToken)` → `trip/{id}/{type}?bt={bt}` (id `Uri.encode`d). Compare trip ids as strings.
+- **book_token**: parsed from search rows, passed via nav `bt`, sent as `GET trip/{id}?book_token=`; merged into trip data if API omits it.
+- **cart/add**: when trip has `book_token` → JSON body (`SupplierLock`: seat_ids = `supplier_seat_id`, seat_lbls, ticket_prices, passenger name/mobile from session user, boarding point id/name) + `Idempotency-Key`; otherwise unchanged form post. Lock id falls back to `booking_id`; meta stores `trip_id`, `supplier`, `book_token`, `booking_id`, boarding.
+- **cart/unlock**: `TripRepository.releaseLock(item)` adds `supplier` + `booking_id` (used by trip screen, checkout remove, expiry).
+- **Results**: departure clock from `leaving_time` → ISO `leaving_at` (`displayClock` in `Boarding.kt`); fare also from `base_fare`.
+- Checkout `order/confirm` vs `booking/confirm`, boarding picker/lock and cart-meta merge were already ported; added missing `boarding_point`/`boarding_hint`/`boarding_required` strings (EN/BN).
+
 ## 2026-11-22 — Password Change & Show/Hide Toggle
 - **Password Change API payload**:
   - Backend `MyApiController::changePassword` specifically validates `'password'` and `'confirm_password' => 'required|same:password'`.

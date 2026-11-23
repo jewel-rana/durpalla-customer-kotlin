@@ -24,6 +24,7 @@ import com.durpalla.booking.R
 import com.durpalla.booking.core.*
 import com.durpalla.booking.data.repo.CartItem
 import com.durpalla.booking.data.repo.SeatItem
+import com.durpalla.booking.data.repo.SupplierLock
 import com.durpalla.booking.data.repo.boardingOptionsFromTrip
 import com.durpalla.booking.data.repo.findBoardingOption
 import com.durpalla.booking.data.repo.withBoarding
@@ -45,7 +46,12 @@ import kotlinx.serialization.json.*
  * - `cabin_type == "empty"` renders as an invisible spacer with no border/background.
  * - Bus/train prefer `seat` tab; launch prefers `cabin` tab.
  */
-class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceType: String) : ViewModel() {
+class TripDetailsVm(
+    private val c: AppContainer,
+    val tripId: String,
+    val serviceType: String,
+    private val bookToken: String? = null,
+) : ViewModel() {
     val trip = MutableStateFlow<Load<JsonObject>>(Load.Loading)
     val tab = MutableStateFlow("")
     val floor = MutableStateFlow(1)
@@ -84,7 +90,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
 
     fun load() = viewModelScope.launch {
         trip.value = Load.Loading
-        trip.value = runCatching { c.trips.tripDetails(tripId) }.fold({ d ->
+        trip.value = runCatching { c.trips.tripDetails(tripId, bookToken) }.fold({ d ->
             val fl = floors(d)
             val defaultFloor = d.i("default_floor")?.takeIf { df -> fl.any { it.first == df } }
                 ?: fl.firstOrNull()?.first ?: 1
@@ -205,16 +211,44 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
             busy.value = id
             try {
                 if (existing != null) {
-                    if (c.trips.releaseLock(existing.lockId, id)) cartStore.remove(existing)
+                    if (c.trips.releaseLock(existing)) cartStore.remove(existing)
                     else snack.emit(AppCtx.str(R.string.could_not_release))
                 } else {
-                    val r = c.trips.lockItem(tripId, s.kind, id, c.pusher.socketId)
-                    val data = r.o("data") ?: JsonObject(emptyMap())
-                    val lockId = data.s("lock_id") ?: data.s("reservation_id") ?: r.s("lock_id") ?: ""
-                    val boarding = findBoardingOption(
-                        boardingOptionsFromTrip(d),
-                        selectedBoardingId.value,
-                    )
+                    val options = boardingOptionsFromTrip(d)
+                    val boarding = findBoardingOption(options, selectedBoardingId.value)
+                    val token = d.s("book_token") ?: bookToken
+                    val supplier = token?.let {
+                        val u = c.session.user.value
+                        val pName = u.str("name", "full_name")
+                        val pMobile = u.str("mobile", "phone")
+                        if (pName.isBlank() || pMobile.isBlank()) {
+                            snack.emit(AppCtx.str(R.string.enter_passenger_name_mobile))
+                            return@launch
+                        }
+                        val bp = boarding ?: options.firstOrNull()
+                        SupplierLock(
+                            bookToken = it,
+                            seatIds = listOf(s.raw.s("supplier_seat_id") ?: id.toString()),
+                            seatLabels = listOf(s.label),
+                            ticketPrices = listOf(s.fare),
+                            passengerName = pName,
+                            passengerMobile = pMobile,
+                            boardingPointId = bp?.id,
+                            boardingPointName = bp?.name,
+                        )
+                    }
+                    val r = c.trips.lockItem(tripId, s.kind, id, c.pusher.socketId, supplier)
+                    val body = r.o("data") ?: JsonObject(emptyMap())
+                    val data = body.a("items").objects().firstOrNull() ?: body
+                    val lockId = data.s("lock_id") ?: data.s("reservation_id") ?: data.s("booking_id")
+                        ?: r.s("lock_id") ?: ""
+                    val meta = buildJsonObject {
+                        data.withBoarding(d, boarding).forEach { (k, v) -> put(k, v) }
+                        put("trip_id", tripId)
+                        (data.s("supplier") ?: d.s("supplier"))?.let { put("supplier", it) }
+                        (data.s("book_token") ?: token)?.let { put("book_token", it) }
+                        put("booking_id", data.s("booking_id") ?: lockId)
+                    }
                     cartStore.add(
                         CartItem(
                             itemId = id,
@@ -226,7 +260,7 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
                             vehicleName = d.str("vehicle_name"),
                             routeName = d.str("route_name"),
                             expiresAt = data.s("expires_at") ?: data.s("locked_until"),
-                            meta = data.withBoarding(d, boarding),
+                            meta = meta,
                             totalCharge = data.d("total_charge") ?: 0.0,
                             totalVat = data.d("total_vat") ?: 0.0,
                         ),
@@ -245,9 +279,9 @@ class TripDetailsVm(private val c: AppContainer, val tripId: Int, val serviceTyp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TripDetailsScreen(tripId: Int, type: String) {
+fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
     val c = LocalContainer.current; val nav = LocalNav.current
-    val vm: TripDetailsVm = viewModel(key = "trip-$tripId") { TripDetailsVm(c, tripId, type) }
+    val vm: TripDetailsVm = viewModel(key = "trip-$tripId") { TripDetailsVm(c, tripId, type, bookToken) }
     val state by vm.trip.collectAsState()
     val tab by vm.tab.collectAsState()
     val floor by vm.floor.collectAsState()
@@ -288,7 +322,7 @@ fun TripDetailsScreen(tripId: Int, type: String) {
                         PhotoBox(d.s("vehicle_photo"), if (effectiveType == "bus") R.drawable.photo_river else R.drawable.photo_launch, Modifier.matchParentSize())
                         Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Brand.Navy.copy(.85f)))))
                         Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                            Text(d.str("vehicle_name", default = t(R.string.trip_numbered, tripId)), color = Color.White, style = MaterialTheme.typography.titleLarge)
+                            Text(d.str("vehicle_name", default = tripId.toIntOrNull()?.let { t(R.string.trip_numbered, it) } ?: tripId), color = Color.White, style = MaterialTheme.typography.titleLarge)
                             Text(d.str("route_name"), color = Color.White.copy(.85f))
                             val stops = d.a("stoppages").objects().map { it.str("name") }.filter { it.isNotBlank() }
                             if (stops.isNotEmpty()) Text(stops.joinToString(" • "), color = Brand.Amber, style = MaterialTheme.typography.bodySmall, maxLines = 1)

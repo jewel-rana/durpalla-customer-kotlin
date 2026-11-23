@@ -103,7 +103,7 @@ fun ResultsScreen(
                 list = if (sort == "price") list.sortedBy { it.fare ?: Double.MAX_VALUE } else list
                 if (list.isEmpty()) EmptyState(Icons.Default.DirectionsBoat, t(R.string.no_trips), t(R.string.try_another_date_route))
                 else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(list, key = { it.tripId }) { trip -> TripCard(trip) { nav.go(Routes.trip(trip.tripId, type)) } }
+                    items(list, key = { it.tripId }) { trip -> TripCard(trip) { nav.go(Routes.trip(trip.tripId, type, trip.bookToken)) } }
                 }
             }
         }
@@ -136,7 +136,7 @@ fun TripCard(trip: TripSummary, onClick: () -> Unit) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(trip.vehicleName.ifBlank { t(R.string.trip_numbered, trip.tripId) }, style = MaterialTheme.typography.titleMedium)
+                    Text(trip.vehicleName.ifBlank { trip.tripId.toIntOrNull()?.let { t(R.string.trip_numbered, it) } ?: trip.tripId }, style = MaterialTheme.typography.titleMedium)
                     Text(trip.subLine.ifBlank { trip.routeName }, style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
                 }
                 Pill(if (trip.isAc) t(R.string.filter_ac) else t(R.string.filter_non_ac))

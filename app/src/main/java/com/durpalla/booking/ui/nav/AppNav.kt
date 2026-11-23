@@ -50,7 +50,9 @@ object Routes {
     fun searchFor(service: String) = "search?service=$service"
     fun results(type: String, from: String, to: String, date: String, fromId: Int = 0, toId: Int = 0) =
         "results/$type/${Uri.encode(from)}/${Uri.encode(to)}/$date?fromId=$fromId&toId=$toId"
-    fun trip(id: Int, type: String) = "trip/$id/$type"
+    /** Partner ids (`pb:123`) are encoded; `bt` carries the Paribahan search `book_token`. */
+    fun trip(id: String, type: String, bookToken: String? = null) =
+        "trip/${Uri.encode(id)}/$type" + (bookToken?.takeIf { it.isNotBlank() }?.let { "?bt=" + Uri.encode(it) } ?: "")
     const val CHECKOUT = "checkout"
     fun payment(bookingId: Int, amount: Double) = "payment/$bookingId/$amount"
     fun payWeb(url: String, bookingId: Int) = "payweb/$bookingId?url=" + Uri.encode(url)
@@ -214,8 +216,18 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                         a.getInt("toId").takeIf { it > 0 },
                     )
                 }
-                composable("trip/{id}/{type}", arguments = listOf(navArgument("id") { type = NavType.IntType })) {
-                    TripDetailsScreen(it.arguments!!.getInt("id"), it.arguments!!.getString("type")!!)
+                composable(
+                    "trip/{id}/{type}?bt={bt}",
+                    arguments = listOf(
+                        navArgument("id") { type = NavType.StringType },
+                        navArgument("bt") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    ),
+                ) {
+                    TripDetailsScreen(
+                        it.arguments!!.getString("id")!!,
+                        it.arguments!!.getString("type")!!,
+                        it.arguments!!.getString("bt"),
+                    )
                 }
                 composable(Routes.CHECKOUT) { CheckoutScreen() }
                 composable("payment/{bid}/{amount}", arguments = listOf(navArgument("bid") { type = NavType.IntType }, navArgument("amount") { type = NavType.FloatType })) {

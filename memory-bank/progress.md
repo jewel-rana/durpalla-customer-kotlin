@@ -3,6 +3,7 @@
 Target: Flutter master `@8ee2bed`. Tracker detail: `MASTER_PORT_TODOS.md`.
 
 ## Done
+- **Paribahan partner trips (2026-11-23)**: string trip ids (`pb:`), `book_token` through search → trip → `cart/add` JSON, supplier-aware `cart/unlock`, ISO departure clocks — parity with durpalla-web.
 - **Password Change & Show/Hide Toggle (2026-11-22)**:
   - Fixed password change API payload (`confirm_password` required by backend validator).
   - Added show/hide password toggle for all three password fields in `ChangePasswordScreen`.

@@ -234,7 +234,7 @@ fun HomeScreen() {
                 item { SectionHeader(t(R.string.popular_routes)) }
                 if (d.popular.isEmpty()) item { PopularFallback() } else item {
                     LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(d.popular, key = { it.tripId }, contentType = { "trip" }) { trip -> TripMiniCard(trip) { nav.go(Routes.trip(trip.tripId, trip.serviceType)) } }
+                        items(d.popular, key = { it.tripId }, contentType = { "trip" }) { trip -> TripMiniCard(trip) { nav.go(Routes.trip(trip.tripId, trip.serviceType, trip.bookToken)) } }
                     }
                 }
                 if (d.hotels.isNotEmpty()) {

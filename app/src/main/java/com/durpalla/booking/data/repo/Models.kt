@@ -21,27 +21,32 @@ enum class Service(val apiType: String?, val kind: String) {
 
 /** Row from `GET search` / boat-rental / tour / entertainment lists. */
 data class TripSummary(
-    val tripId: Int, val serviceType: String, val vehicleName: String, val routeName: String,
+    /** Local ids are numeric; partner (Paribahan) ids look like `pb:123`. */
+    val tripId: String, val serviceType: String, val vehicleName: String, val routeName: String,
     val leavingAt: String, val from: String, val to: String, val fare: Double?, val seatAvailable: Int,
     val cabinAvailable: Int, val totalSeats: Int, val isAc: Boolean, val subLine: String, val photo: String?, val raw: JsonObject,
+    val bookToken: String? = null,
 ) {
     companion object {
         fun from(m: JsonObject, type: String): TripSummary? {
-            val id = m.i("trip_id", "id") ?: return null
+            val id = m.str("trip_id", "id").ifBlank { return null }
             val stops = m.a("stoppages").objects()
             return TripSummary(
                 tripId = id, serviceType = m.str("service_type", default = type),
                 vehicleName = m.str("vehicle_name", "name", "title"),
                 routeName = m.str("route_name", "destination"),
-                leavingAt = m.str("leaving_at", "leaving_time_formated", "leaving_time", "starts_at", "depart_date"),
+                leavingAt = displayClock(m.s("leaving_time")).ifBlank { displayClock(m.s("leaving_at")) }
+                    .ifBlank { m.str("leaving_time_formated", "starts_at", "depart_date") },
                 from = stops.firstOrNull().str("name", default = m.str("trip_from", "from")),
                 to = stops.lastOrNull().str("name", default = m.str("trip_to", "to")),
-                fare = m.d("fare", "min_fare", "price", "lowest_fare", "price_from"),
+                fare = listOf("fare", "min_fare", "base_fare", "price", "lowest_fare", "price_from")
+                    .firstNotNullOfOrNull { k -> m.d(k)?.takeIf { it > 0 } },
                 seatAvailable = m.i("seat_available") ?: 0, cabinAvailable = m.i("cabin_available") ?: 0,
                 totalSeats = m.i("total_seats") ?: 0, isAc = m.b("is_ac"),
                 subLine = m.str("vehicle_no", "trip_code", "schedule_code"),
                 photo = MediaUrl.resolve(m.s("vehicle_photo") ?: m.s("photo") ?: m.s("cover") ?: m.s("image")),
                 raw = m,
+                bookToken = m.s("book_token"),
             )
         }
     }
@@ -63,7 +68,8 @@ data class CartItem(
     val price: Double,
     val lockId: String,
     val label: String,
-    val tripId: Int,
+    /** Numeric local id or partner id like `pb:123` — compare as strings. */
+    val tripId: String,
     val vehicleName: String,
     val routeName: String,
     val expiresAt: String?,
@@ -87,9 +93,9 @@ data class CartItem(
                 itemId = itemId,
                 type = m.str("type", "item_type", default = "cabin"),
                 price = m.d("price", "fare") ?: 0.0,
-                lockId = m.str("lock_id", "hold_id"),
+                lockId = m.str("lock_id", "hold_id", "booking_id", default = meta.str("booking_id")),
                 label = m.str("cabin_no", "label", default = meta.str("cabin_no")),
-                tripId = m.i("trip_id") ?: meta.i("trip_id") ?: 0,
+                tripId = m.str("trip_id", default = meta.str("trip_id")),
                 vehicleName = m.str("vehicle_name", default = meta.str("vehicle_name")),
                 routeName = m.str("route_name", default = meta.str("route_name")),
                 expiresAt = m.s("expires_at") ?: meta.s("expires_at"),

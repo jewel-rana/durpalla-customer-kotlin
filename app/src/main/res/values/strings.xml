@@ -247,6 +247,9 @@
     <string name="bids">Bids</string>
     <string name="accept_bid">Accept bid</string>
     <string name="enter_passenger_name_mobile">Enter passenger name and mobile</string>
+    <string name="boarding_point">Boarding point</string>
+    <string name="boarding_hint">Choose where you will get on. Drivers and operators use this at check-in.</string>
+    <string name="boarding_required">Please select where you will board the vehicle.</string>
     <string name="cart_empty">Your cart is empty</string>
     <string name="cart_empty_body">Pick a cabin or seat first.</string>
     <string name="held_until">Held until %1$s</string>
