@@ -37,6 +37,7 @@ import com.durpalla.booking.ui.theme.Brand
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
+import java.security.MessageDigest
 
 data class SupplierPassenger(val name: String, val mobile: String)
 private data class PendingSupplierHold(val seat: SeatItem, val trip: JsonObject)
@@ -70,23 +71,34 @@ class TripDetailsVm(
     val liveReleased = MutableStateFlow<Set<String>>(emptySet())
     private val cartStore = c.cart
     private var pendingSupplierHold: PendingSupplierHold? = null
-    private val channel = "trip.$tripId"
+    private val supplierTrip = tripId.startsWith("pb:")
+    private val channel = if (supplierTrip) {
+        val hash = MessageDigest.getInstance("SHA-256").digest(tripId.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        "trip.pb-$hash"
+    } else {
+        "trip.$tripId"
+    }
 
     init {
-        load()
-        c.pusher.subscribe(channel)
+        val initialLoad = load()
         viewModelScope.launch {
             c.pusher.events.filter { it.channel == channel }.collect { e ->
+                if (e.name == "availability.changed") {
+                    initialLoad.join()
+                    refreshSupplierAvailability()
+                    return@collect
+                }
                 val id = e.data.s("item_id") ?: return@collect
                 val label = e.data.o("data").str("cabin_no", "seat_no", "label")
                 when (e.name) {
-                    "cart.item.locked", "cart.item.booked" -> {
+                    "item.locked", "item.reserved", "item.booked", "cart.item.locked", "cart.item.booked" -> {
                         liveLocked.value += id; liveReleased.value -= id
                         if (cartStore.items.value.none { it.itemId.toString() == id }) {
                             snack.tryEmit(AppCtx.str(R.string.cabin_locked, label, e.data.o("data").str("fare")))
                         }
                     }
-                    "cart.item.released" -> {
+                    "item.released", "item.booking_cancelled", "cart.item.released" -> {
                         liveLocked.value -= id
                         liveReleased.value += id
                         snack.tryEmit(AppCtx.str(R.string.cabin_available, label))
@@ -94,6 +106,17 @@ class TripDetailsVm(
                 }
             }
         }
+        if (supplierTrip) {
+            c.pusher.subscribe(channel, listOf("availability.changed"))
+        } else {
+            c.pusher.subscribe(channel)
+        }
+    }
+
+    private suspend fun refreshSupplierAvailability() {
+        val current = trip.value as? Load.Ok ?: return
+        val updated = runCatching { c.trips.tripDetails(tripId, bookToken) }.getOrNull() ?: return
+        if (trip.value === current) trip.value = Load.Ok(updated)
     }
 
     fun load() = viewModelScope.launch {

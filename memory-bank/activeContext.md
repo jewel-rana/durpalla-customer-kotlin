@@ -1,5 +1,9 @@
 # Active context — durpalla-customer-kotlin
 
+## 2026-11-25 — Seat hold and release realtime
+- Native layouts consume the gateway's `item.*` seat events and retain support for legacy `cart.item.*` names. Paribahan uses the gateway's hashed trip channel and reloads availability without resetting the current seat map controls.
+- Local Android builds target the production API and auth URLs without a LAN DNS override. The public Pusher settings match both production gateways and passed a supplier-channel subscription check. Firebase uses the existing Android client configuration.
+
 ## 2026-11-23 — Call setup failure handling
 - Incoming call setup failures are caught in Pusher, FCM, notification, and activity paths; notification Accept no longer starts a duplicate uncaught accept coroutine.
 - Local apigw has no `storage/app/firebase/service-account.json`, so `GET /auth/firebase-token` returns `FIREBASE_NOT_CONFIGURED`; calls still need that server credential to work.

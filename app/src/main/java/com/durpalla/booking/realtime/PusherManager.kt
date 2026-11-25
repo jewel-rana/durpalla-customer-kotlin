@@ -35,7 +35,10 @@ class PusherManager {
     @Volatile var socketId: String? = null
         private set
 
-    val tripEvents = listOf("cart.item.locked", "cart.item.booked", "cart.item.released")
+    val tripEvents = listOf(
+        "item.locked", "item.reserved", "item.booked", "item.released", "item.booking_cancelled",
+        "cart.item.locked", "cart.item.booked", "cart.item.released",
+    )
     val callEvents = listOf("call.incoming", "call.ended", "call.declined", "call.missed")
 
     fun connect(authToken: () -> String? = tokenProvider) {
