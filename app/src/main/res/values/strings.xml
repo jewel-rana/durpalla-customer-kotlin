@@ -27,6 +27,8 @@
     <string name="sign_in">Sign in</string>
     <string name="sign_out">Sign out</string>
     <string name="sign_in_required">Sign in required</string>
+    <string name="seat_hold_sign_in_required">Sign in to hold seats using the mobile number registered to your account.</string>
+    <string name="seat_hold_registered_mobile_required">Your account needs a registered mobile number to hold seats.</string>
     <string name="sign_in_required_body">Please sign in with your mobile number or email to continue. You will return right here afterwards.</string>
     <string name="not_now">Not now</string>
     <string name="guest_banner">Sign in to book faster and see your tickets</string>
@@ -97,6 +99,8 @@
     <string name="seats_left">%1$d seats left</string>
     <string name="cabins_left">%1$d cabins left</string>
     <string name="trip_details">Trip details</string>
+    <string name="seat_class_active">Active</string>
+    <string name="seat_class_disabled">Disabled</string>
     <string name="available">Available</string>
     <string name="selected">Selected</string>
     <string name="booked">Booked</string>
@@ -121,6 +125,7 @@
     <string name="past">Past</string>
     <string name="cancelled">Cancelled</string>
     <string name="ticket">Ticket</string>
+    <string name="cancel_booking">Cancel booking</string>
     <string name="cancel_ticket">Cancel ticket</string>
     <string name="offers">Offers</string>
     <string name="no_offers">No offers right now</string>

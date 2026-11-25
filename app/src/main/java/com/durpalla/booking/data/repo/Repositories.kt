@@ -301,11 +301,21 @@ class BookingRepository(private val api: ApiClient) {
         return b.a("data").objects().map(Booking::from) to (b.i("last_page") ?: 1)
     }
 
-    suspend fun bookingDetails(id: Int): JsonObject =
-        api.get("my/booking/android/$id").requireSuccess(AppCtx.str(R.string.err_load_booking))
+    suspend fun bookingDetails(id: Int): JsonObject {
+        val result = api.get("my/booking/$id").requireSuccess(AppCtx.str(R.string.err_load_booking))
+        val booking = result.o("booking") ?: return result
+        if (BookingCancelRules.isBoatBooking(Booking.from(booking))) {
+            // Boat tickets still need the Android endpoint's driver trip metadata.
+            return api.get("my/booking/android/$id").requireSuccess(AppCtx.str(R.string.err_load_booking))
+        }
+        return result
+    }
 
-    suspend fun cancelItem(itemId: Int): JsonObject =
-        api.postJson("booking/item/$itemId/cancel", JsonObject(emptyMap())).requireSuccess(AppCtx.str(R.string.err_cancel_failed))
+    suspend fun cancelItems(bookingId: Int, itemIds: List<Int>): JsonObject =
+        api.postJson(
+            "booking/cancel",
+            jsonOf("booking_id" to bookingId, "items" to itemIds, "source" to "app"),
+        ).requireSuccess(AppCtx.str(R.string.err_cancel_failed))
 }
 
 class PaymentRepository(private val api: ApiClient) {

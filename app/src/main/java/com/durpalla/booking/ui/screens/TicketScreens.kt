@@ -132,7 +132,8 @@ fun TicketScreen(id: Int) {
     val vm = rememberLoad("ticket-$id") { c.bookings.bookingDetails(id) }
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
-    var confirmCancel by remember { mutableStateOf<Int?>(null) }
+    var confirmCancel by remember { mutableStateOf<List<Int>?>(null) }
+    var cancelling by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     Scaffold(
         topBar = {
@@ -156,6 +157,14 @@ fun TicketScreen(id: Int) {
                 val res = s.value
                 val dataObj = res.o("booking") ?: res.o("data")?.let { d -> d.o("booking") ?: d } ?: res
                 val b = Booking.from(dataObj)
+                val cancellableIds = b.items.filter { BookingCancelRules.canCancelItem(b, it) }
+                    .mapNotNull { it.i("id") }
+                val canCancelBooking = cancellableIds.isNotEmpty() && cancellableIds.size == b.items.size
+                val boardingNames = b.items.mapNotNull { item ->
+                    item.o("boarding_point").str("name", "label").ifBlank {
+                        item.str("boarding_point_name", "boarding_point")
+                    }.takeIf { it.isNotBlank() }
+                }.distinct()
                 val qrText = listOf("qr_code", "qr", "qrCode")
                     .firstNotNullOfOrNull { dataObj.s(it) ?: res.s(it) ?: res.o("data").s(it) }
                     ?: "DURPALLA|PNR:${b.pnr.ifBlank { b.id.toString() }}|BID:${b.id}"
@@ -327,7 +336,9 @@ fun TicketScreen(id: Int) {
                                     t(R.string.label_date),
                                     b.firstItem.str("leaving_time_formated", "leaving_time_formatted", "schedule_date", "check_in", default = b.bookingDate),
                                 )
-                                Info(t(R.string.label_boarding), b.firstItem.str("boarding_point", default = t(R.string.em_dash)))
+                                if (boardingNames.isNotEmpty()) {
+                                    Info(t(R.string.label_boarding), boardingNames.joinToString(" · "))
+                                }
                                 Info(t(R.string.label_payment), b.paymentStatus.ifBlank { b.status })
                                 val payMethod = listOf("payment_method", "method")
                                     .firstNotNullOfOrNull { dataObj.s(it) ?: dataObj.o("payment")?.s(it) }
@@ -388,6 +399,15 @@ fun TicketScreen(id: Int) {
                         }
                     }
 
+                    if (canCancelBooking) {
+                        item {
+                            OutlinedButton(
+                                onClick = { confirmCancel = cancellableIds },
+                                enabled = !cancelling,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(t(R.string.cancel_booking)) }
+                        }
+                    }
                     if (b.items.isNotEmpty()) {
                         item {
                             Text(
@@ -400,7 +420,11 @@ fun TicketScreen(id: Int) {
                             TicketItemCard(
                                 booking = b,
                                 item = it0,
-                                onCancel = { confirmCancel = it0.i("id") },
+                                onCancel = if (!cancelling && (!canCancelBooking || b.items.size > 1) &&
+                                    it0.i("id") in cancellableIds
+                                ) {
+                                    { confirmCancel = listOfNotNull(it0.i("id")) }
+                                } else null,
                             )
                         }
                     }
@@ -442,11 +466,29 @@ fun TicketScreen(id: Int) {
             }
         }
     }
-    confirmCancel?.let { itemId ->
-        AlertDialog(onDismissRequest = { confirmCancel = null }, title = { Text(t(R.string.cancel_ticket) + "?") },
+    confirmCancel?.let { itemIds ->
+        val title = if (itemIds.size > 1) R.string.cancel_booking else R.string.cancel_ticket
+        AlertDialog(
+            onDismissRequest = { confirmCancel = null },
+            title = { Text(t(title) + "?") },
             text = { Text(t(R.string.cancel_refund_policy)) },
-            confirmButton = { Button({ confirmCancel = null; scope.launch { msg = runCatching { c.bookings.cancelItem(itemId).message ?: AppCtx.str(R.string.cancelled) }.getOrElse { it.message }; vm.reload() } }) { Text(t(R.string.confirm)) } },
-            dismissButton = { TextButton({ confirmCancel = null }) { Text(t(R.string.keep)) } })
+            confirmButton = {
+                Button({
+                    confirmCancel = null
+                    cancelling = true
+                    scope.launch {
+                        runCatching { c.bookings.cancelItems(id, itemIds) }
+                            .onSuccess {
+                                msg = it.message ?: AppCtx.str(R.string.cancelled)
+                                vm.reload()
+                            }
+                            .onFailure { msg = it.message }
+                        cancelling = false
+                    }
+                }) { Text(t(R.string.confirm)) }
+            },
+            dismissButton = { TextButton({ confirmCancel = null }) { Text(t(R.string.keep)) } },
+        )
     }
 }
 
@@ -454,11 +496,10 @@ fun TicketScreen(id: Int) {
 private fun TicketItemCard(
     booking: Booking,
     item: JsonObject,
-    onCancel: () -> Unit,
+    onCancel: (() -> Unit)?,
 ) {
     val isHotel = BookingCancelRules.isHotelStay(booking, item)
     val fare = money(item.d("fare", "price", "amount"))
-    val canCancel = BookingCancelRules.canCancelItem(booking, item)
 
     SoftCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -522,7 +563,7 @@ private fun TicketItemCard(
                     }
                 }
             }
-            if (canCancel) {
+            if (onCancel != null) {
                 OutlinedButton(
                     onClick = onCancel,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),

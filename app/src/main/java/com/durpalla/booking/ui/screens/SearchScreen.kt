@@ -1,10 +1,13 @@
 package com.durpalla.booking.ui.screens
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,8 +23,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
@@ -61,14 +66,17 @@ fun SearchScreen(initialService: String) {
     }
     var error by remember { mutableStateOf<String?>(null) }
     val selectStoppageHint = t(R.string.select_stoppage_from_list)
+    var viewportHeightPx by remember { mutableIntStateOf(0) }
+    val viewportHeight = with(LocalDensity.current) { viewportHeightPx.toDp() }
 
     Column(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .dismissKeyboardOnTap()
-            .verticalScroll(rememberScrollState())
-            .imePadding(),
+            .imePadding()
+            .onSizeChanged { viewportHeightPx = it.height }
+            .verticalScroll(rememberScrollState()),
     ) {
         Box(Modifier.fillMaxWidth().background(Brand.HeroGradient).statusBarsPadding().padding(20.dp, 16.dp, 20.dp, 64.dp)) {
             Text(t(R.string.where_to), style = MaterialTheme.typography.headlineSmall, color = Color.White)
@@ -176,32 +184,20 @@ fun SearchScreen(initialService: String) {
                         }
                     }
                     else -> {
-                        Box {
-                            Column {
-                                GhatPlaceField(
-                                    label = t(R.string.from),
-                                    value = from,
-                                    selectedId = fromId,
-                                    icon = Icons.Default.TripOrigin,
-                                    exclude = to,
-                                    serviceType = service,
-                                    onPick = { place -> from = place.name; fromId = place.id; error = null },
-                                    onClear = { from = ""; fromId = 0; error = selectStoppageHint },
-                                )
-                                Spacer(Modifier.height(10.dp))
-                                GhatPlaceField(
-                                    label = t(R.string.to),
-                                    value = to,
-                                    selectedId = toId,
-                                    icon = Icons.Default.Place,
-                                    exclude = from,
-                                    serviceType = service,
-                                    onPick = { place -> to = place.name; toId = place.id; error = null },
-                                    onClear = { to = ""; toId = 0; error = selectStoppageHint },
-                                )
-                            }
+                        Column {
+                            GhatPlaceField(
+                                label = t(R.string.from),
+                                value = from,
+                                selectedId = fromId,
+                                icon = Icons.Default.TripOrigin,
+                                exclude = to,
+                                serviceType = service,
+                                viewportHeight = viewportHeight,
+                                onPick = { place -> from = place.name; fromId = place.id; error = null },
+                                onClear = { from = ""; fromId = 0; error = selectStoppageHint },
+                            )
                             Box(
-                                Modifier.align(Alignment.Center).size(40.dp).clip(CircleShape).background(Brand.Primary)
+                                Modifier.align(Alignment.CenterHorizontally).size(40.dp).clip(CircleShape).background(Brand.Primary)
                                     .clickable {
                                         val tmpName = from; from = to; to = tmpName
                                         val tmpId = fromId; fromId = toId; toId = tmpId
@@ -210,6 +206,17 @@ fun SearchScreen(initialService: String) {
                             ) {
                                 Icon(Icons.Default.SwapVert, null, tint = Color.White)
                             }
+                            GhatPlaceField(
+                                label = t(R.string.to),
+                                value = to,
+                                selectedId = toId,
+                                icon = Icons.Default.Place,
+                                exclude = from,
+                                serviceType = service,
+                                viewportHeight = viewportHeight,
+                                onPick = { place -> to = place.name; toId = place.id; error = null },
+                                onClear = { to = ""; toId = 0; error = selectStoppageHint },
+                            )
                         }
                         Spacer(Modifier.height(12.dp))
                         Text(t(R.string.journey_date), style = MaterialTheme.typography.labelMedium, color = Brand.Muted)
@@ -309,6 +316,7 @@ object LocalSuggest {
  * - Picking an item sets `(id, name)`.
  * - Blurring without a picked `id > 0` clears the text and prompts to select from list.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GhatPlaceField(
     label: String,
@@ -317,21 +325,32 @@ fun GhatPlaceField(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     exclude: String,
     serviceType: String,
+    viewportHeight: Dp,
     onPick: (GhatPlace) -> Unit,
     onClear: () -> Unit,
 ) {
     val c = LocalContainer.current
     LocalSuggest.trips = c.trips
     val focusManager = LocalFocusManager.current
-    val density = LocalDensity.current
     var text by remember(value) { mutableStateOf(value) }
     var suggestions by remember { mutableStateOf(emptyList<GhatPlace>()) }
     var focused by remember { mutableStateOf(false) }
     var hadFocus by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
-    var fieldWidthPx by remember { mutableIntStateOf(0) }
     var fieldHeightPx by remember { mutableIntStateOf(0) }
+    val fieldHeight = with(LocalDensity.current) { fieldHeightPx.toDp() }
+    val suggestionGap = 4.dp
+    val maxSuggestionHeight = (viewportHeight - fieldHeight - suggestionGap).coerceIn(0.dp, 240.dp)
+    val showSuggestions = focused && showMenu && suggestions.isNotEmpty() && maxSuggestionHeight > 0.dp
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(showSuggestions, suggestions.size, viewportHeight, fieldHeight) {
+        if (showSuggestions) {
+            withFrameNanos { }
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
 
     LaunchedEffect(focused, showMenu, text, exclude, serviceType) {
         if (!focused || !showMenu) return@LaunchedEffect
@@ -342,12 +361,7 @@ fun GhatPlaceField(
             .take(10)
     }
 
-    Box(
-        Modifier.fillMaxWidth().onGloballyPositioned { coords ->
-            fieldWidthPx = coords.size.width
-            fieldHeightPx = coords.size.height
-        },
-    ) {
+    Column(Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester)) {
         OutlinedTextField(
             value = text,
             onValueChange = {
@@ -357,7 +371,7 @@ fun GhatPlaceField(
                     onPick(GhatPlace(0, it))
                 }
             },
-            modifier = Modifier.fillMaxWidth().onFocusChangedCompat { isFocused ->
+            modifier = Modifier.fillMaxWidth().onSizeChanged { fieldHeightPx = it.height }.onFocusChangedCompat { isFocused ->
                 focused = isFocused
                 if (isFocused) {
                     hadFocus = true
@@ -394,52 +408,36 @@ fun GhatPlaceField(
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
         )
-        if (focused && showMenu && suggestions.isNotEmpty()) {
-            val menuWidthDp = with(density) { fieldWidthPx.toDp() }
-            val yOffsetPx = fieldHeightPx + with(density) { 4.dp.roundToPx() }
-            Popup(
-                alignment = Alignment.TopStart,
-                offset = IntOffset(0, yOffsetPx),
-                onDismissRequest = {
-                    showMenu = false
-                    suggestions = emptyList()
-                },
-                properties = PopupProperties(
-                    focusable = false,
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = true,
-                ),
+        if (showSuggestions) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = suggestionGap)
+                    .heightIn(max = maxSuggestionHeight),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 4.dp,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Brand.Line),
             ) {
-                Surface(
-                    modifier = Modifier
-                        .then(if (menuWidthDp > 0.dp) Modifier.width(menuWidthDp) else Modifier.fillMaxWidth())
-                        .heightIn(max = 240.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 4.dp,
-                    shadowElevation = 10.dp,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Brand.Line),
-                ) {
-                    Column(Modifier.verticalScroll(rememberScrollState())) {
-                        suggestions.forEachIndexed { idx, place ->
-                            if (idx > 0) HorizontalDivider(color = Brand.Line)
-                            Row(
-                                Modifier.fillMaxWidth()
-                                    .clickable {
-                                        picking = true
-                                        showMenu = false
-                                        text = place.name
-                                        onPick(place)
-                                        suggestions = emptyList()
-                                        focusManager.clearFocus()
-                                    }
-                                    .padding(14.dp, 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(Icons.Default.Place, null, tint = Brand.Primary, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(place.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            }
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    suggestions.forEachIndexed { idx, place ->
+                        if (idx > 0) HorizontalDivider(color = Brand.Line)
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable {
+                                    picking = true
+                                    showMenu = false
+                                    text = place.name
+                                    onPick(place)
+                                    suggestions = emptyList()
+                                    focusManager.clearFocus()
+                                }
+                                .padding(14.dp, 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.Place, null, tint = Brand.Primary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(place.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }

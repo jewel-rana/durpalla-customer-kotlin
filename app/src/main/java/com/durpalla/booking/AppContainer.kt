@@ -21,7 +21,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -45,7 +46,7 @@ class AppContainer(context: Context) {
     val experiences: ExperienceRepository = ApiExperienceRepository(tours, entertainment)
     val cart = CartStore(trips, appScope)
     val pusher = PusherManager()
-    val l10n = RemoteLocalizationService(context.applicationContext, apiClient, appScope)
+    val l10n = RemoteLocalizationService(context.applicationContext, apiClient)
 
     /**
      * Driver calling. Mock by default ([BuildConfig.USE_MOCK_CALLS]).
@@ -69,12 +70,10 @@ class AppContainer(context: Context) {
     init {
         appScope.launch {
             cart.syncFromServer()
-            val code = session.language.first()
-            LocaleHelper.apply(code)
-            l10n.load(code)
         }
         appScope.launch {
-            session.language.collect { code ->
+            session.language.collectLatest { code ->
+                withContext(Dispatchers.Main.immediate) { LocaleHelper.apply(code) }
                 l10n.load(code)
             }
         }

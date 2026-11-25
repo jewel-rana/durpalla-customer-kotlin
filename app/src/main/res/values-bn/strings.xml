@@ -27,6 +27,8 @@
     <string name="sign_in">সাইন ইন</string>
     <string name="sign_out">সাইন আউট</string>
     <string name="sign_in_required">সাইন ইন প্রয়োজন</string>
+    <string name="seat_hold_sign_in_required">অ্যাকাউন্টে নিবন্ধিত মোবাইল নম্বর দিয়ে সিট ধরে রাখতে সাইন ইন করুন।</string>
+    <string name="seat_hold_registered_mobile_required">সিট ধরে রাখতে আপনার অ্যাকাউন্টে একটি নিবন্ধিত মোবাইল নম্বর প্রয়োজন।</string>
     <string name="sign_in_required_body">চালিয়ে যেতে আপনার মোবাইল নম্বর বা ইমেইল দিয়ে সাইন ইন করুন। এরপর আপনি এখানেই ফিরে আসবেন।</string>
     <string name="not_now">এখন না</string>
     <string name="guest_banner">দ্রুত বুকিং ও টিকিট দেখতে সাইন ইন করুন</string>
@@ -97,6 +99,8 @@
     <string name="seats_left">%1$d টি সিট বাকি</string>
     <string name="cabins_left">%1$d টি কেবিন বাকি</string>
     <string name="trip_details">ট্রিপের বিস্তারিত</string>
+    <string name="seat_class_active">সক্রিয়</string>
+    <string name="seat_class_disabled">নিষ্ক্রিয়</string>
     <string name="available">খালি</string>
     <string name="selected">নির্বাচিত</string>
     <string name="booked">বুকড</string>
@@ -121,6 +125,7 @@
     <string name="past">অতীত</string>
     <string name="cancelled">বাতিল</string>
     <string name="ticket">টিকিট</string>
+    <string name="cancel_booking">বুকিং বাতিল</string>
     <string name="cancel_ticket">টিকিট বাতিল</string>
     <string name="offers">অফার</string>
     <string name="no_offers">এই মুহূর্তে কোনো অফার নেই</string>

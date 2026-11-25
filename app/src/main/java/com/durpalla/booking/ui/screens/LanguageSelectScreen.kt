@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
-import com.durpalla.booking.l10n.LocaleHelper
 import com.durpalla.booking.l10n.SupportedLocales
 import com.durpalla.booking.l10n.t
 import com.durpalla.booking.ui.components.GradientButton
@@ -108,8 +107,6 @@ fun LanguageSelectScreen(
                 scope.launch {
                     c.session.setLanguage(selected)
                     c.session.setLanguageOnboardingDone(true)
-                    LocaleHelper.apply(selected)
-                    c.l10n.ensureLoaded(selected)
                     onFinished()
                 }
             }
@@ -139,8 +136,6 @@ fun LanguagePickerSheet(onDismiss: () -> Unit) {
                     scope.launch {
                         c.session.setLanguage(loc.code)
                         c.session.setLanguageOnboardingDone(true)
-                        LocaleHelper.apply(loc.code)
-                        c.l10n.ensureLoaded(loc.code)
                         onDismiss()
                     }
                 },

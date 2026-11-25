@@ -3,6 +3,13 @@
 Target: Flutter master `@8ee2bed`. Tracker detail: `MASTER_PORT_TODOS.md`.
 
 ## Done
+- **Mobile sign-in cursor (2026-11-25)**: Keep phone formatting separate from editable digits.
+- **Transport seat hold sign-in (2026-11-25)**: Prompt for sign-in when a guest selects a seat and use the registered profile for supplier holds.
+- **Ticket details and language (2026-11-25)**: Show booking items and boarding points, support eligible cancellation, and update bundled labels on language change.
+- **Home service shortcuts (2026-11-25)**: Use the selected service when opening Search from Home.
+- **Ghat suggestion visibility (2026-11-25)**: Fit the list in the resized search viewport and scroll it into view with the field.
+- **Checkout policy consent (2026-11-25)**: Carry the checkout checkbox state into payment.
+- **Customer booking UX (2026-11-25)**: Inline ghat suggestions, clearer seat states and cabin labels, and native handling of storefront payment returns.
 - **Seat realtime (2026-11-25)**: Android handles native gateway seat events and refreshes Paribahan layouts on supplier availability broadcasts.
 - **Paribahan partner trips (2026-11-23)**: string trip ids (`pb:`), `book_token` through search → trip → `cart/add` JSON, supplier-aware `cart/unlock`, ISO departure clocks — parity with durpalla-web.
 - **Password Change & Show/Hide Toggle (2026-11-22)**:

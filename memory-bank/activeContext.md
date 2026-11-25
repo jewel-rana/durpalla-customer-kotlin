@@ -1,5 +1,30 @@
 # Active context — durpalla-customer-kotlin
 
+## 2026-11-25 — Mobile sign-in cursor
+
+- Render Bangladesh phone separators through Compose's visual transformation so fast typing and edits keep the cursor aligned with the raw digits.
+
+## 2026-11-25 — Sign-in before transport seat holds
+
+- Guests can browse trip details. Selecting a seat prompts sign-in before any hold request. Signing in returns to the same trip. Seat holds require a signed-in profile with a registered mobile number, and supplier holds use the profile's contact details.
+
+## 2026-11-25 — Ticket details and language
+- Customer ticket details read grouped booking items and boarding names from the customer booking endpoint. Booking and ticket cancellation actions follow gateway eligibility and submit selected IDs to the customer cancellation endpoint.
+- Compose looks up bundled strings using the saved app language. One session observer applies locale changes and refreshes remote translations.
+
+## 2026-11-25 — Home service shortcuts
+- Explicit home service shortcuts open the requested search form even if the Search tab previously saved another service.
+
+## 2026-11-25 — Ghat suggestions with the keyboard open
+- Limit inline ghat suggestions to the space above the keyboard and scroll the focused field and list into view together. Keep the swap button centered between fields.
+
+## 2026-11-25 — Checkout policy consent
+- Payment prechecks the policy checkbox when checkout passes consent for the booking. Other payment entry points start with the checkbox unchecked.
+
+## 2026-11-25 — Transport search and payment return
+- Ghat suggestions render within the keyboard-aware search form. Available and booked seats have distinct styles, and cabin status class labels are localized.
+- Payment WebView handles both gateway status and storefront result callbacks with native payment verification. The signed-in ticket screen provides the invoice.
+
 ## 2026-11-25 — Seat hold and release realtime
 - Native layouts consume the gateway's `item.*` seat events and retain support for legacy `cart.item.*` names. Paribahan uses the gateway's hashed trip channel and reloads availability without resetting the current seat map controls.
 - Local Android builds target the production API and auth URLs without a LAN DNS override. The public Pusher settings match both production gateways and passed a supplier-channel subscription check. Firebase uses the existing Android client configuration.

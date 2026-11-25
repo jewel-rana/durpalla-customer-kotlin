@@ -6,12 +6,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.durpalla.booking.core.*
 import com.durpalla.booking.data.net.ApiClient
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -27,7 +25,6 @@ private val Context.l10nStore by preferencesDataStore(name = "durpalla_remote_l1
 class RemoteLocalizationService(
     private val context: Context,
     private val api: ApiClient,
-    private val scope: CoroutineScope,
 ) {
     private val _overlay = MutableStateFlow<Map<String, String>>(emptyMap())
     val overlay: StateFlow<Map<String, String>> = _overlay.asStateFlow()
@@ -38,18 +35,11 @@ class RemoteLocalizationService(
     private fun versionKey(code: String) = stringPreferencesKey("ver_$code")
     private fun bodyKey(code: String) = stringPreferencesKey("body_$code")
 
-    fun ensureLoaded(code: String) {
-        scope.launch { load(code) }
-    }
-
     suspend fun load(code: String) {
         val normalized = code.lowercase()
-        // Bundled en/bn: clear remote overlay (resources handle them).
-        if (!SupportedLocales.isRemote(normalized)) {
-            _overlay.value = emptyMap()
-            _version.value = null
-            return
-        }
+        _overlay.value = emptyMap()
+        _version.value = null
+        if (!SupportedLocales.isRemote(normalized)) return
         // Serve cache immediately, then refresh.
         val cached = readCache(normalized)
         if (cached != null) {

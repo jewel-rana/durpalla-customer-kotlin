@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,7 +121,8 @@ fun CheckoutScreen() {
                         err = boardingErr
                         return@GradientButton
                     }
-                    if (!agreedPolicies) {
+                    val policiesAccepted = agreedPolicies
+                    if (!policiesAccepted) {
                         err = mustAgreeMsg
                         return@GradientButton
                     }
@@ -139,7 +141,7 @@ fun CheckoutScreen() {
                             .onSuccess { (id, _) ->
                                 c.cart.retainHoldsAfterBooking()
                                 c.cart.clearLocal()
-                                nav.go(Routes.payment(id, total))
+                                nav.go(Routes.payment(id, total, policiesAccepted = policiesAccepted))
                             }
                             .onFailure { err = it.message }
                         loading = false
@@ -260,7 +262,7 @@ fun StepIndicator(step: Int) {
 }
 
 @Composable
-fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
+fun PaymentMethodsScreen(bookingId: Int, amount: Double, policiesAccepted: Boolean) {
     val c = LocalContainer.current; val nav = LocalNav.current
     val vm = rememberLoad("gw-$bookingId") {
         val rc = com.durpalla.booking.data.remote.RemoteAppConfig.fetch()
@@ -270,7 +272,7 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
     }
     val state by vm.state.collectAsState()
     var selected by remember { mutableStateOf<Int?>(null) }
-    var agreedPolicies by remember { mutableStateOf(false) }
+    var agreedPolicies by rememberSaveable(bookingId, policiesAccepted) { mutableStateOf(policiesAccepted) }
     var showPolicySheet by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -349,7 +351,7 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double) {
 
 /**
  * Port of pages/global_payment_page.dart: loads the gateway URL; when the redirect path contains
- * `/payment/status` → verify via `GET payment/verify?booking_id=`; success/fail URL fragments are
+ * `/payment/status` or `/payment/result` → verify via `GET payment/verify?booking_id=`; success/fail URL fragments are
  * treated the same way; `intent://` / non-http schemes (bKash/Nagad apps) launch externally with
  * browser_fallback_url fallback; back press asks to cancel.
  */
@@ -369,11 +371,14 @@ fun PaymentWebViewScreen(url: String, bookingId: Int) {
         "/payment/failed", "/payment/fail", "/sslcommerz/fail", "/failed", "/cancel",
         "status=failed", "payment_status=failed", "result=failed", "result=canceled", "result=error", "declined",
     )
+    fun isPaymentReturn(uri: Uri): Boolean =
+        uri.path?.trimEnd('/')?.let { it.endsWith("/payment/status") || it.endsWith("/payment/result") } == true
+
     fun finish(cancelled: Boolean) {
         if (done) return
         done = true
         nav.nav.navigate(Routes.payResult(bookingId, cancelled)) {
-            popUpTo("payment/{bid}/{amount}") { inclusive = true }
+            popUpTo(Routes.PAYMENT) { inclusive = true }
         }
     }
 
@@ -386,7 +391,8 @@ fun PaymentWebViewScreen(url: String, bookingId: Int) {
                     webChromeClient = object : WebChromeClient() { override fun onProgressChanged(v: WebView?, p: Int) { progress = p / 100f } }
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
-                            val u = req?.url ?: return false
+                            if (req == null || !req.isForMainFrame) return false
+                            val u = req.url
                             val raw = u.toString()
                             if (u.scheme != "http" && u.scheme != "https") {
                                 runCatching {
@@ -399,13 +405,17 @@ fun PaymentWebViewScreen(url: String, bookingId: Int) {
                                 }
                                 return true
                             }
-                            if (u.path?.contains("/payment/status") == true || successHints.any { raw.contains(it) } || failHints.any { raw.contains(it) }) {
-                                v?.loadData("<html><body></body></html>", "text/html", "utf-8"); finish(false); return true
+                            if (isPaymentReturn(u) || successHints.any { raw.contains(it) } || failHints.any { raw.contains(it) }) {
+                                finish(false)
+                                return true
                             }
                             return false
                         }
                         override fun onPageStarted(v: WebView?, u: String?, f: Bitmap?) {
-                            if (u != null && Uri.parse(u).path?.contains("/payment/status") == true) finish(false)
+                            if (u != null && isPaymentReturn(Uri.parse(u))) {
+                                v?.stopLoading()
+                                finish(false)
+                            }
                         }
                     }
                     loadUrl(url)

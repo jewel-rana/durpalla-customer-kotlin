@@ -13,8 +13,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.durpalla.booking.R
 import com.durpalla.booking.core.CountryInfo
@@ -22,6 +26,21 @@ import com.durpalla.booking.core.PhoneNumbers
 import com.durpalla.booking.ui.nav.LocalContainer
 import java.util.Locale
 import com.durpalla.booking.l10n.t
+
+private val bangladeshPhoneFormatting = VisualTransformation { text ->
+    val formatted = PhoneNumbers.formatAsYouType(text.text, "BD")
+    val digitPositions = formatted.indices.filter { formatted[it].isDigit() }
+    TransformedText(
+        AnnotatedString(formatted),
+        object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                digitPositions.getOrElse(offset) { formatted.length }
+
+            override fun transformedToOriginal(offset: Int): Int =
+                formatted.take(offset).count { it.isDigit() }
+        },
+    )
+}
 
 /**
  * Country picker (default BD +880) + national field.
@@ -42,10 +61,11 @@ fun PhoneInputField(
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val country = remember(regionIso) { PhoneNumbers.country(regionIso) }
-    val placeholder = hint ?: if (regionIso.equals("BD", true)) t(R.string.phone_hint_bd) else t(R.string.phone_hint_intl)
+    val isBangladesh = regionIso.equals("BD", true)
+    val placeholder = hint ?: if (isBangladesh) t(R.string.phone_hint_bd) else t(R.string.phone_hint_intl)
 
     OutlinedTextField(
-        value = nationalNumber,
+        value = nationalNumber.filter { it.isDigit() },
         onValueChange = { raw ->
             // Paste of +CC… → switch country (picker UX); value stays filterable as [0-9+]
             if (raw.trimStart().startsWith("+")) {
@@ -55,15 +75,8 @@ fun PhoneInputField(
                     return@OutlinedTextField
                 }
             }
-            // Flutter mobile filter: [0-9+], max 20 (national portion here)
-            val filtered = raw.filter { it.isDigit() || it == '+' }.take(20)
-            onNationalNumberChange(
-                if (regionIso.equals("BD", true)) {
-                    PhoneNumbers.formatAsYouType(filtered.filter { it.isDigit() }, regionIso)
-                } else {
-                    filtered.filter { it.isDigit() }.take(15)
-                },
-            )
+            val maxDigits = if (isBangladesh) 20 else 15
+            onNationalNumberChange(raw.filter { it.isDigit() }.take(maxDigits))
         },
         modifier = modifier.fillMaxWidth(),
         enabled = enabled,
@@ -83,6 +96,7 @@ fun PhoneInputField(
             }
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+        visualTransformation = if (isBangladesh) bangladeshPhoneFormatting else VisualTransformation.None,
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
     )
@@ -92,10 +106,6 @@ fun PhoneInputField(
             selectedIso = regionIso,
             onSelect = {
                 onRegionChange(it)
-                val digits = nationalNumber.filter { ch -> ch.isDigit() }
-                onNationalNumberChange(
-                    if (it.equals("BD", true)) PhoneNumbers.formatAsYouType(digits, it) else digits,
-                )
                 showPicker = false
             },
             onDismiss = { showPicker = false },

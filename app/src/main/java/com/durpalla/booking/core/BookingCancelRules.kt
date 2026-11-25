@@ -19,7 +19,9 @@ object BookingCancelRules {
 
     fun canCancelItem(booking: Booking, item: JsonObject): Boolean {
         if (isHotelStay(booking, item)) return false
-        if (!item.b("cancellable") && !booking.cancellable) return false
+        if (!booking.cancellable || (item.i("id") ?: 0) <= 0) return false
+        if ("cancellable" in item && !item.b("cancellable")) return false
+        if ("cancel_requested" in item) return item.b("cancellable") && !item.b("cancel_requested")
         if (!itemStatusOk(item)) return false
         if (!bookingSucceeded(booking)) return false
         return departureAhead(item)

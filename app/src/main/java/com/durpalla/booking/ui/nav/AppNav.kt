@@ -54,7 +54,9 @@ object Routes {
     fun trip(id: String, type: String, bookToken: String? = null) =
         "trip/${Uri.encode(id)}/$type" + (bookToken?.takeIf { it.isNotBlank() }?.let { "?bt=" + Uri.encode(it) } ?: "")
     const val CHECKOUT = "checkout"
-    fun payment(bookingId: Int, amount: Double) = "payment/$bookingId/$amount"
+    const val PAYMENT = "payment/{bid}/{amount}?policiesAccepted={policiesAccepted}"
+    fun payment(bookingId: Int, amount: Double, policiesAccepted: Boolean = false) =
+        "payment/$bookingId/$amount?policiesAccepted=$policiesAccepted"
     fun payWeb(url: String, bookingId: Int) = "payweb/$bookingId?url=" + Uri.encode(url)
     fun payResult(bookingId: Int, cancelled: Boolean = false) = "payresult/$bookingId/$cancelled"
     fun ticket(id: Int) = "ticket/$id"
@@ -88,7 +90,12 @@ class AppNavigator(val nav: NavHostController, private val loggedIn: () -> Boole
     fun ensureAuth(returnTo: String): Boolean { if (loggedIn()) return true; askAuth(returnTo); return false }
     fun tab(route: String) {
         if (Routes.isProtected(route) && !loggedIn()) { askAuth(route); return }
-        nav.navigate(route) { popUpTo(Routes.HOME) { saveState = true }; launchSingleTop = true; restoreState = true }
+        nav.navigate(route) {
+            popUpTo(Routes.HOME) { saveState = true }
+            launchSingleTop = true
+            // A service shortcut must use its requested service even if Search has saved state.
+            restoreState = !route.startsWith("${Routes.SEARCH}?")
+        }
     }
     /** After sign-in, drop the auth screens and land on the intended page. */
     fun finishAuth(redirect: String) {
@@ -230,8 +237,20 @@ fun AppRoot(container: AppContainer, deepLink: String?) {
                     )
                 }
                 composable(Routes.CHECKOUT) { CheckoutScreen() }
-                composable("payment/{bid}/{amount}", arguments = listOf(navArgument("bid") { type = NavType.IntType }, navArgument("amount") { type = NavType.FloatType })) {
-                    PaymentMethodsScreen(it.arguments!!.getInt("bid"), it.arguments!!.getFloat("amount").toDouble())
+                composable(
+                    Routes.PAYMENT,
+                    arguments = listOf(
+                        navArgument("bid") { type = NavType.IntType },
+                        navArgument("amount") { type = NavType.FloatType },
+                        navArgument("policiesAccepted") { type = NavType.BoolType; defaultValue = false },
+                    ),
+                ) { entry ->
+                    val args = requireNotNull(entry.arguments)
+                    PaymentMethodsScreen(
+                        args.getInt("bid"),
+                        args.getFloat("amount").toDouble(),
+                        args.getBoolean("policiesAccepted"),
+                    )
                 }
                 composable("payweb/{bid}?url={url}", arguments = listOf(navArgument("bid") { type = NavType.IntType }, navArgument("url") { defaultValue = "" })) {
                     PaymentWebViewScreen(it.arguments!!.getString("url")!!, it.arguments!!.getInt("bid"))

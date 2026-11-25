@@ -118,7 +118,10 @@ data class Booking(
     companion object {
         fun from(m: JsonObject): Booking {
             val rawItems = (m.a("items") ?: m.a("booking_items") ?: m.a("tickets") ?: m.a("order_items")).objects()
-            val items = if (rawItems.isNotEmpty()) rawItems else if (
+            val bookingItems = rawItems.flatMap { item ->
+                item.a("tickets")?.objects() ?: listOf(item)
+            }
+            val items = if (bookingItems.isNotEmpty()) bookingItems else if (
                 m.s("cabin_no") != null || m.s("seat_no") != null || m.s("hotel_name") != null ||
                 m.s("vehicle_name") != null || m.s("route_name") != null || m.s("room_type_title") != null
             ) listOf(m) else emptyList()
@@ -131,7 +134,7 @@ data class Booking(
                 bookingDate = m.str("booking_date_formated", "booking_date_formatted", "booking_date"),
                 paymentStatus = m.str("payment_status"),
                 status = m.str("status"),
-                totalPayable = m.d("total_payable", "total_amount") ?: 0.0,
+                totalPayable = m.s("total_payable")?.replace(",", "")?.toDoubleOrNull() ?: m.d("total_amount") ?: 0.0,
                 cancellable = m.b("cancellable"),
                 downloadable = m.b("downloadable"),
                 items = items,

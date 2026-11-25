@@ -39,9 +39,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import java.security.MessageDigest
 
-data class SupplierPassenger(val name: String, val mobile: String)
-private data class PendingSupplierHold(val seat: SeatItem, val trip: JsonObject)
-
 /**
  * Port of trip_details_screen.dart following `.cursor/rules/seat-layout.mdc`:
  * - Outer floor map keys (`cabin_row`) are VERTICAL columns placed left -> right.
@@ -62,15 +59,10 @@ class TripDetailsVm(
     val selectedClass = MutableStateFlow("")
     val selectedBoardingId = MutableStateFlow("")
     val busy = MutableStateFlow<Int?>(null)
-    val passengerDialogOpen = MutableStateFlow(false)
-    val passengerName = MutableStateFlow("")
-    val passengerMobile = MutableStateFlow("")
-    val passengerError = MutableStateFlow("")
     val snack = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val liveLocked = MutableStateFlow<Set<String>>(emptySet())
     val liveReleased = MutableStateFlow<Set<String>>(emptySet())
     private val cartStore = c.cart
-    private var pendingSupplierHold: PendingSupplierHold? = null
     private val supplierTrip = tripId.startsWith("pb:")
     private val channel = if (supplierTrip) {
         val hash = MessageDigest.getInstance("SHA-256").digest(tripId.toByteArray())
@@ -235,7 +227,9 @@ class TripDetailsVm(
         return s.isBooked || s.isTempLocked
     }
 
-    fun toggle(s: SeatItem, d: JsonObject, passenger: SupplierPassenger? = null) {
+    fun toggle(s: SeatItem, d: JsonObject) {
+        val tokenAtSelection = c.session.token ?: return
+        if (busy.value != null) return
         val id = s.itemId ?: return
         val existing = cartStore.items.value.firstOrNull { it.itemId == id }
         viewModelScope.launch {
@@ -245,29 +239,25 @@ class TripDetailsVm(
                     if (c.trips.releaseLock(existing)) cartStore.remove(existing)
                     else snack.emit(AppCtx.str(R.string.could_not_release))
                 } else {
+                    val user = c.profile.profile()
+                    if (c.session.token != tokenAtSelection) return@launch
+                    val mobile = user.str("mobile", "phone").trim()
+                    if (mobile.isBlank()) {
+                        snack.emit(AppCtx.str(R.string.seat_hold_registered_mobile_required))
+                        return@launch
+                    }
                     val options = boardingOptionsFromTrip(d)
                     val boarding = findBoardingOption(options, selectedBoardingId.value)
                     val token = d.s("book_token") ?: bookToken
                     val supplier = if (token != null) {
-                        if (passenger == null) {
-                            val user = c.session.user.value
-                            val profileName = user.str("name", "full_name")
-                            val profileMobile = user.str("mobile", "phone")
-                            if (passengerName.value.isBlank() && profileName.isNotBlank()) passengerName.value = profileName
-                            if (passengerMobile.value.isBlank() && profileMobile.isNotBlank()) passengerMobile.value = profileMobile
-                            passengerError.value = ""
-                            pendingSupplierHold = PendingSupplierHold(s, d)
-                            passengerDialogOpen.value = true
-                            return@launch
-                        }
                         val bp = boarding ?: options.firstOrNull()
                         SupplierLock(
                             bookToken = token,
                             seatIds = listOf(s.raw.s("supplier_seat_id") ?: id.toString()),
                             seatLabels = listOf(s.label),
                             ticketPrices = listOf(s.fare),
-                            passengerName = passenger.name,
-                            passengerMobile = passenger.mobile,
+                            passengerName = user.str("name", "full_name").trim(),
+                            passengerMobile = mobile,
                             boardingPointId = bp?.id,
                             boardingPointName = bp?.name,
                         )
@@ -309,25 +299,6 @@ class TripDetailsVm(
         }
     }
 
-    fun dismissPassengerDialog() {
-        passengerDialogOpen.value = false
-        pendingSupplierHold = null
-    }
-
-    fun confirmPassengerDetails() {
-        val name = passengerName.value.trim()
-        val mobile = passengerMobile.value.trim()
-        val pending = pendingSupplierHold ?: return
-        if (name.isBlank() || mobile.isBlank()) {
-            passengerError.value = AppCtx.str(R.string.enter_passenger_name_mobile)
-            return
-        }
-        passengerError.value = ""
-        passengerDialogOpen.value = false
-        pendingSupplierHold = null
-        toggle(pending.seat, pending.trip, SupplierPassenger(name, mobile))
-    }
-
     override fun onCleared() { c.pusher.unsubscribe(channel) }
 }
 
@@ -343,10 +314,8 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
     val selectedBoardingId by vm.selectedBoardingId.collectAsState()
     val cart by c.cart.items.collectAsState()
     val busy by vm.busy.collectAsState()
-    val passengerDialogOpen by vm.passengerDialogOpen.collectAsState()
-    val passengerName by vm.passengerName.collectAsState()
-    val passengerMobile by vm.passengerMobile.collectAsState()
-    val passengerError by vm.passengerError.collectAsState()
+    val loggedIn by c.session.loggedIn.collectAsState()
+    var loginPromptOpen by remember(tripId) { mutableStateOf(false) }
     vm.liveLocked.collectAsState().value; vm.liveReleased.collectAsState().value
     val snackHost = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.snack.collect { snackHost.showSnackbar(it) } }
@@ -453,13 +422,18 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
                         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(selectedClass.isEmpty(), { vm.selectedClass.value = "" }, { Text(t(R.string.all_classes)) })
                             classes.forEach { clsName ->
-                                FilterChip(selectedClass == clsName, { vm.selectedClass.value = if (selectedClass == clsName) "" else clsName }, { Text(clsName) })
+                                val label = when (clsName.lowercase()) {
+                                    "cabin-active" -> t(R.string.seat_class_active)
+                                    "cabin-disabled" -> t(R.string.seat_class_disabled)
+                                    else -> clsName
+                                }
+                                FilterChip(selectedClass == clsName, { vm.selectedClass.value = if (selectedClass == clsName) "" else clsName }, { Text(label) })
                             }
                         }
                     }
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Legend(Brand.P50, Brand.P300, t(R.string.available)); Legend(Brand.Amber, Brand.Amber, t(R.string.selected))
-                        Legend(Brand.Line, Brand.Line, t(R.string.booked)); Legend(Color(0xFFFEE2E2), Color(0xFFFCA5A5), t(R.string.held))
+                        Legend(Brand.P50, Brand.P700, t(R.string.available)); Legend(Brand.Amber, Brand.AmberDark, t(R.string.selected))
+                        Legend(Brand.Muted, Brand.Muted, t(R.string.booked)); Legend(Color(0xFFFEE2E2), Brand.Error, t(R.string.held))
                     }
                     if (cols.all { it.isEmpty() }) {
                         EmptyState(Icons.Default.EventSeat, t(R.string.no_layout_floor))
@@ -491,7 +465,10 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
                                                             selected = mine.any { it.itemId == item.itemId },
                                                             locked = vm.isLocked(item),
                                                             busy = busy == item.itemId,
-                                                        ) { vm.toggle(item, d) }
+                                                        ) {
+                                                            if (c.session.loggedIn.value) vm.toggle(item, d)
+                                                            else loginPromptOpen = true
+                                                        }
                                                     }
                                                 }
                                             }
@@ -508,37 +485,19 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
         }
     }
 
-    if (passengerDialogOpen) {
+    if (loginPromptOpen && !loggedIn) {
         AlertDialog(
-            onDismissRequest = vm::dismissPassengerDialog,
-            title = { Text(t(R.string.passenger_hold_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(t(R.string.passenger_hold_hint), style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(
-                        value = passengerName,
-                        onValueChange = { vm.passengerName.value = it; vm.passengerError.value = "" },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(t(R.string.full_name)) },
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = passengerMobile,
-                        onValueChange = { vm.passengerMobile.value = it; vm.passengerError.value = "" },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(t(R.string.mobile_number)) },
-                        singleLine = true,
-                    )
-                    if (passengerError.isNotBlank()) {
-                        Text(passengerError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            },
+            onDismissRequest = { loginPromptOpen = false },
+            title = { Text(t(R.string.sign_in_required)) },
+            text = { Text(t(R.string.seat_hold_sign_in_required)) },
             confirmButton = {
-                TextButton(onClick = vm::confirmPassengerDetails) { Text(t(R.string.hold_seat)) }
+                TextButton(onClick = {
+                    loginPromptOpen = false
+                    nav.go(Routes.login(null))
+                }) { Text(t(R.string.sign_in)) }
             },
             dismissButton = {
-                TextButton(onClick = vm::dismissPassengerDialog) { Text(t(R.string.cancel)) }
+                TextButton(onClick = { loginPromptOpen = false }) { Text(t(R.string.cancel)) }
             },
         )
     }
@@ -569,10 +528,18 @@ private fun Legend(bg: Color, border: Color, label: String) = Row(verticalAlignm
 
 @Composable
 private fun SeatCell(s: SeatItem, selected: Boolean, locked: Boolean, busy: Boolean, onClick: () -> Unit) {
+    val booked = locked && s.isBooked
+    val border = when {
+        selected -> Brand.AmberDark
+        booked -> Brand.Muted
+        locked -> Brand.Error
+        else -> Brand.P700
+    }
+    val textColor = if (booked) Color.White else Brand.Ink
     val bg by androidx.compose.animation.animateColorAsState(
         when {
             selected -> Brand.Amber
-            s.isBooked -> Brand.Line
+            booked -> Brand.Muted
             locked -> Color(0xFFFEE2E2)
             else -> Brand.P50
         },
@@ -580,14 +547,14 @@ private fun SeatCell(s: SeatItem, selected: Boolean, locked: Boolean, busy: Bool
     )
     Box(
         Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)).background(bg)
-            .border(1.dp, if (selected) Brand.AmberDark else Brand.P300.copy(.5f), RoundedCornerShape(12.dp))
+            .border(1.dp, border, RoundedCornerShape(12.dp))
             .clickable(enabled = !locked && !busy, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         else Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(s.label, fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 1, color = if (s.isBooked) Brand.Muted else Brand.Ink)
-            if (s.fare > 0) Text("৳${s.fare.toInt()}", fontSize = 9.sp, color = Brand.Muted)
+            Text(s.label, fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 1, color = textColor)
+            if (s.fare > 0) Text("৳${s.fare.toInt()}", fontSize = 9.sp, color = if (booked) textColor else Brand.Muted)
         }
     }
 }
