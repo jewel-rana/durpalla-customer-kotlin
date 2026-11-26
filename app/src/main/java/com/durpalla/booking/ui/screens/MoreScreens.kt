@@ -24,11 +24,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +47,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.durpalla.booking.data.net.requireSuccess
 import com.durpalla.booking.R
 import com.durpalla.booking.core.*
 import com.durpalla.booking.l10n.t
@@ -151,15 +157,26 @@ fun ProfileScreen() {
     val c = LocalContainer.current; val nav = LocalNav.current
     val ctx = LocalContext.current
     val user by c.session.user.collectAsState()
-    var name by remember(user) { mutableStateOf(user.str("name")) }
-    var email by remember(user) { mutableStateOf(user.str("email")) }
-    var mobile by remember(user) { mutableStateOf(user.str("mobile", "phone")) }
+    var name by remember(user.str("name")) { mutableStateOf(user.str("name")) }
+    var email by remember(user.str("email")) { mutableStateOf(user.str("email")) }
+    var mobile by remember(user.str("mobile", "phone")) { mutableStateOf(user.str("mobile", "phone")) }
     var croppedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var croppedBytes by remember { mutableStateOf<ByteArray?>(null) }
     var sourceForCrop by remember { mutableStateOf<Bitmap?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    var verificationEmail by rememberSaveable { mutableStateOf<String?>(null) }
+    var code by rememberSaveable { mutableStateOf("") }
+    var verifying by remember { mutableStateOf(false) }
+    val savedEmail = user.str("email").trim()
+    val needsVerification = savedEmail.isNotEmpty() &&
+        user.s("email_verified_at").isNullOrBlank()
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch { runCatching { c.profile.profile() } }
+    }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -182,7 +199,7 @@ fun ProfileScreen() {
                 modifier = Modifier.fillMaxWidth().imePadding(),
             ) {
                 Box(Modifier.navigationBarsPadding().padding(16.dp)) {
-                    GradientButton(t(R.string.save), Modifier.fillMaxWidth(), loading = loading) {
+                    GradientButton(t(R.string.save), Modifier.fillMaxWidth(), enabled = !verifying, loading = loading) {
                         scope.launch {
                             loading = true
                             val part = croppedBytes?.let { bytes ->
@@ -228,11 +245,84 @@ fun ProfileScreen() {
                 Text(t(R.string.change_photo))
             }
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.full_name)) })
-            OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.email)) })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    email, { email = it }, Modifier.weight(1f),
+                    label = { Text(t(R.string.email)) },
+                    singleLine = true,
+                )
+                if (needsVerification) {
+                    TextButton(
+                        enabled = !loading && !verifying && email.trim() == savedEmail,
+                        onClick = {
+                            scope.launch {
+                                verifying = true
+                                msg = null
+                                runCatching {
+                                    val id = AuthIdentifier.email(AuthValidators.normalizeEmail(savedEmail))
+                                    val result = c.auth.checkStep(id)
+                                    if (result == AuthCheckResult.Step("otp")) {
+                                        code = ""
+                                        verificationEmail = savedEmail
+                                    } else {
+                                        c.profile.profile()
+                                        msg = AppCtx.str(R.string.unable_to_continue)
+                                    }
+                                }.onFailure { msg = it.message }
+                                verifying = false
+                            }
+                        },
+                    ) { Text(t(R.string.verify)) }
+                }
+            }
+            if (needsVerification) {
+                Text(t(R.string.verify_email_notifications), style = MaterialTheme.typography.bodySmall)
+            }
             OutlinedTextField(mobile, { mobile = it }, Modifier.fillMaxWidth(), label = { Text(t(R.string.mobile_number)) })
             msg?.let { Text(it, color = Brand.Primary) }
             Spacer(Modifier.height(16.dp))
         }
+    }
+
+    verificationEmail?.let { address ->
+        AlertDialog(
+            onDismissRequest = { if (!verifying) verificationEmail = null },
+            title = { Text(t(R.string.otp_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(t(R.string.otp_subtitle_email, address))
+                    OutlinedTextField(
+                        code, { code = it.filter(Char::isDigit) },
+                        label = { Text(t(R.string.enter_otp_code)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    msg?.let { Text(it, color = Brand.Error) }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !verifying && code.isNotEmpty(), onClick = {
+                    scope.launch {
+                        verifying = true
+                        msg = null
+                        runCatching {
+                            val id = AuthIdentifier.email(AuthValidators.normalizeEmail(address))
+                            c.auth.verifyOtp(id, code).requireSuccess()
+                            c.profile.profile()
+                        }.onSuccess {
+                            verificationEmail = null
+                            msg = AppCtx.str(R.string.verification_complete)
+                        }.onFailure { msg = it.message }
+                        verifying = false
+                    }
+                }) { Text(t(R.string.verify)) }
+            },
+            dismissButton = {
+                TextButton(enabled = !verifying, onClick = { verificationEmail = null; msg = null }) {
+                    Text(t(R.string.cancel))
+                }
+            },
+        )
     }
 
     sourceForCrop?.let { src ->

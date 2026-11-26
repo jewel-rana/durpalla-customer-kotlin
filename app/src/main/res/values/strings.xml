@@ -408,4 +408,6 @@
     <string name="paste_code">Paste code</string>
     <string name="enable_notification_access">Auto-read from notifications</string>
     <string name="otp_auto_detected">OTP auto-detected</string>
+    <string name="service_charge_includes">(Includes gateway charge, VAT and platform charge)</string>
+    <string name="verify_email_notifications">Verify your email to receive notifications by email.</string>
 </resources>

@@ -408,4 +408,6 @@
     <string name="paste_code">কোড পেস্ট করুন</string>
     <string name="enable_notification_access">নোটিফিকেশন থেকে ওটিপি পড়ুন</string>
     <string name="otp_auto_detected">ওটিপি শনাক্ত হয়েছে</string>
+    <string name="service_charge_includes">(গেটওয়ে চার্জ, ভ্যাট ও প্ল্যাটফর্ম চার্জ অন্তর্ভুক্ত)</string>
+    <string name="verify_email_notifications">ইমেইলে নোটিফিকেশন পেতে আপনার ইমেইল যাচাই করুন।</string>
 </resources>

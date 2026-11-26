@@ -51,8 +51,7 @@ fun CheckoutScreen() {
     var loading by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val subtotal = c.cart.subtotal()
-    val charge = c.cart.totalCharge()
-    val vat = c.cart.totalVat()
+    val charge = c.cart.totalCharge() + c.cart.totalVat()
     val total = c.cart.amountWithCharges()
     val mustAgreeMsg = t(R.string.must_agree_policies)
     val boardingOptions = remember(cart) {
@@ -86,22 +85,16 @@ fun CheckoutScreen() {
     Scaffold(topBar = { DTopBar(t(R.string.checkout), onBack = nav::back) }, bottomBar = {
         Surface(shadowElevation = 16.dp, modifier = Modifier.fillMaxWidth().imePadding()) {
             Column(Modifier.navigationBarsPadding().padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-                    Checkbox(checked = agreedPolicies, onCheckedChange = { agreedPolicies = it; if (it) err = null })
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            t(R.string.agree_checkout_policies),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.clickable { agreedPolicies = !agreedPolicies },
-                        )
-                        Text(
-                            t(R.string.cancellation_refund_policy) + " • " + t(R.string.terms_conditions) + " • " + t(R.string.privacy_policy),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Brand.Primary,
-                            modifier = Modifier.clickable { showPolicySheet = true },
-                        )
-                    }
-                }
+                Row { Text(t(R.string.fare), Modifier.weight(1f)); Text(money(subtotal)) }
+                Row { Text(t(R.string.service_charge), Modifier.weight(1f), color = Brand.Muted); Text(money(charge), color = Brand.Muted) }
+                Text(
+                    t(R.string.service_charge_includes),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Brand.Muted,
+                )
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Row { Text(t(R.string.total), Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(money(total), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold) }
+                Spacer(Modifier.height(8.dp))
                 err?.let { Text(it, color = Brand.Error, style = MaterialTheme.typography.bodySmall) }
                 val passengerErr = t(R.string.enter_passenger_name_mobile)
                 val boardingErr = t(R.string.boarding_required)
@@ -145,6 +138,22 @@ fun CheckoutScreen() {
                             }
                             .onFailure { err = it.message }
                         loading = false
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                    Checkbox(checked = agreedPolicies, onCheckedChange = { agreedPolicies = it; if (it) err = null })
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            t(R.string.agree_checkout_policies),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.clickable { agreedPolicies = !agreedPolicies },
+                        )
+                        Text(
+                            t(R.string.cancellation_refund_policy) + " • " + t(R.string.terms_conditions) + " • " + t(R.string.privacy_policy),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Brand.Primary,
+                            modifier = Modifier.clickable { showPolicySheet = true },
+                        )
                     }
                 }
             }
@@ -230,17 +239,7 @@ fun CheckoutScreen() {
                     )
                 }
             }
-            SoftCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    SupplierPolicyLinks(cart.firstNotNullOfOrNull { it.meta.o("supplier_policies") })
-                    Text(t(R.string.price_breakdown), style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp))
-                    Row { Text(t(R.string.fare), Modifier.weight(1f)); Text(money(subtotal)) }
-                    Row { Text(t(R.string.service_charge), Modifier.weight(1f), color = Brand.Muted); Text(money(charge), color = Brand.Muted) }
-                    Row { Text(t(R.string.vat), Modifier.weight(1f), color = Brand.Muted); Text(money(vat), color = Brand.Muted) }
-                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    Row { Text(t(R.string.total), Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(money(total), color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold) }
-                }
-            }
+            SupplierPolicyLinks(cart.firstNotNullOfOrNull { it.meta.o("supplier_policies") })
         }
     }
     if (showPolicySheet) {

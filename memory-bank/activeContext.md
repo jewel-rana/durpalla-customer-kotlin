@@ -1,5 +1,10 @@
 # Active context — durpalla-customer-kotlin
 
+## 2026-11-26 — Home refresh, checkout totals and profile email
+
+- Home supports pull to refresh. Checkout pins the fare, inclusive service charge, total and confirmation above policy consent.
+- Profiles with an unverified saved email can request and enter an email OTP. The gateway must record genuine email verification separately from mobile verification and reset it on an address change to cover all mobile registrations.
+
 ## 2026-11-26 — Supplier customer policies
 
 - Display supplier terms and cancellation policy links on trip details, checkout, payment and ticket details when configured.

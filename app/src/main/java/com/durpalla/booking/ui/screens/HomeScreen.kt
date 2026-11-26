@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,6 +86,7 @@ private fun parseActiveServices(siteInit: JsonObject, appConfig: JsonObject): Se
     return enabled
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen() {
     val c = LocalContainer.current; val nav = LocalNav.current
@@ -148,7 +150,11 @@ fun HomeScreen() {
         if (active.isEmpty()) serviceTiles else serviceTiles.filter { it.key in active }.ifEmpty { serviceTiles }
     }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    PullToRefreshBox(
+        isRefreshing = state is Load.Loading,
+        onRefresh = vm::reload,
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),

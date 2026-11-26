@@ -23,10 +23,12 @@ sealed interface Load<out T> {
 class LoadVm<T>(private val loader: suspend () -> T) : ViewModel() {
     private val _state = MutableStateFlow<Load<T>>(Load.Loading)
     val state: StateFlow<Load<T>> = _state
+    private var loadJob: kotlinx.coroutines.Job? = null
     init { reload() }
     fun reload() {
+        if (loadJob?.isActive == true) return
         _state.value = Load.Loading
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             _state.value = runCatching {
                 Load.Ok(withContext(Dispatchers.IO) { loader() })
             }.getOrElse { Load.Err(it.message ?: AppCtx.str(R.string.generic_error)) }
