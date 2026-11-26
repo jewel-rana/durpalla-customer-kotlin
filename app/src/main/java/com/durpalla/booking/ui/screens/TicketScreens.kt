@@ -35,6 +35,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
@@ -157,6 +158,16 @@ fun TicketScreen(id: Int) {
                 val res = s.value
                 val dataObj = res.o("booking") ?: res.o("data")?.let { d -> d.o("booking") ?: d } ?: res
                 val b = Booking.from(dataObj)
+                val paymentDueAt = dataObj.d("payment_due_at_ms")?.toLong() ?: 0L
+                val canPay = dataObj.b("can_pay") && paymentDueAt > System.currentTimeMillis()
+                var paymentWindowOpen by remember(id, paymentDueAt, canPay) { mutableStateOf(canPay) }
+                LaunchedEffect(paymentDueAt, canPay) {
+                    if (canPay) {
+                        delay((paymentDueAt - System.currentTimeMillis()).coerceAtLeast(0L))
+                        paymentWindowOpen = false
+                        vm.reload()
+                    }
+                }
                 val cancellableIds = b.items.filter { BookingCancelRules.canCancelItem(b, it) }
                     .mapNotNull { it.i("id") }
                 val canCancelBooking = cancellableIds.isNotEmpty() && cancellableIds.size == b.items.size
@@ -367,6 +378,20 @@ fun TicketScreen(id: Int) {
                         }
                     }
 
+                    if (dataObj.o("supplier_policies") != null) {
+                        item { SupplierPolicyLinks(dataObj.o("supplier_policies")) }
+                    }
+
+                    if (paymentWindowOpen && b.totalPayable > 0.0) {
+                        item {
+                            GradientButton(t(R.string.pay_now), Modifier.fillMaxWidth()) {
+                                if (System.currentTimeMillis() < paymentDueAt) {
+                                    nav.go(Routes.payment(b.id, b.totalPayable))
+                                }
+                            }
+                        }
+                    }
+
                     b.invoiceUrl?.takeIf { it.isNotBlank() && b.downloadable }?.let { url ->
                         item {
                             Button(
@@ -530,7 +555,11 @@ private fun TicketItemCard(
             } else {
                 val cabinNo = item.str("cabin_no", "seat_no", "label")
                 val cabinType = item.str("cabin_type", "item_type", "type").uppercase()
-                val acText = if (item.b("is_ac")) t(R.string.filter_ac) else t(R.string.filter_non_ac)
+                val acText = when (item.s("is_ac")?.trim()?.lowercase()) {
+                    "1", "true" -> t(R.string.filter_ac)
+                    "0", "false" -> t(R.string.filter_non_ac)
+                    else -> ""
+                }
                 val title = listOf(cabinNo, cabinType, acText).filter { it.isNotBlank() }.joinToString(" · ")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.EventSeat, null, tint = Brand.Primary, modifier = Modifier.size(20.dp))

@@ -1,5 +1,33 @@
 # Active context — durpalla-customer-kotlin
 
+## 2026-11-26 — Supplier customer policies
+
+- Display supplier terms and cancellation policy links on trip details, checkout, payment and ticket details when configured.
+
+## 2026-11-26 — Booked seat AC label
+
+- Show AC or Non-AC on ticket items only when the gateway provides an explicit flag.
+
+## 2026-11-26 — Booking payment window and confirmation
+
+- Show Pay now on ticket details for pending and reserved bookings within the gateway payment window. Refresh the booking at the deadline.
+
+## 2026-11-26 — Messenger support link
+
+- Request device unlock when needed before handing the Messenger support conversation to an external browser. Show phone/email guidance when the link cannot launch.
+
+## 2026-11-26 — Gateway payment verification
+
+- The payment result screen displays success only when the gateway API returns verified paid status. Pending or unavailable verification can be rechecked without restarting payment.
+
+## 2026-11-26 — Multi-seat Paribahan reservations
+
+- Select Paribahan seats together and hold them in one supplier request so the cart can check out with one reservation. Release an existing hold before changing its seats.
+
+## 2026-11-26 — Guest transport seat holds
+
+- Transport seats can be held as a guest. Checkout prompts for sign-in. The gateway supplies guest contact details for Paribahan holds.
+
 ## 2026-11-25 — Mobile sign-in cursor
 
 - Render Bangladesh phone separators through Compose's visual transformation so fast typing and edits keep the cursor aligned with the raw digits.

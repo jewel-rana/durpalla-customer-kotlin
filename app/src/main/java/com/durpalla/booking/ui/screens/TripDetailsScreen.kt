@@ -59,6 +59,7 @@ class TripDetailsVm(
     val selectedClass = MutableStateFlow("")
     val selectedBoardingId = MutableStateFlow("")
     val busy = MutableStateFlow<Int?>(null)
+    val selectedSeats = MutableStateFlow<List<SeatItem>>(emptyList())
     val snack = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val liveLocked = MutableStateFlow<Set<String>>(emptySet())
     val liveReleased = MutableStateFlow<Set<String>>(emptySet())
@@ -219,19 +220,50 @@ class TripDetailsVm(
                 .takeIf { it.isNotBlank() && !it.equals("available", true) && !it.equals("disable", true) }
         }.distinct()
 
+    fun containsSeat(line: CartItem, id: Int?): Boolean =
+        line.tripId == tripId && id != null && (line.itemId == id ||
+            line.meta.a("selected_item_ids").orEmpty().any { (it as? JsonPrimitive)?.intOrNull == id })
+
     fun isLocked(s: SeatItem): Boolean {
         val id = s.itemId?.toString() ?: return true
-        if (cartStore.items.value.any { it.itemId == s.itemId }) return false
+        if (cartStore.items.value.any { containsSeat(it, s.itemId) }) return false
         if (id in liveLocked.value) return true
         if (id in liveReleased.value && s.bookingId == null) return false
         return s.isBooked || s.isTempLocked
     }
 
     fun toggle(s: SeatItem, d: JsonObject) {
-        val tokenAtSelection = c.session.token ?: return
         if (busy.value != null) return
         val id = s.itemId ?: return
-        val existing = cartStore.items.value.firstOrNull { it.itemId == id }
+        val existing = cartStore.items.value.firstOrNull { containsSeat(it, id) }
+        if (existing == null && (d.s("book_token") ?: bookToken) != null) {
+            val seats = selectedSeats.value
+            when {
+                cartStore.items.value.any { it.tripId == tripId } ->
+                    snack.tryEmit(AppCtx.str(R.string.release_before_changing_seats))
+                seats.any { it.itemId == id } -> selectedSeats.value = seats.filterNot { it.itemId == id }
+                seats.size >= 4 -> snack.tryEmit(AppCtx.str(R.string.max_supplier_seats))
+                !isLocked(s) -> selectedSeats.value = seats + s
+            }
+            return
+        }
+        updateHold(listOf(s), d, existing)
+    }
+
+    fun holdSelected(d: JsonObject) {
+        val seats = selectedSeats.value
+        if (busy.value != null || seats.isEmpty()) return
+        if (cartStore.items.value.isNotEmpty()) {
+            snack.tryEmit(AppCtx.str(R.string.release_before_changing_seats))
+            return
+        }
+        updateHold(seats, d)
+    }
+
+    private fun updateHold(seats: List<SeatItem>, d: JsonObject, existing: CartItem? = null) {
+        val tokenAtSelection = c.session.token
+        val s = seats.first()
+        val id = s.itemId ?: return
         viewModelScope.launch {
             busy.value = id
             try {
@@ -239,10 +271,10 @@ class TripDetailsVm(
                     if (c.trips.releaseLock(existing)) cartStore.remove(existing)
                     else snack.emit(AppCtx.str(R.string.could_not_release))
                 } else {
-                    val user = c.profile.profile()
+                    val user = if (tokenAtSelection != null) c.profile.profile() else null
                     if (c.session.token != tokenAtSelection) return@launch
                     val mobile = user.str("mobile", "phone").trim()
-                    if (mobile.isBlank()) {
+                    if (tokenAtSelection != null && mobile.isBlank()) {
                         snack.emit(AppCtx.str(R.string.seat_hold_registered_mobile_required))
                         return@launch
                     }
@@ -253,11 +285,11 @@ class TripDetailsVm(
                         val bp = boarding ?: options.firstOrNull()
                         SupplierLock(
                             bookToken = token,
-                            seatIds = listOf(s.raw.s("supplier_seat_id") ?: id.toString()),
-                            seatLabels = listOf(s.label),
-                            ticketPrices = listOf(s.fare),
-                            passengerName = user.str("name", "full_name").trim(),
-                            passengerMobile = mobile,
+                            seatIds = seats.map { it.raw.s("supplier_seat_id") ?: it.itemId.toString() },
+                            seatLabels = seats.map { it.label },
+                            ticketPrices = seats.map { it.fare },
+                            passengerName = user?.str("name", "full_name")?.trim(),
+                            passengerMobile = mobile.ifBlank { null },
                             boardingPointId = bp?.id,
                             boardingPointName = bp?.name,
                         )
@@ -273,14 +305,17 @@ class TripDetailsVm(
                         (data.s("supplier") ?: d.s("supplier"))?.let { put("supplier", it) }
                         (data.s("book_token") ?: token)?.let { put("book_token", it) }
                         put("booking_id", data.s("booking_id") ?: lockId)
+                        if (supplier != null) put("selected_item_ids", buildJsonArray {
+                            seats.mapNotNull { it.itemId }.forEach { add(JsonPrimitive(it)) }
+                        })
                     }
                     cartStore.add(
                         CartItem(
                             itemId = id,
                             type = s.kind,
-                            price = data.d("fare", "price") ?: s.fare,
+                            price = data.d("fare", "price") ?: seats.sumOf { it.fare },
                             lockId = lockId,
-                            label = s.label,
+                            label = seats.joinToString { it.label },
                             tripId = tripId,
                             vehicleName = d.str("vehicle_name"),
                             routeName = d.str("route_name"),
@@ -290,6 +325,7 @@ class TripDetailsVm(
                             totalVat = data.d("total_vat") ?: 0.0,
                         ),
                     )
+                    if (supplier != null) selectedSeats.value = emptyList()
                 }
             } catch (e: Exception) {
                 snack.emit(e.message ?: AppCtx.str(R.string.status_failed))
@@ -314,8 +350,7 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
     val selectedBoardingId by vm.selectedBoardingId.collectAsState()
     val cart by c.cart.items.collectAsState()
     val busy by vm.busy.collectAsState()
-    val loggedIn by c.session.loggedIn.collectAsState()
-    var loginPromptOpen by remember(tripId) { mutableStateOf(false) }
+    val selectedSeats by vm.selectedSeats.collectAsState()
     vm.liveLocked.collectAsState().value; vm.liveReleased.collectAsState().value
     val snackHost = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.snack.collect { snackHost.showSnackbar(it) } }
@@ -325,14 +360,22 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
         topBar = { DTopBar(t(R.string.trip_details), onBack = nav::back) },
         snackbarHost = { SnackbarHost(snackHost) },
         bottomBar = {
-            AnimatedVisibility(mine.isNotEmpty(), enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+            AnimatedVisibility(mine.isNotEmpty() || selectedSeats.isNotEmpty(), enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
                 Surface(shadowElevation = 16.dp) {
                     Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(t(R.string.selected_count, mine.size, mine.joinToString { it.label }), style = MaterialTheme.typography.bodySmall, color = Brand.Muted, maxLines = 1)
-                            Text(money(mine.sumOf { it.lineTotal }), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
+                            val labels = if (selectedSeats.isNotEmpty()) selectedSeats.map { it.label }
+                                else mine.flatMap { it.label.split(", ") }
+                            Text(t(R.string.selected_count, labels.size, labels.joinToString()), style = MaterialTheme.typography.bodySmall, color = Brand.Muted, maxLines = 1)
+                            Text(money(mine.sumOf { it.lineTotal } + selectedSeats.sumOf { it.fare }), style = MaterialTheme.typography.titleLarge, color = Brand.AmberDark, fontWeight = FontWeight.ExtraBold)
                         }
-                        GradientButton(t(R.string.continue_checkout), Modifier.width(190.dp)) { nav.go(Routes.CHECKOUT) }
+                        if (selectedSeats.isNotEmpty()) {
+                            GradientButton(t(R.string.hold_selected_seats), Modifier.width(190.dp), loading = busy != null) {
+                                (state as? Load.Ok)?.value?.let(vm::holdSelected)
+                            }
+                        } else {
+                            GradientButton(t(R.string.continue_checkout), Modifier.width(190.dp)) { nav.go(Routes.CHECKOUT) }
+                        }
                     }
                 }
             }
@@ -355,6 +398,7 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
                             if (stops.isNotEmpty()) Text(stops.joinToString(" • "), color = Brand.Amber, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                         }
                     }
+                    SupplierPolicyLinks(d.o("supplier_policies"), Modifier.padding(horizontal = 16.dp))
                     val boardingOptions = remember(d) { boardingOptionsFromTrip(d) }
                     if (boardingOptions.isNotEmpty()) {
                         SoftCard(Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth()) {
@@ -460,15 +504,13 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
                                                         // Invisible cell spacer (no border, no background)
                                                         Spacer(Modifier.size(58.dp))
                                                     } else {
+                                                        val selectedForHold = selectedSeats.any { it.itemId == item.itemId }
                                                         SeatCell(
                                                             s = item,
-                                                            selected = mine.any { it.itemId == item.itemId },
-                                                            locked = vm.isLocked(item),
+                                                            selected = selectedForHold || mine.any { vm.containsSeat(it, item.itemId) },
+                                                            locked = !selectedForHold && vm.isLocked(item),
                                                             busy = busy == item.itemId,
-                                                        ) {
-                                                            if (c.session.loggedIn.value) vm.toggle(item, d)
-                                                            else loginPromptOpen = true
-                                                        }
+                                                        ) { vm.toggle(item, d) }
                                                     }
                                                 }
                                             }
@@ -485,22 +527,6 @@ fun TripDetailsScreen(tripId: String, type: String, bookToken: String? = null) {
         }
     }
 
-    if (loginPromptOpen && !loggedIn) {
-        AlertDialog(
-            onDismissRequest = { loginPromptOpen = false },
-            title = { Text(t(R.string.sign_in_required)) },
-            text = { Text(t(R.string.seat_hold_sign_in_required)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    loginPromptOpen = false
-                    nav.go(Routes.login(null))
-                }) { Text(t(R.string.sign_in)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { loginPromptOpen = false }) { Text(t(R.string.cancel)) }
-            },
-        )
-    }
 }
 
 @Composable

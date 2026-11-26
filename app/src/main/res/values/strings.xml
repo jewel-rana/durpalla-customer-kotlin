@@ -27,7 +27,6 @@
     <string name="sign_in">Sign in</string>
     <string name="sign_out">Sign out</string>
     <string name="sign_in_required">Sign in required</string>
-    <string name="seat_hold_sign_in_required">Sign in to hold seats using the mobile number registered to your account.</string>
     <string name="seat_hold_registered_mobile_required">Your account needs a registered mobile number to hold seats.</string>
     <string name="sign_in_required_body">Please sign in with your mobile number or email to continue. You will return right here afterwards.</string>
     <string name="not_now">Not now</string>
@@ -116,6 +115,8 @@
     <string name="cancel_payment_body">If you leave now, the payment may not complete.</string>
     <string name="stay">Stay</string>
     <string name="leave">Leave</string>
+    <string name="payment_confirmation_pending">Payment confirmation is pending</string>
+    <string name="check_payment_again">Check payment again</string>
     <string name="payment_success">Payment successful</string>
     <string name="payment_failed">Payment failed</string>
     <string name="view_ticket">View ticket</string>
@@ -254,6 +255,9 @@
     <string name="enter_passenger_name_mobile">Enter passenger name and mobile</string>
     <string name="passenger_hold_title">Passenger details for seat hold</string>
     <string name="passenger_hold_hint">Enter the contact details Paribahan needs to reserve this seat. You can continue as a guest; sign-in is only needed before checkout.</string>
+    <string name="hold_selected_seats">Hold selected seats</string>
+    <string name="release_before_changing_seats">Release your current hold before changing seats.</string>
+    <string name="max_supplier_seats">Select up to 4 seats.</string>
     <string name="hold_seat">Hold seat</string>
     <string name="cancel">Cancel</string>
     <string name="boarding_point">Boarding point</string>
@@ -398,6 +402,8 @@
     <string name="registered_address">Registered Address</string>
     <string name="whatsapp_support">WhatsApp Support</string>
     <string name="messenger_support">Messenger Support</string>
+    <string name="messenger_support_unlock_required">Unlock your phone to open Messenger support.</string>
+    <string name="messenger_support_unavailable">Could not open Messenger. Please call or email Durpalla support.</string>
     <string name="maintenance_title">Under Maintenance</string>
     <string name="paste_code">Paste code</string>
     <string name="enable_notification_access">Auto-read from notifications</string>

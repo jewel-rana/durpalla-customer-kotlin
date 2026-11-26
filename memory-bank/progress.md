@@ -3,6 +3,13 @@
 Target: Flutter master `@8ee2bed`. Tracker detail: `MASTER_PORT_TODOS.md`.
 
 ## Done
+- **Supplier customer policies (2026-11-26)**: Display supplier terms and cancellation policy links on trip details, checkout, payment and ticket details when configured.
+- **Booked seat AC label (2026-11-26)**: Show AC or Non-AC on ticket items only when the gateway provides an explicit flag.
+- **Booking payment window (2026-11-26)**: Show Pay now on ticket details for pending and reserved bookings within the gateway payment window. Refresh the booking at the deadline.
+- **Messenger support link (2026-11-26)**: Request device unlock when needed before handing the Messenger support conversation to an external browser. Show phone/email guidance when the link cannot launch.
+- **Gateway payment verification (2026-11-26)**: The payment result screen displays success only when the gateway API returns verified paid status. Pending or unavailable verification can be rechecked without restarting payment.
+- Select Paribahan seats together and hold them in one supplier request so the cart can check out with one reservation. Release an existing hold before changing its seats.
+- Transport seats can be held as a guest. Checkout prompts for sign-in. The gateway supplies guest contact details for Paribahan holds.
 - **Mobile sign-in cursor (2026-11-25)**: Keep phone formatting separate from editable digits.
 - **Transport seat hold sign-in (2026-11-25)**: Prompt for sign-in when a guest selects a seat and use the registered profile for supplier holds.
 - **Ticket details and language (2026-11-25)**: Show booking items and boarding points, support eligible cancellation, and update bundled labels on language change.

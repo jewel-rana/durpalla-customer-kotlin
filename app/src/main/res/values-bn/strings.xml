@@ -27,7 +27,6 @@
     <string name="sign_in">সাইন ইন</string>
     <string name="sign_out">সাইন আউট</string>
     <string name="sign_in_required">সাইন ইন প্রয়োজন</string>
-    <string name="seat_hold_sign_in_required">অ্যাকাউন্টে নিবন্ধিত মোবাইল নম্বর দিয়ে সিট ধরে রাখতে সাইন ইন করুন।</string>
     <string name="seat_hold_registered_mobile_required">সিট ধরে রাখতে আপনার অ্যাকাউন্টে একটি নিবন্ধিত মোবাইল নম্বর প্রয়োজন।</string>
     <string name="sign_in_required_body">চালিয়ে যেতে আপনার মোবাইল নম্বর বা ইমেইল দিয়ে সাইন ইন করুন। এরপর আপনি এখানেই ফিরে আসবেন।</string>
     <string name="not_now">এখন না</string>
@@ -116,6 +115,8 @@
     <string name="cancel_payment_body">এখন বের হলে পেমেন্ট সম্পূর্ণ নাও হতে পারে।</string>
     <string name="stay">থাকুন</string>
     <string name="leave">বের হন</string>
+    <string name="payment_confirmation_pending">পেমেন্ট নিশ্চিতকরণের অপেক্ষায় আছে</string>
+    <string name="check_payment_again">পেমেন্ট আবার যাচাই করুন</string>
     <string name="payment_success">পেমেন্ট সফল</string>
     <string name="payment_failed">পেমেন্ট ব্যর্থ</string>
     <string name="view_ticket">টিকিট দেখুন</string>
@@ -254,6 +255,9 @@
     <string name="enter_passenger_name_mobile">যাত্রীর নাম ও মোবাইল দিন</string>
     <string name="passenger_hold_title">সিট ধরে রাখতে যাত্রীর তথ্য</string>
     <string name="passenger_hold_hint">এই সিট সংরক্ষণে পরিবহনের প্রয়োজনীয় যোগাযোগের তথ্য দিন। অতিথি হিসেবে চালিয়ে যেতে পারবেন; শুধু চেকআউটের আগে সাইন ইন করতে হবে।</string>
+    <string name="hold_selected_seats">নির্বাচিত সিট ধরে রাখুন</string>
+    <string name="release_before_changing_seats">সিট পরিবর্তনের আগে বর্তমান সিটের হোল্ড ছেড়ে দিন।</string>
+    <string name="max_supplier_seats">সর্বোচ্চ ৪টি সিট বেছে নিন।</string>
     <string name="hold_seat">সিট ধরে রাখুন</string>
     <string name="cancel">বাতিল</string>
     <string name="boarding_point">বোর্ডিং পয়েন্ট</string>
@@ -398,6 +402,8 @@
     <string name="registered_address">নিবন্ধিত ঠিকানা</string>
     <string name="whatsapp_support">হোয়াটসঅ্যাপ সাপোর্ট</string>
     <string name="messenger_support">মেসেঞ্জার সাপোর্ট</string>
+    <string name="messenger_support_unlock_required">মেসেঞ্জার সাপোর্ট খুলতে আপনার ফোন আনলক করুন।</string>
+    <string name="messenger_support_unavailable">মেসেঞ্জার খোলা যায়নি। দয়া করে দূরপাল্লা সাপোর্টে কল বা ইমেইল করুন।</string>
     <string name="maintenance_title">রক্ষণাবেক্ষণ চলছে</string>
     <string name="paste_code">কোড পেস্ট করুন</string>
     <string name="enable_notification_access">নোটিফিকেশন থেকে ওটিপি পড়ুন</string>

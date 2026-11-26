@@ -319,7 +319,7 @@ class BookingRepository(private val api: ApiClient) {
 }
 
 class PaymentRepository(private val api: ApiClient) {
-    suspend fun gateways(bookingId: Int): List<Gateway> {
+    suspend fun gateways(bookingId: Int): Pair<List<Gateway>, JsonObject?> {
         val r = api.get("gateway", mapOf("booking_id" to bookingId)).requireSuccess(AppCtx.str(R.string.err_load_gateways))
         val raw = r["gateways"] ?: r["data"] ?: r
         val arr = when (raw) {
@@ -327,11 +327,12 @@ class PaymentRepository(private val api: ApiClient) {
             is JsonObject -> raw.a("gateways") ?: raw.a("data")
             else -> null
         }
-        return arr.objects().mapNotNull { g ->
+        val gateways = arr.objects().mapNotNull { g ->
             val id = g.i("id") ?: return@mapNotNull null
             val name = g.str("name").ifEmpty { return@mapNotNull null }
             Gateway(id, name, MediaUrl.resolve(g.s("icon")), g.o("meta").d("fee") ?: g.d("fee"))
         }
+        return gateways to r.o("booking").o("supplier_policies")
     }
 
     suspend fun make(bookingId: Int, gatewayId: Int, amount: Double): Pair<String, Int> {

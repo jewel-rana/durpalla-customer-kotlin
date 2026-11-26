@@ -1,13 +1,19 @@
 package com.durpalla.booking.ui.screens
 
 import android.app.Activity
+import android.app.KeyguardManager
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.net.Uri
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
@@ -466,6 +472,65 @@ fun SavedScreen() {
     }
 }
 
+private fun openMessengerSupport(context: Context, url: String, unavailable: String, unlockRequired: String) {
+    fun openLink() {
+        if (!launchMessengerSupport(context, url)) {
+            Toast.makeText(context, unavailable, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val keyguard = context.getSystemService(KeyguardManager::class.java)
+    if (keyguard?.isKeyguardLocked != true) {
+        openLink()
+        return
+    }
+
+    val activity = generateSequence(context) { (it as? ContextWrapper)?.baseContext }
+        .filterIsInstance<Activity>()
+        .firstOrNull()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity != null) {
+        keyguard.requestDismissKeyguard(activity, object : KeyguardManager.KeyguardDismissCallback() {
+            override fun onDismissSucceeded() = openLink()
+
+            override fun onDismissError() {
+                Toast.makeText(context, unlockRequired, Toast.LENGTH_LONG).show()
+            }
+        })
+    } else {
+        Toast.makeText(context, unlockRequired, Toast.LENGTH_LONG).show()
+    }
+}
+
+private fun launchMessengerSupport(context: Context, url: String): Boolean {
+    val link = Uri.parse(url.trim())
+    if (!link.scheme.equals("https", ignoreCase = true) || link.host.isNullOrBlank()) return false
+
+    val pageId = link.pathSegments.singleOrNull()?.takeIf { it.all { ch -> ch in '0'..'9' } }
+    val browserLink = if (link.host.equals("m.me", ignoreCase = true) && pageId != null) {
+        Uri.parse("https://www.messenger.com/t/$pageId").buildUpon()
+            .encodedQuery(link.encodedQuery)
+            .build()
+    } else link
+
+    val browserProbe = Intent(Intent.ACTION_VIEW, Uri.parse("https://browser-check.invalid"))
+        .addCategory(Intent.CATEGORY_BROWSABLE)
+    val packageManager = context.packageManager
+    val browsers = packageManager.queryIntentActivities(browserProbe, PackageManager.MATCH_DEFAULT_ONLY)
+    val defaultBrowser = packageManager.resolveActivity(browserProbe, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+    val browserPackages = browsers.map { it.activityInfo.packageName }.distinct()
+    val browser = defaultBrowser?.takeIf { it in browserPackages } ?: browserPackages.firstOrNull()
+    if (browser != null) {
+        val intent = Intent(Intent.ACTION_VIEW, browserLink)
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+            .setPackage(browser)
+        if (runCatching { context.startActivity(intent) }.isSuccess) return true
+    }
+
+    return runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, link).addCategory(Intent.CATEGORY_BROWSABLE))
+    }.isSuccess
+}
+
 enum class InfoKind { SUPPORT, FAQ, ABOUT, TERMS, NOTIFICATIONS }
 
 @Composable
@@ -519,8 +584,10 @@ fun InfoScreen(kind: InfoKind) {
                             }
                         }
                         if (!messengerUrl.isNullOrBlank()) {
+                            val unavailable = t(R.string.messenger_support_unavailable)
+                            val unlockRequired = t(R.string.messenger_support_unlock_required)
                             MenuRow(Icons.Default.Forum, t(R.string.messenger_support)) {
-                                runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(messengerUrl))) }
+                                openMessengerSupport(ctx, messengerUrl, unavailable, unlockRequired)
                             }
                         }
                         MenuRow(Icons.Default.HelpOutline, t(R.string.browse_faq)) { nav.go(Routes.FAQ) }

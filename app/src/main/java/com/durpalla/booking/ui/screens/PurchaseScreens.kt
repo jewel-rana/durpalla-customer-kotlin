@@ -232,6 +232,7 @@ fun CheckoutScreen() {
             }
             SoftCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
+                    SupplierPolicyLinks(cart.firstNotNullOfOrNull { it.meta.o("supplier_policies") })
                     Text(t(R.string.price_breakdown), style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp))
                     Row { Text(t(R.string.fare), Modifier.weight(1f)); Text(money(subtotal)) }
                     Row { Text(t(R.string.service_charge), Modifier.weight(1f), color = Brand.Muted); Text(money(charge), color = Brand.Muted) }
@@ -266,9 +267,10 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double, policiesAccepted: Boole
     val c = LocalContainer.current; val nav = LocalNav.current
     val vm = rememberLoad("gw-$bookingId") {
         val rc = com.durpalla.booking.data.remote.RemoteAppConfig.fetch()
-        c.payments.gateways(bookingId).filter {
+        val (gateways, supplierPolicies) = c.payments.gateways(bookingId)
+        gateways.filter {
             com.durpalla.booking.data.remote.RemoteAppConfig.paymentEnabled(rc, it.name)
-        }
+        } to supplierPolicies
     }
     val state by vm.state.collectAsState()
     var selected by remember { mutableStateOf<Int?>(null) }
@@ -317,23 +319,27 @@ fun PaymentMethodsScreen(bookingId: Int, amount: Double, policiesAccepted: Boole
             }
         }
     }) { pad ->
-        Column(Modifier.padding(pad).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             StepIndicator(2)
             Text(t(R.string.booking_numbered, bookingId), style = MaterialTheme.typography.bodySmall, color = Brand.Muted)
             when (val s = state) {
                 Load.Loading -> LoadingList(3)
                 is Load.Err -> ErrorState(s.message) { vm.reload() }
-                is Load.Ok -> s.value.forEach { g ->
-                    SoftCard(Modifier.fillMaxWidth(), onClick = { selected = g.id }) {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (g.icon != null) AsyncImage(g.icon, null, Modifier.size(40.dp)) else Icon(Icons.Default.Payment, null, Modifier.size(40.dp), tint = Brand.Primary)
-                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(g.name, style = MaterialTheme.typography.titleSmall)
-                                g.fee?.takeIf { it > 0 }?.let {
-                                    Text(t(R.string.fee_amount, money(it)), style = MaterialTheme.typography.labelSmall, color = Brand.Muted)
+                is Load.Ok -> {
+                    val (gateways, supplierPolicies) = s.value
+                    SupplierPolicyLinks(supplierPolicies)
+                    gateways.forEach { g ->
+                        SoftCard(Modifier.fillMaxWidth(), onClick = { selected = g.id }) {
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (g.icon != null) AsyncImage(g.icon, null, Modifier.size(40.dp)) else Icon(Icons.Default.Payment, null, Modifier.size(40.dp), tint = Brand.Primary)
+                                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                    Text(g.name, style = MaterialTheme.typography.titleSmall)
+                                    g.fee?.takeIf { it > 0 }?.let {
+                                        Text(t(R.string.fee_amount, money(it)), style = MaterialTheme.typography.labelSmall, color = Brand.Muted)
+                                    }
                                 }
+                                RadioButton(selected == g.id, { selected = g.id })
                             }
-                            RadioButton(selected == g.id, { selected = g.id })
                         }
                     }
                 }
@@ -441,32 +447,52 @@ fun PaymentResultScreen(bookingId: Int, cancelled: Boolean) {
             Load.Loading -> CircularProgressIndicator()
             else -> {
                 val r = (s as? Load.Ok)?.value
-                val ok = r?.success == true
+                val verificationStatus = r.s("verification_status")
+                val ok = r?.success == true && verificationStatus == "paid"
+                val failed = verificationStatus == "failed"
+                val tone = when {
+                    ok -> Brand.Success
+                    failed -> Brand.Error
+                    else -> Brand.AmberDark
+                }
                 val data = r.o("data")
                 val scale = remember { androidx.compose.animation.core.Animatable(.4f) }
                 LaunchedEffect(Unit) { scale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = .45f)) }
                 Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     if (ok) Confetti()
-                    Box(Modifier.size(110.dp).scale(scale.value).clip(CircleShape).background(if (ok) Brand.Success.copy(.12f) else Brand.Error.copy(.12f)), contentAlignment = Alignment.Center) {
-                        Icon(if (ok) Icons.Default.CheckCircle else Icons.Default.Cancel, null, Modifier.size(72.dp), tint = if (ok) Brand.Success else Brand.Error)
+                    Box(Modifier.size(110.dp).scale(scale.value).clip(CircleShape).background(tone.copy(.12f)), contentAlignment = Alignment.Center) {
+                        val icon = when {
+                            ok -> Icons.Default.CheckCircle
+                            failed -> Icons.Default.Cancel
+                            else -> Icons.Default.Info
+                        }
+                        Icon(icon, null, Modifier.size(72.dp), tint = tone)
                     }
                     Spacer(Modifier.height(16.dp))
-                    Text(t(if (ok) R.string.payment_success else R.string.payment_failed), style = MaterialTheme.typography.headlineSmall)
-                    Text(r?.message ?: if (cancelled) t(R.string.payment_cancelled) else t(R.string.could_not_verify_payment), color = Brand.Muted)
-                    if (data != null) {
+                    val title = when {
+                        ok -> R.string.payment_success
+                        failed -> R.string.payment_failed
+                        verificationStatus == "pending" -> R.string.payment_confirmation_pending
+                        else -> R.string.could_not_verify_payment
+                    }
+                    Text(t(title), style = MaterialTheme.typography.headlineSmall)
+                    val message = r?.message ?: if (cancelled) t(R.string.payment_cancelled) else null
+                    if (message != null) Text(message, color = Brand.Muted)
+                    if (ok && data != null) {
                         Spacer(Modifier.height(12.dp))
                         SoftCard(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp)) {
                                 Row { Text(t(R.string.label_booking), Modifier.weight(1f), color = Brand.Muted); Text("#$bookingId") }
                                 Row { Text(t(R.string.label_gateway), Modifier.weight(1f), color = Brand.Muted); Text(data.o("gateway").str("name", default = t(R.string.em_dash))) }
                                 Row { Text(t(R.string.label_paid), Modifier.weight(1f), color = Brand.Muted); Text("${data.str("paid_amount", default = t(R.string.em_dash))} ${data.str("currency")}") }
-                                Row { Text(t(R.string.label_status), Modifier.weight(1f), color = Brand.Muted); Text(data.str("nice_status", default = if (ok) t(R.string.status_success) else t(R.string.status_failed))) }
+                                Row { Text(t(R.string.label_status), Modifier.weight(1f), color = Brand.Muted); Text(data.str("nice_status", default = t(title))) }
                             }
                         }
                     }
                     Spacer(Modifier.height(20.dp))
                     if (ok) GradientButton(t(R.string.view_ticket), Modifier.fillMaxWidth()) { nav.nav.navigate(Routes.ticket(bookingId)) { popUpTo(Routes.HOME) } }
-                    else GradientButton(t(R.string.retry), Modifier.fillMaxWidth()) { nav.back() }
+                    else if (failed) GradientButton(t(R.string.retry), Modifier.fillMaxWidth()) { nav.back() }
+                    else GradientButton(t(R.string.check_payment_again), Modifier.fillMaxWidth()) { vm.reload() }
                     TextButton({ nav.nav.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } }) { Text(t(R.string.back_home)) }
                 }
             }
